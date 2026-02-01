@@ -36,11 +36,12 @@ const handleImageError = () => {
         </div>
         <span class="text-sm font-medium">X / Twitter</span>
       </div>
-      <UIcon 
-        name="i-heroicons-information-circle" 
-        class="w-5 h-5 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 cursor-help transition-colors" 
-        :title="`${cardType === 'summary' ? 'Summary' : 'Large image'} card preview for X (Twitter)`"
-      />
+      <AppTooltip :text="`${cardType === 'summary' ? 'Summary' : 'Large image'} card preview for X (Twitter)`">
+        <UIcon 
+          name="i-heroicons-information-circle" 
+          class="w-5 h-5 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 cursor-help transition-colors" 
+        />
+      </AppTooltip>
     </div>
     
     <!-- Preview -->
