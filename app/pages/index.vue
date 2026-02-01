@@ -60,7 +60,7 @@ const sampleHtml = `<!DOCTYPE html>
   <meta property="og:description" content="Research, grants, and data to improve Illinois criminal justice policy and practice.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://icjia.illinois.gov">
-  <meta property="og:image" content="https://icjia.illinois.gov/og-image.jpg">
+  <meta property="og:image" content="https://picsum.photos/1200/630">
   
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
@@ -111,10 +111,10 @@ const loadSample = () => {
               </div>
             </template>
             
-            <UFormGroup 
+            <UFormField 
               label="HTML Input" 
               description="Paste your page's HTML or just the <head> section. Analysis happens automatically as you type."
-              :help="hasAnalyzed ? 'Analysis complete' : 'Start typing to see results'"
+              :hint="hasAnalyzed ? 'Analysis complete' : 'Start typing to see results'"
             >
               <UTextarea
                 v-model="inputHtml"
@@ -131,7 +131,7 @@ const loadSample = () => {
                 aria-label="HTML input"
                 class="font-mono text-sm"
               />
-            </UFormGroup>
+            </UFormField>
             
             <template #footer>
               <div class="flex items-center justify-between">

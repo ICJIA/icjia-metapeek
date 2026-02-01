@@ -721,7 +721,7 @@ useHead({
       <!-- Input Section -->
       <section class="mb-8">
         <UCard>
-          <UFormGroup 
+          <UFormField 
             label="Paste HTML" 
             description="Paste your page's HTML or just the <head> section"
           >
@@ -737,7 +737,7 @@ useHead({
 </html>"
               aria-label="HTML input"
             />
-          </UFormGroup>
+          </UFormField>
           
           <template #footer>
             <div class="flex justify-end">
