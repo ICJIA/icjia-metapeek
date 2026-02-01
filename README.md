@@ -10,11 +10,21 @@
 
 ---
 
+## Screenshots
+
+### Dark Mode
+![MetaPeek Dark Mode](/screenshot-dark.png)
+
+### Light Mode
+![MetaPeek Light Mode](/screenshot-light.png)
+
+---
+
 ## What is MetaPeek?
 
 MetaPeek accepts either a live URL or pasted HTML, extracts all relevant meta tags, Open Graph markup, Twitter Cards, and structured data, then:
 
-- **Renders platform-specific previews** — See how your page appears on Google, Facebook, Twitter/X, and Slack
+- **Renders platform-specific previews** — See how your page appears on Google, Facebook, LinkedIn, X (Twitter), and Slack
 - **Diagnoses problems** — Get actionable warnings about missing, malformed, or suboptimal tags
 - **Generates corrected markup** — Copy ready-to-use HTML snippets with sensible defaults
 
@@ -36,7 +46,7 @@ MetaPeek is opinionated about being **fast, clean, and actionable**.
 ### Phase 1 — Client-Side MVP ✅
 - [x] Paste HTML and parse instantly (< 100ms)
 - [x] Extract all meta tags, Open Graph, Twitter Cards, JSON-LD
-- [x] Render accurate platform previews (Google, Facebook, Twitter, Slack)
+- [x] Render accurate platform previews (Google, Facebook, LinkedIn, X/Twitter, Slack)
 - [x] Diagnostics panel with color-coded status
 - [x] Code generator with editable output
 - [x] WCAG 2.1 AA compliant from day one
@@ -93,6 +103,34 @@ MetaPeek is opinionated about being **fast, clean, and actionable**.
 - 4.5:1 minimum contrast ratio
 - No color-only status indicators
 
+### Custom Components
+
+#### AppTooltip
+
+A custom, accessible tooltip component built from scratch (no external dependencies):
+
+```vue
+<AppTooltip text="Helpful information">
+  <button>Hover me</button>
+</AppTooltip>
+```
+
+**Features:**
+- **Teleport to body** — Escapes parent `overflow: hidden` containers
+- **Fixed positioning** — Calculates position based on viewport space
+- **Auto-positioning** — Prefers left/right on desktop, top/bottom on mobile
+- **Keyboard accessible** — Shows on focus (Tab key)
+- **Screen reader compatible** — Uses `role="tooltip"` and `aria-describedby`
+- **Instant display** — No delay (configurable via `delay` prop)
+- **Smooth animations** — Fade/scale transitions
+
+**Props:**
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `text` | `string` | required | Tooltip content |
+| `position` | `'auto' \| 'top' \| 'bottom' \| 'left' \| 'right'` | `'auto'` | Preferred position |
+| `delay` | `number` | `0` | Delay before showing (ms) |
+
 ---
 
 ## Project Structure
@@ -104,8 +142,10 @@ icjia-metapeek/
 │   │   └── css/
 │   │       └── main.css     # Tailwind CSS entry point
 │   ├── components/          # Vue components
+│   │   ├── AppTooltip.vue       # Custom accessible tooltip
 │   │   ├── PreviewGoogle.vue
 │   │   ├── PreviewFacebook.vue
+│   │   ├── PreviewLinkedIn.vue
 │   │   ├── PreviewTwitter.vue
 │   │   ├── PreviewSlack.vue
 │   │   ├── DiagnosticsPanel.vue
