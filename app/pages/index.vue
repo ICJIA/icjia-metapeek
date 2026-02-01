@@ -66,7 +66,7 @@ const sampleHtml = `<!DOCTYPE html>
   <meta property="og:description" content="Join the world's most widely adopted AI-powered developer platform where millions of developers, businesses, and the largest open source community build software.">
   <meta property="og:image" content="https://github.githubassets.com/assets/github-logo-55c5b9a1fe52.png">
   
-  <!-- Twitter -->
+  <!-- X (Twitter) -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:site" content="@github">
   <meta name="twitter:title" content="GitHub">
@@ -154,7 +154,7 @@ const tabs = [
           Analyze your Open Graph markup
         </h1>
         <p class="text-gray-700 dark:text-gray-300 max-w-2xl">
-          Paste HTML to preview how your page appears on Google, Facebook, Twitter, and Slack.
+          Paste HTML to preview how your page appears on Google, Facebook, LinkedIn, X, and Slack.
         </p>
       </div>
 
@@ -259,6 +259,11 @@ const tabs = [
               :url="parsedTags.og.url || parsedTags.canonical"
             />
             <PreviewFacebook
+              :title="parsedTags.og.title"
+              :description="parsedTags.og.description"
+              :image="parsedTags.og.image"
+            />
+            <PreviewLinkedIn
               :title="parsedTags.og.title"
               :description="parsedTags.og.description"
               :image="parsedTags.og.image"
