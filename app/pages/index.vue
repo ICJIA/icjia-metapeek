@@ -177,13 +177,21 @@ const tabs = [
         </div>
       </div>
 
-    <!-- Input Section - Full Width, Modern -->
-    <div class="mb-8">
-      <div class="flex items-center justify-between mb-3">
-        <label for="html-input" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-          Paste your page's HTML (or just the &lt;head&gt; section)
-        </label>
-        <div class="flex items-center gap-2">
+    <!-- Input Section - Distinctive background -->
+    <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-950/30 dark:to-transparent border-y border-blue-100/50 dark:border-blue-900/30">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+          <UIcon name="i-heroicons-code-bracket" class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        </div>
+        <div>
+          <label for="html-input" class="text-sm font-semibold text-gray-900 dark:text-white block">
+            Step 1: Paste your HTML
+          </label>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Paste your page's source code (or just the &lt;head&gt; section)
+          </p>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
           <UButton
             v-if="inputHtml.trim()"
             size="sm"
@@ -197,7 +205,7 @@ const tabs = [
           <UButton
             size="sm"
             variant="soft"
-            color="neutral"
+            color="primary"
             icon="i-heroicons-document-duplicate"
             @click="loadSample"
           >
@@ -210,27 +218,28 @@ const tabs = [
         <textarea
           id="html-input"
           v-model="inputHtml"
-          rows="10"
-          placeholder="Paste your page's <head> section here (or full HTML)..."
-          class="w-full px-4 py-3 rounded-lg border-0 bg-white dark:bg-gray-900 
-                 ring-1 ring-gray-300 dark:ring-gray-700 
+          rows="8"
+          placeholder="Right-click on your webpage → 'View Page Source' → Copy and paste here..."
+          class="w-full px-4 py-3 rounded-xl border-0 bg-white dark:bg-gray-900 
+                 ring-1 ring-gray-200 dark:ring-gray-700 
                  focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
                  font-mono text-sm leading-relaxed
-                 placeholder:text-gray-400 dark:placeholder:text-gray-600
-                 resize-none transition-shadow duration-150"
+                 placeholder:text-gray-400 dark:placeholder:text-gray-500
+                 resize-none transition-shadow duration-150
+                 shadow-sm"
           spellcheck="false"
         />
         
         <!-- Status indicator -->
         <div class="absolute bottom-3 right-3 flex items-center gap-3 text-xs">
-          <span class="text-gray-500 dark:text-gray-400 tabular-nums">
+          <span class="text-gray-400 dark:text-gray-500 tabular-nums">
             {{ inputHtml.length.toLocaleString() }} chars
           </span>
           <span 
             v-if="hasAnalyzed" 
-            class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+            class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
           >
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             Analyzed
           </span>
         </div>
@@ -303,8 +312,10 @@ const tabs = [
             />
           </div>
           
-          <!-- Image Analysis - Separate distinctive section -->
-          <ImageAnalysis :image-url="parsedTags.og.image" />
+          <!-- Image Analysis - Distinctive full-width section -->
+          <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mt-4 bg-gradient-to-b from-purple-50/50 to-transparent dark:from-purple-950/30 dark:to-transparent border-y border-purple-100/50 dark:border-purple-900/30">
+            <ImageAnalysis :image-url="parsedTags.og.image" />
+          </div>
         </div>
 
         <!-- Diagnostics Tab -->
