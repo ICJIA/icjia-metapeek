@@ -70,13 +70,13 @@ You're *peeking* at your *meta* tags — the hidden HTML that controls how your 
 
 ## Features
 
-### Phase 1 — Client-Side MVP ✅
-- [x] Paste HTML and parse instantly (< 100ms)
-- [x] Extract all meta tags, Open Graph, X/Twitter Cards, JSON-LD
-- [x] Render accurate platform previews (Google, Facebook, LinkedIn, X/Twitter, Slack)
-- [x] Diagnostics panel with color-coded status
-- [x] Code generator with editable output
-- [x] WCAG 2.1 AA compliant from day one
+### Phase 1 — Client-Side MVP ✅ Complete
+- ✅ Paste HTML and parse instantly (< 100ms)
+- ✅ Extract all meta tags, Open Graph, X/Twitter Cards, JSON-LD
+- ✅ Render accurate platform previews (Google, Facebook, LinkedIn, X/Twitter, Slack)
+- ✅ Diagnostics panel with color-coded status
+- ✅ Code generator with editable output
+- ✅ WCAG 2.1 AA compliant from day one
 
 ### Phase 2 — Live URL Fetching 🚧
 - [ ] Enter URL and fetch HTML automatically
