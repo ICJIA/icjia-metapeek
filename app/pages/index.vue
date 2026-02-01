@@ -648,7 +648,7 @@ const exportAsHtml = () => {
             />
             <div>
               <div class="flex items-center gap-2">
-                <span class="text-xl font-bold tracking-tight">MetaPeek</span>
+                <span class="text-2xl sm:text-3xl font-extrabold tracking-tight">MetaPeek</span>
                 <span class="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded">Beta</span>
               </div>
               <span class="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">Open Graph & Social Sharing Meta Tag Analyzer</span>
