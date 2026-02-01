@@ -47,19 +47,26 @@ const calculatePositionAndStyle = () => {
   const spaceTop = rect.top
   const spaceBottom = viewportHeight - rect.bottom
 
-  // Determine best position - prefer left/right for horizontal text
+  // Determine best position based on screen size and available space
   let pos: 'top' | 'bottom' | 'left' | 'right' = props.position !== 'auto' ? props.position : 'left'
   
   if (props.position === 'auto') {
-    // Prefer horizontal positioning (left/right) for better text display
-    if (spaceLeft >= tooltipMinWidth) {
-      pos = 'left'
-    } else if (spaceRight >= tooltipMinWidth) {
-      pos = 'right'
-    } else if (spaceTop > spaceBottom && spaceTop > 50) {
-      pos = 'top'
+    const isMobile = viewportWidth < 640
+    
+    if (isMobile) {
+      // On mobile, prefer top/bottom (more vertical space typically)
+      pos = spaceTop > spaceBottom ? 'top' : 'bottom'
     } else {
-      pos = 'bottom'
+      // On desktop, prefer horizontal positioning for better text display
+      if (spaceLeft >= tooltipMinWidth) {
+        pos = 'left'
+      } else if (spaceRight >= tooltipMinWidth) {
+        pos = 'right'
+      } else if (spaceTop > spaceBottom && spaceTop > 50) {
+        pos = 'top'
+      } else {
+        pos = 'bottom'
+      }
     }
   }
 
