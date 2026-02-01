@@ -101,7 +101,7 @@ const tabs = [
             <ClientOnly>
               <button
                 @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
-                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
                 :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
               >
                 <UIcon 
@@ -116,7 +116,7 @@ const tabs = [
               href="https://github.com/ICJIA/icjia-metapeek"
               target="_blank"
               rel="noopener"
-              class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+              class="p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="View on GitHub"
             >
               <UIcon name="i-heroicons-code-bracket" class="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
@@ -149,7 +149,7 @@ const tabs = [
         <div class="flex items-center gap-2">
           <UButton
             v-if="inputHtml.trim()"
-            size="xs"
+            size="sm"
             variant="ghost"
             color="neutral"
             icon="i-heroicons-x-mark"
@@ -158,7 +158,7 @@ const tabs = [
             Clear
           </UButton>
           <UButton
-            size="xs"
+            size="sm"
             variant="soft"
             color="neutral"
             icon="i-heroicons-document-duplicate"
@@ -278,7 +278,7 @@ const tabs = [
       <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
         <UIcon name="i-heroicons-code-bracket" class="w-8 h-8 text-gray-400" />
       </div>
-      <h3 class="text-lg font-semibold mb-1">No HTML to analyze</h3>
+      <h2 class="text-lg font-semibold mb-1">No HTML to analyze</h2>
       <p class="text-gray-600 dark:text-gray-300 mb-4 max-w-sm">
         Paste your page's HTML above or try an example to see how your meta tags render across platforms.
       </p>
@@ -287,6 +287,7 @@ const tabs = [
         variant="soft"
         color="neutral"
         icon="i-heroicons-sparkles"
+        size="md"
       >
         Load Example
       </UButton>
@@ -296,7 +297,7 @@ const tabs = [
     <footer class="mt-16 pt-6 border-t border-gray-200 dark:border-gray-800">
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500 dark:text-gray-400">
         <p>
-          Built by <a href="https://icjia.illinois.gov" class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors">ICJIA</a>
+          Built by <a href="https://icjia.illinois.gov" class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors inline-block py-2">ICJIA</a>
         </p>
         <p class="flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
