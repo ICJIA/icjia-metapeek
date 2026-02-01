@@ -150,29 +150,31 @@ const tabs = [
         <p class="text-sm text-gray-600 dark:text-gray-300 uppercase tracking-wider font-medium mb-2">
           Open Graph &amp; Social Share Debugger
         </p>
-        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-3">
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-4">
           Preview how your links appear when shared
         </h1>
-        <div class="text-gray-700 dark:text-gray-300 max-w-2xl mb-4 space-y-3">
-          <p>
-            When someone shares a link to your website on Facebook, LinkedIn, X, or Slack, those platforms 
-            display a preview card with a title, description, and image. <span class="font-medium text-gray-900 dark:text-white">This 
-            information comes from special HTML tags on your page</span> called Open Graph tags.
-          </p>
-          <p>
-            <span class="font-medium text-gray-900 dark:text-white">The problem:</span> If these tags are missing or misconfigured, 
-            your shared links may show the wrong title, no image, or a generic description—making your content 
-            look unprofessional or causing people to scroll past it.
-          </p>
-          <p>
-            <span class="font-medium text-gray-900 dark:text-white">MetaPeek helps you find and fix these issues.</span> 
-            Paste your page's HTML to see exactly what each platform will display, get a diagnostic report of any problems, 
-            and copy corrected code to give to your developer.
-          </p>
+        
+        <!-- Two-column layout on larger screens -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div class="space-y-2">
+            <p class="text-gray-700 dark:text-gray-300">
+              When you share a link on social media, platforms display a preview card with a title, image, and description. 
+              This comes from <span class="font-medium text-gray-900 dark:text-white">Open Graph tags</span> in your HTML.
+            </p>
+            <p class="text-gray-600 dark:text-gray-400 text-sm">
+              Missing or broken tags = unprofessional previews that people scroll past.
+            </p>
+          </div>
+          <div class="space-y-2">
+            <p class="text-gray-700 dark:text-gray-300">
+              <span class="font-medium text-gray-900 dark:text-white">MetaPeek</span> shows you exactly what each platform will display, 
+              diagnoses problems, and gives you the code to fix them.
+            </p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm italic">
+              "Peek" at your meta tags — the hidden HTML controlling your social presence.
+            </p>
+          </div>
         </div>
-        <p class="text-gray-500 dark:text-gray-400 max-w-2xl text-sm italic">
-          Why "MetaPeek"? You're peeking at your meta tags—the hidden HTML that controls how your content appears across the web.
-        </p>
       </div>
 
     <!-- Input Section - Full Width, Modern -->
