@@ -156,31 +156,6 @@ const overallStatus = computed(() => {
 
 <template>
   <div>
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-5">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
-          <UIcon name="i-heroicons-photo" class="w-4 h-4 text-purple-600 dark:text-purple-400" />
-        </div>
-        <div>
-          <h3 class="font-semibold text-gray-900 dark:text-white">Step 2: Check Image Compatibility</h3>
-          <p class="text-xs text-gray-500 dark:text-gray-400">Will your og:image display correctly on each platform?</p>
-        </div>
-      </div>
-      <div v-if="overallStatus === 'optimal'" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
-        <UIcon name="i-heroicons-check-circle-solid" class="w-5 h-5" />
-        <span class="text-sm font-medium">All platforms</span>
-      </div>
-      <div v-else-if="overallStatus === 'acceptable'" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
-        <UIcon name="i-heroicons-exclamation-circle-solid" class="w-5 h-5" />
-        <span class="text-sm font-medium">Could be larger</span>
-      </div>
-      <div v-else-if="overallStatus === 'issues'" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300">
-        <UIcon name="i-heroicons-x-circle-solid" class="w-5 h-5" />
-        <span class="text-sm font-medium">Issues found</span>
-      </div>
-    </div>
-    
     <!-- Content -->
     <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-5">
       <!-- No image -->

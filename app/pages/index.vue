@@ -177,17 +177,17 @@ const tabs = [
         </div>
       </div>
 
-    <!-- Input Section - Distinctive background -->
-    <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 bg-blue-50 dark:bg-blue-950/50 border-y border-blue-200 dark:border-blue-800">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-          <UIcon name="i-heroicons-code-bracket" class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+    <!-- Step 1: Input Section -->
+    <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-blue-50 dark:bg-blue-950/40 border-y border-blue-200 dark:border-blue-800">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white font-bold text-2xl shadow-lg">
+          1
         </div>
         <div>
-          <label for="html-input" class="text-sm font-semibold text-gray-900 dark:text-white block">
-            Step 1: Paste your HTML
+          <label for="html-input" class="text-2xl font-bold text-gray-900 dark:text-white block">
+            Paste Your HTML
           </label>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-sm text-gray-600 dark:text-gray-400">
             Paste your page's source code (or just the &lt;head&gt; section)
           </p>
         </div>
@@ -246,13 +246,81 @@ const tabs = [
       </div>
     </div>
 
-    <!-- Results Section -->
-    <div v-if="parsedTags && diagnostics" class="space-y-6">
+    <!-- Step 2: Image Analysis - Right after Step 1 -->
+    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-purple-50 dark:bg-purple-950/40 border-y border-purple-200 dark:border-purple-800">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-purple-600 text-white font-bold text-2xl shadow-lg">
+          2
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Check Image Compatibility</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">Will your og:image display correctly on each platform?</p>
+        </div>
+      </div>
+      <ImageAnalysis :image-url="parsedTags.og.image" />
+    </div>
+
+    <!-- Step 3: Platform Previews -->
+    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-emerald-50 dark:bg-emerald-950/40 border-y border-emerald-200 dark:border-emerald-800">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-600 text-white font-bold text-2xl shadow-lg">
+          3
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Preview on Each Platform</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">See exactly how your links will appear when shared</p>
+        </div>
+      </div>
+      
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PreviewGoogle 
+          :title="parsedTags.og.title || parsedTags.title"
+          :description="parsedTags.og.description || parsedTags.description"
+          :url="parsedTags.og.url || parsedTags.canonical"
+        />
+        <PreviewFacebook
+          :title="parsedTags.og.title"
+          :description="parsedTags.og.description"
+          :image="parsedTags.og.image"
+        />
+        <PreviewLinkedIn
+          :title="parsedTags.og.title"
+          :description="parsedTags.og.description"
+          :image="parsedTags.og.image"
+        />
+        <PreviewTwitter
+          :card="parsedTags.twitter.card"
+          :title="parsedTags.twitter.title || parsedTags.og.title"
+          :description="parsedTags.twitter.description || parsedTags.og.description"
+          :image="parsedTags.twitter.image || parsedTags.og.image"
+        />
+        <PreviewSlack
+          :title="parsedTags.og.title || parsedTags.title"
+          :description="parsedTags.og.description || parsedTags.description"
+          :image="parsedTags.og.image"
+          :favicon="parsedTags.favicon"
+          :url="parsedTags.og.url || parsedTags.canonical"
+        />
+      </div>
+    </div>
+
+    <!-- Step 4: Diagnostics & Code -->
+    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 bg-amber-50 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-amber-600 text-white font-bold text-2xl shadow-lg">
+          4
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Fix Issues & Copy Code</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">Review diagnostics and get corrected HTML to copy</p>
+        </div>
+      </div>
+      
       <!-- Tab Navigation -->
-      <div class="border-b border-gray-200 dark:border-gray-800">
+      <div class="border-b border-amber-200 dark:border-amber-800 mb-6">
         <nav class="flex gap-6" aria-label="Results tabs">
           <button
-            v-for="tab in tabs"
+            v-for="tab in tabs.filter(t => t.value !== 'previews')"
             :key="tab.value"
             @click="activeTab = tab.value"
             :class="[
@@ -277,47 +345,7 @@ const tabs = [
       </div>
 
       <!-- Tab Panels -->
-      <div class="min-h-[400px]">
-        <!-- Previews Tab -->
-        <div v-show="activeTab === 'previews'" class="space-y-6">
-          <!-- Platform Previews -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <PreviewGoogle 
-              :title="parsedTags.og.title || parsedTags.title"
-              :description="parsedTags.og.description || parsedTags.description"
-              :url="parsedTags.og.url || parsedTags.canonical"
-            />
-            <PreviewFacebook
-              :title="parsedTags.og.title"
-              :description="parsedTags.og.description"
-              :image="parsedTags.og.image"
-            />
-            <PreviewLinkedIn
-              :title="parsedTags.og.title"
-              :description="parsedTags.og.description"
-              :image="parsedTags.og.image"
-            />
-            <PreviewTwitter
-              :card="parsedTags.twitter.card"
-              :title="parsedTags.twitter.title || parsedTags.og.title"
-              :description="parsedTags.twitter.description || parsedTags.og.description"
-              :image="parsedTags.twitter.image || parsedTags.og.image"
-            />
-            <PreviewSlack
-              :title="parsedTags.og.title || parsedTags.title"
-              :description="parsedTags.og.description || parsedTags.description"
-              :image="parsedTags.og.image"
-              :favicon="parsedTags.favicon"
-              :url="parsedTags.og.url || parsedTags.canonical"
-            />
-          </div>
-          
-          <!-- Image Analysis - Distinctive full-width section -->
-          <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mt-6 bg-purple-50 dark:bg-purple-950/50 border-y border-purple-200 dark:border-purple-800">
-            <ImageAnalysis :image-url="parsedTags.og.image" />
-          </div>
-        </div>
-
+      <div class="min-h-[300px]">
         <!-- Diagnostics Tab -->
         <div v-show="activeTab === 'diagnostics'">
           <DiagnosticsPanel :diagnostics="diagnostics" />
