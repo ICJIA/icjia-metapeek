@@ -60,7 +60,7 @@ const handleImageError = () => {
         
         <!-- Content -->
         <div class="p-3 bg-gray-50 dark:bg-gray-800/50">
-          <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-1">EXAMPLE.COM</p>
+          <p class="text-[10px] text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">EXAMPLE.COM</p>
           <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-snug mb-0.5">
             {{ truncatedTitle }}
           </p>
