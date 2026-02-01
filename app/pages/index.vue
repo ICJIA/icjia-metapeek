@@ -5,6 +5,19 @@ const colorMode = useColorMode()
 const { parseMetaTags } = useMetaParser()
 const { generateDiagnostics } = useDiagnostics()
 
+// Fix orphaned ARIA live regions by moving them into a landmark
+onMounted(() => {
+  const mainContent = document.getElementById('main-content')
+  if (mainContent) {
+    // Find orphaned alert/live region elements outside landmarks
+    const orphanedAlerts = document.querySelectorAll('body > [role="alert"], body > [aria-live]')
+    orphanedAlerts.forEach(el => {
+      // Move to end of main content
+      mainContent.appendChild(el)
+    })
+  }
+})
+
 const inputHtml = ref('')
 const parsedTags = ref<MetaTags | null>(null)
 const diagnostics = ref<Diagnostics | null>(null)
@@ -311,5 +324,10 @@ const tabs = [
       </div>
     </footer>
   </main>
+  
+  <!-- Notifications (inside landmark structure) -->
+  <aside aria-label="Notifications" class="fixed bottom-4 right-4 z-50">
+    <UNotifications />
+  </aside>
   </div>
 </template>
