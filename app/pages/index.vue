@@ -192,7 +192,7 @@ const tabs = [
           id="html-input"
           v-model="inputHtml"
           rows="10"
-          placeholder="Paste your HTML here..."
+          placeholder="Paste your HTML here or click 'Load Example' above..."
           class="w-full px-4 py-3 rounded-lg border-0 bg-white dark:bg-gray-900 
                  ring-1 ring-gray-300 dark:ring-gray-700 
                  focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
