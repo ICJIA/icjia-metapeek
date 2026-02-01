@@ -24,27 +24,26 @@ If these tags are missing or misconfigured, your shared links may show:
 
 This makes your content look unpolished and causes people to scroll past your links.
 
+### Why existing tools fall short
+
+You might think "I'll just use Facebook's Sharing Debugger" — but existing tools have significant limitations:
+
+- **Platform-specific** — Facebook Debugger only shows Facebook previews. Twitter Card Validator only shows Twitter. You need to check multiple tools to see the full picture.
+- **Account required** — Most debuggers require you to log in, creating friction and privacy concerns.
+- **Rate limited** — Free tiers restrict how many URLs you can check, or paywall you after a few uses.
+- **Preview-only** — They show you what's wrong but don't give you the code to fix it.
+- **Online-only** — They require fetching your live URL, which doesn't help when you're still developing locally or want to check changes before deploying.
+- **Ad-heavy** — Third-party tools are often cluttered with ads and upsells.
+
+---
+
 ## What MetaPeek Does
 
 MetaPeek helps you **find and fix these issues** before they hurt your reach:
 
-1. **Preview** — See exactly how your page will appear on Google, Facebook, LinkedIn, X, and Slack
+1. **Preview** — See exactly how your page will appear on Google, Facebook, LinkedIn, X, and Slack — all at once
 2. **Diagnose** — Get a color-coded report of missing, incorrect, or suboptimal tags
 3. **Fix** — Copy ready-to-use HTML code to give to your developer
-
-### Why "MetaPeek"?
-
-You're *peeking* at your *meta* tags — the hidden HTML that controls how your content appears when shared across the web.
-
----
-
-## Screenshot
-
-![MetaPeek — Open Graph Debugger](public/screenshot-dark.png)
-
----
-
-## Why MetaPeek Over Alternatives?
 
 | Feature | MetaPeek | Facebook Debugger | Twitter Validator |
 |---------|----------|-------------------|-------------------|
@@ -56,7 +55,15 @@ You're *peeking* at your *meta* tags — the hidden HTML that controls how your 
 | Works offline (paste mode) | ✅ Yes | ❌ No | ❌ No |
 | Ad-free | ✅ Yes | ⚠️ Meta ecosystem | ⚠️ X ecosystem |
 
-MetaPeek is opinionated about being **fast, clean, and actionable**.
+### Why "MetaPeek"?
+
+You're *peeking* at your *meta* tags — the hidden HTML that controls how your content appears when shared across the web.
+
+---
+
+## Screenshot
+
+![MetaPeek — Open Graph Debugger](public/screenshot-dark.png)
 
 ---
 
