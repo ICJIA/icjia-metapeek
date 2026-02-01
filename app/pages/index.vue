@@ -180,7 +180,7 @@ const tabs = [
     <!-- Step 1: Input Section -->
     <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-blue-50 dark:bg-blue-950/40 border-y border-blue-200 dark:border-blue-800">
       <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white font-bold text-2xl shadow-lg">
+        <div class="flex items-center justify-center w-20 h-20 rounded-full bg-blue-600 text-white font-bold text-4xl shadow-lg">
           1
         </div>
         <div>
@@ -249,7 +249,7 @@ const tabs = [
     <!-- Step 2: Image Analysis - Right after Step 1 -->
     <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-purple-50 dark:bg-purple-950/40 border-y border-purple-200 dark:border-purple-800">
       <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-purple-600 text-white font-bold text-2xl shadow-lg">
+        <div class="flex items-center justify-center w-20 h-20 rounded-full bg-purple-600 text-white font-bold text-4xl shadow-lg">
           2
         </div>
         <div>
@@ -263,7 +263,7 @@ const tabs = [
     <!-- Step 3: Platform Previews -->
     <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-emerald-50 dark:bg-emerald-950/40 border-y border-emerald-200 dark:border-emerald-800">
       <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-600 text-white font-bold text-2xl shadow-lg">
+        <div class="flex items-center justify-center w-20 h-20 rounded-full bg-emerald-600 text-white font-bold text-4xl shadow-lg">
           3
         </div>
         <div>
@@ -307,7 +307,7 @@ const tabs = [
     <!-- Step 4: Diagnostics & Code -->
     <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 bg-amber-50 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800">
       <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-14 h-14 rounded-full bg-amber-600 text-white font-bold text-2xl shadow-lg">
+        <div class="flex items-center justify-center w-20 h-20 rounded-full bg-amber-600 text-white font-bold text-4xl shadow-lg">
           4
         </div>
         <div>

@@ -1,6 +1,7 @@
 // app/types/meta.ts
 
 export interface MetaTags {
+  // Basic meta tags
   title?: string
   description?: string
   viewport?: string
@@ -9,6 +10,13 @@ export interface MetaTags {
   favicon?: string
   themeColor?: string
   
+  // Additional SEO tags
+  author?: string
+  keywords?: string
+  language?: string
+  generator?: string
+  
+  // Open Graph tags
   og: {
     title?: string
     description?: string
@@ -16,10 +24,32 @@ export interface MetaTags {
     url?: string
     image?: string
     imageAlt?: string
+    imageWidth?: string
+    imageHeight?: string
+    imageType?: string
     siteName?: string
     locale?: string
+    updatedTime?: string
+    video?: string
+    audio?: string
   }
   
+  // Facebook-specific tags
+  facebook: {
+    appId?: string
+    admins?: string
+  }
+  
+  // Article tags (for og:type="article")
+  article: {
+    author?: string
+    publishedTime?: string
+    modifiedTime?: string
+    section?: string
+    tags?: string[]
+  }
+  
+  // Twitter/X Card tags
   twitter: {
     card?: string
     site?: string
@@ -28,8 +58,32 @@ export interface MetaTags {
     description?: string
     image?: string
     imageAlt?: string
+    label1?: string
+    data1?: string
+    label2?: string
+    data2?: string
   }
   
+  // Pinterest tags
+  pinterest: {
+    description?: string
+  }
+  
+  // Apple/iOS tags
+  apple: {
+    mobileWebAppCapable?: string
+    mobileWebAppTitle?: string
+    mobileWebAppStatusBarStyle?: string
+    touchIcon?: string
+  }
+  
+  // Microsoft tags
+  microsoft: {
+    tileImage?: string
+    tileColor?: string
+  }
+  
+  // JSON-LD Structured Data
   structuredData: Array<Record<string, any>>
 }
 
