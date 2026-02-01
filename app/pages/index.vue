@@ -639,12 +639,12 @@ const exportAsHtml = () => {
     <!-- Header -->
     <header class="sticky top-0 z-50 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
       <div class="max-w-6xl mx-auto px-4 sm:px-6">
-        <div class="flex items-center justify-between h-16">
-          <div class="flex items-center gap-3">
+        <div class="flex items-center justify-between h-20 sm:h-24">
+          <div class="flex items-center gap-4">
             <img 
               src="~/assets/images/icjia-logo.png" 
               alt="ICJIA Logo" 
-              class="h-8 w-auto"
+              class="h-12 sm:h-14 w-auto"
             />
             <div>
               <div class="flex items-center gap-2">
