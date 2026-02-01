@@ -15,10 +15,10 @@
 ## Screenshots
 
 ### Dark Mode
-![MetaPeek Dark Mode](/screenshot-dark.png)
+![MetaPeek Dark Mode](public/screenshot-dark.png)
 
 ### Light Mode
-![MetaPeek Light Mode](/screenshot-light.png)
+![MetaPeek Light Mode](public/screenshot-light.png)
 
 ---
 
