@@ -122,7 +122,7 @@ const hide = () => {
 }
 
 const positionClasses = computed(() => {
-  const base = 'absolute z-50 px-2 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded-md shadow-lg max-w-xs'
+  const base = 'absolute z-[9999] px-2 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded-md shadow-lg max-w-xs'
   const positions = {
     top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
     bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
