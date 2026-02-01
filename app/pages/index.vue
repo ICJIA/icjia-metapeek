@@ -646,8 +646,13 @@ const exportAsHtml = () => {
               alt="ICJIA Logo" 
               class="h-8 w-auto"
             />
-            <span class="text-xl font-bold tracking-tight">MetaPeek</span>
-            <span class="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded">Beta</span>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xl font-bold tracking-tight">MetaPeek</span>
+                <span class="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded">Beta</span>
+              </div>
+              <span class="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">Open Graph & Social Sharing Meta Tag Analyzer</span>
+            </div>
           </div>
           <div class="flex items-center gap-1">
             <ClientOnly>
@@ -681,12 +686,12 @@ const exportAsHtml = () => {
     <main id="main-content" class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <!-- Hero Section -->
       <div class="mb-8">
-        <p class="text-sm text-gray-600 dark:text-gray-300 uppercase tracking-wider font-medium mb-2">
-          Open Graph &amp; Social Share Debugger
-        </p>
-        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-4">
-          Preview how your links appear when shared
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-2 text-gray-900 dark:text-white">
+          Open Graph &amp; Social Sharing Meta Tag Analyzer
         </h1>
+        <p class="text-lg text-gray-600 dark:text-gray-300 mb-4">
+          Preview how your links appear when shared on social media
+        </p>
         
         <!-- Two-column layout on larger screens -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
