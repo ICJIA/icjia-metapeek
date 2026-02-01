@@ -253,7 +253,7 @@ const tabs = [
           2
         </div>
         <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Check Image Compatibility</h2>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Image Size Check</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">Will your og:image display correctly on each platform?</p>
         </div>
       </div>
@@ -267,7 +267,7 @@ const tabs = [
           3
         </div>
         <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Preview on Each Platform</h2>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Platform Preview</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">See exactly how your links will appear when shared</p>
         </div>
       </div>
@@ -311,7 +311,7 @@ const tabs = [
           4
         </div>
         <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Meta Results</h2>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Meta Results and Suggestions</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">Review diagnostics and get corrected HTML to copy</p>
         </div>
       </div>
