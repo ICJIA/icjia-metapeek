@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Diagnostics } from '~/types/meta'
+import type { Diagnostics, DiagnosticResult } from '~/types/meta'
 
 interface Props {
   diagnostics: Diagnostics
@@ -7,82 +7,63 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Map status to color classes
 const getStatusColor = (status: 'green' | 'yellow' | 'red') => {
-  switch (status) {
-    case 'green':
-      return 'text-green-600 dark:text-green-400'
-    case 'yellow':
-      return 'text-yellow-600 dark:text-yellow-400'
-    case 'red':
-      return 'text-red-600 dark:text-red-400'
+  const colors = {
+    green: 'text-emerald-600 dark:text-emerald-400',
+    yellow: 'text-amber-600 dark:text-amber-400',
+    red: 'text-red-600 dark:text-red-400'
   }
+  return colors[status]
 }
 
-// Map status to background color
-const getStatusBgColor = (status: 'green' | 'yellow' | 'red') => {
-  switch (status) {
-    case 'green':
-      return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-    case 'yellow':
-      return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
-    case 'red':
-      return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+const getStatusBg = (status: 'green' | 'yellow' | 'red') => {
+  const colors = {
+    green: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800',
+    yellow: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
+    red: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
   }
+  return colors[status]
 }
 
-// Map icon to Heroicon name
-const getIconName = (icon: 'check' | 'warning' | 'error') => {
-  switch (icon) {
-    case 'check':
-      return 'i-heroicons-check-circle'
-    case 'warning':
-      return 'i-heroicons-exclamation-triangle'
-    case 'error':
-      return 'i-heroicons-x-circle'
+const getStatusIcon = (status: 'green' | 'yellow' | 'red') => {
+  const icons = {
+    green: 'i-heroicons-check-circle',
+    yellow: 'i-heroicons-exclamation-triangle',
+    red: 'i-heroicons-x-circle'
   }
+  return icons[status]
 }
 
-// Diagnostic items
 const diagnosticItems = computed(() => [
-  { label: 'Title', result: props.diagnostics.title },
-  { label: 'Description', result: props.diagnostics.description },
-  { label: 'Open Graph Tags', result: props.diagnostics.ogTags },
-  { label: 'OG Image', result: props.diagnostics.ogImage },
-  { label: 'Twitter Card', result: props.diagnostics.twitterCard },
-  { label: 'Canonical URL', result: props.diagnostics.canonical },
-  { label: 'Robots Meta', result: props.diagnostics.robots },
+  { label: 'Title', key: 'title', result: props.diagnostics.title },
+  { label: 'Description', key: 'description', result: props.diagnostics.description },
+  { label: 'Open Graph', key: 'ogTags', result: props.diagnostics.ogTags },
+  { label: 'OG Image', key: 'ogImage', result: props.diagnostics.ogImage },
+  { label: 'Twitter Card', key: 'twitterCard', result: props.diagnostics.twitterCard },
+  { label: 'Canonical', key: 'canonical', result: props.diagnostics.canonical },
+  { label: 'Robots', key: 'robots', result: props.diagnostics.robots },
 ])
 </script>
 
 <template>
-  <UCard>
-    <template #header>
-      <h2 class="text-2xl font-bold flex items-center gap-2">
-        <UIcon name="i-heroicons-clipboard-document-check" class="text-2xl" aria-hidden="true" />
-        Diagnostics
-      </h2>
-    </template>
-    
+  <div class="space-y-4">
     <!-- Overall Status -->
     <div 
-      class="mb-4 p-4 rounded-lg border"
-      :class="getStatusBgColor(diagnostics.overall.status)"
-      role="status"
-      aria-live="polite"
+      :class="[
+        'p-4 rounded-lg border',
+        getStatusBg(diagnostics.overall.status)
+      ]"
     >
       <div class="flex items-start gap-3">
         <UIcon 
-          :name="getIconName(diagnostics.overall.icon)" 
-          class="text-2xl flex-shrink-0 mt-0.5"
-          :class="getStatusColor(diagnostics.overall.status)"
-          aria-hidden="true"
+          :name="getStatusIcon(diagnostics.overall.status)" 
+          :class="['w-5 h-5 flex-shrink-0 mt-0.5', getStatusColor(diagnostics.overall.status)]"
         />
-        <div class="flex-1">
-          <p class="font-semibold text-lg mb-1" :class="getStatusColor(diagnostics.overall.status)">
+        <div>
+          <p :class="['font-semibold', getStatusColor(diagnostics.overall.status)]">
             {{ diagnostics.overall.message }}
           </p>
-          <p v-if="diagnostics.overall.suggestion" class="text-sm text-gray-700 dark:text-gray-300">
+          <p v-if="diagnostics.overall.suggestion" class="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
             {{ diagnostics.overall.suggestion }}
           </p>
         </div>
@@ -90,49 +71,37 @@ const diagnosticItems = computed(() => [
     </div>
     
     <!-- Individual Checks -->
-    <div class="space-y-3">
+    <div class="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden divide-y divide-gray-200 dark:divide-gray-800">
       <div 
         v-for="item in diagnosticItems" 
-        :key="item.label"
-        class="flex items-start gap-3 p-3 rounded-lg border"
-        :class="getStatusBgColor(item.result.status)"
+        :key="item.key"
+        class="px-4 py-3 flex items-start gap-3 bg-white dark:bg-gray-900"
       >
         <UIcon 
-          :name="getIconName(item.result.icon)" 
-          class="text-xl flex-shrink-0 mt-0.5"
-          :class="getStatusColor(item.result.status)"
-          :aria-label="item.result.status === 'green' ? 'Pass' : item.result.status === 'yellow' ? 'Warning' : 'Error'"
+          :name="getStatusIcon(item.result.status)" 
+          :class="['w-4 h-4 flex-shrink-0 mt-0.5', getStatusColor(item.result.status)]"
         />
-        
         <div class="flex-1 min-w-0">
-          <p class="font-semibold text-sm mb-1">
-            {{ item.label }}
-          </p>
-          <p class="text-sm text-gray-700 dark:text-gray-300 mb-1">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+              {{ item.label }}
+            </span>
+            <UBadge 
+              :color="item.result.status === 'green' ? 'success' : item.result.status === 'yellow' ? 'warning' : 'error'"
+              size="xs"
+              variant="subtle"
+            >
+              {{ item.result.status === 'green' ? 'Pass' : item.result.status === 'yellow' ? 'Warning' : 'Error' }}
+            </UBadge>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
             {{ item.result.message }}
           </p>
-          <p v-if="item.result.suggestion" class="text-xs text-gray-600 dark:text-gray-400 italic">
+          <p v-if="item.result.suggestion" class="text-xs text-gray-500 dark:text-gray-500 mt-1 italic">
             {{ item.result.suggestion }}
           </p>
         </div>
       </div>
     </div>
-    
-    <template #footer>
-      <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-        <div class="flex items-center gap-1">
-          <UIcon name="i-heroicons-check-circle" class="text-green-600" aria-hidden="true" />
-          <span>Pass</span>
-        </div>
-        <div class="flex items-center gap-1">
-          <UIcon name="i-heroicons-exclamation-triangle" class="text-yellow-600" aria-hidden="true" />
-          <span>Warning</span>
-        </div>
-        <div class="flex items-center gap-1">
-          <UIcon name="i-heroicons-x-circle" class="text-red-600" aria-hidden="true" />
-          <span>Error</span>
-        </div>
-      </div>
-    </template>
-  </UCard>
+  </div>
 </template>

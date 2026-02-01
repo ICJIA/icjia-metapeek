@@ -4,19 +4,24 @@ export default defineNuxtConfig({
   
   devtools: { enabled: true },
   
-  ssr: true, // MetaPeek practices what it preaches
+  ssr: true,
   
   typescript: {
     strict: true,
     shim: false
   },
+
+  colorMode: {
+    preference: 'dark', // Default to dark mode
+    fallback: 'dark'
+  },
   
   app: {
     head: {
-      title: 'MetaPeek — Meta Tag & Open Graph Previewer',
+      title: 'MetaPeek',
       meta: [
-        { name: 'description', content: 'Inspect, preview, and fix HTML meta tags and Open Graph markup. Fast, clean, and actionable.' },
-        { property: 'og:title', content: 'MetaPeek — Meta Tag & Open Graph Previewer' },
+        { name: 'description', content: 'Inspect, preview, and fix HTML meta tags and Open Graph markup.' },
+        { property: 'og:title', content: 'MetaPeek' },
         { property: 'og:description', content: 'Inspect, preview, and fix HTML meta tags and Open Graph markup.' },
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: 'https://metapeek.icjia.app' },

@@ -24,6 +24,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
     "@esbuild/darwin-arm64": "^0.27.2",
+    "@iconify-json/heroicons": "^1.2.3",
     "@nuxt/test-utils": "^3.14.3",
     "@oxc-minify/binding-darwin-arm64": "latest",
     "@oxc-parser/binding-darwin-arm64": "latest",

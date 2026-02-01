@@ -8,102 +8,96 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Determine card type (default to summary_large_image)
-const cardType = computed(() => {
-  return props.card === 'summary' ? 'summary' : 'summary_large_image'
-})
+const cardType = computed(() => props.card === 'summary' ? 'summary' : 'summary_large_image')
 
-// Truncate title at 70 characters
 const truncatedTitle = computed(() => {
   if (!props.title) return 'Your Page Title'
-  return props.title.length > 70 
-    ? props.title.substring(0, 70) + '...' 
-    : props.title
+  return props.title.length > 70 ? props.title.substring(0, 70) + '...' : props.title
 })
 
-// Truncate description at 200 characters
 const truncatedDescription = computed(() => {
   if (!props.description) return 'Your page description'
-  return props.description.length > 200
-    ? props.description.substring(0, 200) + '...'
-    : props.description
+  return props.description.length > 150 ? props.description.substring(0, 150) + '...' : props.description
 })
 
-// Image with fallback
-const imageUrl = computed(() => {
-  return props.image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="1200" height="628" fill="%23e5e7eb"%3E%3Crect width="1200" height="628"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="48" fill="%239ca3af"%3ENo image%3C/text%3E%3C/svg%3E'
-})
+const imageError = ref(false)
+const handleImageError = () => {
+  imageError.value = true
+}
 </script>
 
 <template>
-  <UCard>
-    <template #header>
-      <h3 class="text-lg font-semibold flex items-center gap-2">
-        <UIcon name="i-heroicons-chat-bubble-left-right" class="text-xl" aria-hidden="true" />
-        X / Twitter Preview
-      </h3>
-    </template>
-    
-    <div 
-      class="twitter-preview min-h-[200px] border border-gray-200 dark:border-gray-700 rounded overflow-hidden" 
-      role="region" 
-      :aria-label="`Twitter ${cardType} card preview`"
-    >
-      <!-- Large image card (2:1 ratio) -->
-      <div v-if="cardType === 'summary_large_image'" class="relative w-full" style="aspect-ratio: 2 / 1; background: #f3f4f6;">
-        <img 
-          :src="imageUrl" 
-          :alt="title ? `Preview image for: ${title}` : 'Tweet preview image'"
-          class="w-full h-full object-cover"
-        />
-      </div>
-      
-      <!-- Content -->
-      <div class="p-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-        <!-- Summary card with small image -->
-        <div v-if="cardType === 'summary'" class="flex gap-3">
-          <div class="flex-1">
-            <p class="font-semibold text-base text-gray-900 dark:text-gray-100 mb-1">
-              {{ truncatedTitle }}
-            </p>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">
-              {{ truncatedDescription }}
-            </p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              example.com
-            </p>
-          </div>
-          <div class="w-24 h-24 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded overflow-hidden">
-            <img 
-              :src="imageUrl" 
-              :alt="title ? `Preview image for: ${title}` : 'Tweet preview image'"
-              class="w-full h-full object-cover"
-            />
-          </div>
+  <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+    <!-- Header -->
+    <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-5 h-5 rounded bg-black dark:bg-white flex items-center justify-center">
+          <span class="text-white dark:text-black text-xs font-bold">𝕏</span>
         </div>
-        
-        <!-- Large image card content -->
-        <div v-else>
-          <p class="font-semibold text-base text-gray-900 dark:text-gray-100 mb-1">
-            {{ truncatedTitle }}
-          </p>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">
-            {{ truncatedDescription }}
-          </p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            example.com
-          </p>
-        </div>
+        <span class="text-sm font-medium">X / Twitter</span>
       </div>
+      <UIcon name="i-heroicons-information-circle" class="w-4 h-4 text-gray-400" :title="`${cardType === 'summary' ? 'Summary' : 'Large image'} card preview`" />
     </div>
     
-    <template #footer>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
-        {{ cardType === 'summary' 
-          ? 'Summary card (1:1 ratio, small image). Minimum 144×144px.' 
-          : 'Large image card (2:1 ratio). Minimum 300×157px, recommended 1200×628px.' 
-        }}
-      </p>
-    </template>
-  </UCard>
+    <!-- Preview -->
+    <div class="p-4">
+      <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <!-- Large Image Card -->
+        <template v-if="cardType === 'summary_large_image'">
+          <div 
+            v-if="image && !imageError"
+            class="aspect-[2/1] bg-gray-100 dark:bg-gray-800 max-h-36"
+          >
+            <img 
+              :src="image" 
+              :alt="title || 'Preview'"
+              class="w-full h-full object-cover"
+              @error="handleImageError"
+            />
+          </div>
+          <div 
+            v-else 
+            class="aspect-[2/1] bg-gray-100 dark:bg-gray-800 flex items-center justify-center max-h-36"
+          >
+            <UIcon name="i-heroicons-photo" class="w-8 h-8 text-gray-300 dark:text-gray-600" />
+          </div>
+          <div class="p-3">
+            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug">
+              {{ truncatedTitle }}
+            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+              {{ truncatedDescription }}
+            </p>
+            <p class="text-xs text-gray-400 mt-1">example.com</p>
+          </div>
+        </template>
+        
+        <!-- Summary Card (small image) -->
+        <template v-else>
+          <div class="flex p-3 gap-3">
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-900 dark:text-gray-100 leading-snug">
+                {{ truncatedTitle }}
+              </p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                {{ truncatedDescription }}
+              </p>
+              <p class="text-xs text-gray-400 mt-1">example.com</p>
+            </div>
+            <div 
+              v-if="image && !imageError"
+              class="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800"
+            >
+              <img 
+                :src="image" 
+                :alt="title || 'Preview'"
+                class="w-full h-full object-cover"
+                @error="handleImageError"
+              />
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
 </template>

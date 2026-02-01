@@ -7,28 +7,21 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Truncate title at 60 characters (Google's approximate limit)
 const truncatedTitle = computed(() => {
-  if (!props.title) return 'Untitled'
-  return props.title.length > 60 
-    ? props.title.substring(0, 60) + '...' 
-    : props.title
+  if (!props.title) return 'Untitled Page'
+  return props.title.length > 60 ? props.title.substring(0, 60) + '...' : props.title
 })
 
-// Truncate description at 160 characters
 const truncatedDescription = computed(() => {
-  if (!props.description) return ''
-  return props.description.length > 160
-    ? props.description.substring(0, 160) + '...'
-    : props.description
+  if (!props.description) return 'No description provided'
+  return props.description.length > 160 ? props.description.substring(0, 160) + '...' : props.description
 })
 
-// Format URL for display
 const displayUrl = computed(() => {
   if (!props.url) return 'example.com'
   try {
     const parsed = new URL(props.url)
-    return parsed.hostname + parsed.pathname
+    return parsed.hostname + parsed.pathname.replace(/\/$/, '')
   } catch {
     return props.url
   }
@@ -36,40 +29,31 @@ const displayUrl = computed(() => {
 </script>
 
 <template>
-  <UCard>
-    <template #header>
-      <h3 class="text-lg font-semibold flex items-center gap-2">
-        <UIcon name="i-heroicons-magnifying-glass" class="text-xl" aria-hidden="true" />
-        Google Search Preview
-      </h3>
-    </template>
-    
-    <div 
-      class="google-preview min-h-[120px]" 
-      role="region" 
-      aria-label="Google search result preview"
-    >
-      <cite class="text-sm text-emerald-700 dark:text-emerald-400 not-italic block">
-        {{ displayUrl }}
-      </cite>
-      
-      <p class="text-xl text-blue-700 dark:text-blue-400 mt-1 hover:underline cursor-pointer font-normal">
-        {{ truncatedTitle }}
-      </p>
-      
-      <p v-if="description" class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-        {{ truncatedDescription }}
-      </p>
-      
-      <p v-else class="text-sm text-gray-400 italic mt-1">
-        No description provided
-      </p>
+  <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+    <!-- Header -->
+    <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-5 h-5 rounded bg-gradient-to-br from-blue-500 via-red-500 to-yellow-500 flex items-center justify-center">
+          <span class="text-white text-xs font-bold">G</span>
+        </div>
+        <span class="text-sm font-medium">Google</span>
+      </div>
+      <UIcon name="i-heroicons-information-circle" class="w-4 h-4 text-gray-400" title="How your page appears in Google search results" />
     </div>
     
-    <template #footer>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
-        Shows how your page appears in Google search results. Title truncates at ~60 characters.
-      </p>
-    </template>
-  </UCard>
+    <!-- Preview -->
+    <div class="p-4">
+      <div class="space-y-1">
+        <p class="text-xs text-gray-600 dark:text-gray-400">
+          {{ displayUrl }}
+        </p>
+        <p class="text-lg text-blue-700 dark:text-blue-400 hover:underline cursor-pointer leading-snug">
+          {{ truncatedTitle }}
+        </p>
+        <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+          {{ truncatedDescription }}
+        </p>
+      </div>
+    </div>
+  </div>
 </template>

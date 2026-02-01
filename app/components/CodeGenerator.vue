@@ -8,29 +8,26 @@ interface Props {
 
 const props = defineProps<Props>()
 const toast = useToast()
+const copied = ref(false)
 
-// Generate HTML snippet
-const generatedHtml = computed(() => {
-  return generateDefaultTags(props.tags)
-})
+const generatedHtml = computed(() => generateDefaultTags(props.tags))
 
-// Copy to clipboard
 const copyToClipboard = async () => {
   try {
     await navigator.clipboard.writeText(generatedHtml.value)
+    copied.value = true
     toast.add({
       title: 'Copied to clipboard',
-      description: 'HTML snippet copied successfully',
       icon: 'i-heroicons-check-circle',
-      color: 'green',
+      color: 'success',
       timeout: 2000
     })
-  } catch (error) {
+    setTimeout(() => { copied.value = false }, 2000)
+  } catch {
     toast.add({
-      title: 'Copy failed',
-      description: 'Unable to copy to clipboard',
+      title: 'Failed to copy',
       icon: 'i-heroicons-x-circle',
-      color: 'red',
+      color: 'error',
       timeout: 3000
     })
   }
@@ -38,58 +35,47 @@ const copyToClipboard = async () => {
 </script>
 
 <template>
-  <UCard>
-    <template #header>
-      <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold flex items-center gap-2">
-          <UIcon name="i-heroicons-code-bracket" class="text-2xl" aria-hidden="true" />
-          Generated HTML
-        </h2>
-        <UButton 
-          icon="i-heroicons-clipboard-document"
-          @click="copyToClipboard"
-          aria-label="Copy HTML to clipboard"
-        >
-          Copy
-        </UButton>
-      </div>
-    </template>
-    
-    <div class="space-y-3">
-      <p class="text-sm text-gray-600 dark:text-gray-400">
-        Copy this snippet into your page's <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">&lt;head&gt;</code> section.
-        All values are pre-filled based on your current tags, with sensible defaults for anything missing.
-      </p>
-      
-      <!-- Code block with syntax highlighting -->
-      <div class="relative">
-        <pre 
-          class="p-4 bg-gray-900 dark:bg-black text-gray-100 rounded-lg overflow-x-auto text-sm font-mono"
-          role="region"
-          aria-label="Generated HTML code"
-          tabindex="0"
-        ><code>{{ generatedHtml }}</code></pre>
-        
-        <!-- Copy button overlay (for convenience) -->
-        <UButton
-          icon="i-heroicons-clipboard"
-          size="xs"
-          color="white"
-          class="absolute top-2 right-2"
-          @click="copyToClipboard"
-          aria-label="Copy code"
-        />
-      </div>
-    </div>
-    
-    <template #footer>
-      <div class="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400">
-        <UIcon name="i-heroicons-information-circle" class="flex-shrink-0 mt-0.5" aria-hidden="true" />
-        <p>
-          This HTML is ready to use. You can edit the values inline in your code editor before pasting.
-          For best results, ensure all image URLs are absolute (starting with https://).
+  <div class="space-y-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">Generated HTML</h3>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          Copy this snippet into your page's &lt;head&gt; section
         </p>
       </div>
-    </template>
-  </UCard>
+      <UButton 
+        :icon="copied ? 'i-heroicons-check' : 'i-heroicons-clipboard-document'"
+        :color="copied ? 'success' : 'neutral'"
+        variant="soft"
+        size="sm"
+        @click="copyToClipboard"
+      >
+        {{ copied ? 'Copied' : 'Copy' }}
+      </UButton>
+    </div>
+    
+    <!-- Code Block -->
+    <div class="relative rounded-lg overflow-hidden">
+      <pre class="p-4 bg-gray-900 dark:bg-black text-gray-100 text-xs leading-relaxed overflow-x-auto font-mono"><code>{{ generatedHtml }}</code></pre>
+      
+      <!-- Copy button overlay -->
+      <button
+        @click="copyToClipboard"
+        class="absolute top-2 right-2 p-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-colors"
+        aria-label="Copy code"
+      >
+        <UIcon 
+          :name="copied ? 'i-heroicons-check' : 'i-heroicons-clipboard'" 
+          class="w-4 h-4 text-gray-400"
+        />
+      </button>
+    </div>
+    
+    <!-- Tip -->
+    <p class="text-xs text-gray-500 dark:text-gray-400 flex items-start gap-1.5">
+      <UIcon name="i-heroicons-light-bulb" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+      <span>Ensure all image URLs are absolute (starting with https://) for best results.</span>
+    </p>
+  </div>
 </template>
