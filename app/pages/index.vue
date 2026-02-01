@@ -726,9 +726,9 @@ const exportAsHtml = () => {
           <label for="html-input" class="text-2xl font-bold text-gray-900 dark:text-white block">
             Paste the &lt;head&gt; section of the HTML you want to analyze
           </label>
-          <p class="text-sm text-gray-600 dark:text-gray-400 max-w-md">
-            <strong class="text-gray-700 dark:text-gray-300">What matters:</strong> The &lt;head&gt; section containing your meta tags, title, and link tags. 
-            <span class="block mt-1 text-gray-500 dark:text-gray-500">You don't need the full HTML — the &lt;body&gt; content isn't used for social sharing previews.</span>
+          <p class="text-sm text-gray-600 dark:text-gray-400 max-w-lg">
+            Copy the entire section from the starting tag <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs">&lt;head&gt;</code> to the ending tag <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs">&lt;/head&gt;</code>
+            <span class="block mt-1 text-gray-500 dark:text-gray-500">The &lt;body&gt; content isn't needed — only the head section contains meta tags for social sharing.</span>
           </p>
         </div>
         <div class="ml-auto flex items-center gap-2">
