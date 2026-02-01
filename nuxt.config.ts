@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   
   css: ['~/assets/css/main.css'],
   
-  devtools: { enabled: true },
+  devtools: { enabled: false },
   
   ssr: true,
   
@@ -30,7 +30,12 @@ export default defineNuxtConfig({
         { property: 'og:description', content: 'Inspect, preview, and fix HTML meta tags and Open Graph markup.' },
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: 'https://metapeek.icjia.app' },
+        { property: 'og:image', content: 'https://metapeek.icjia.app/favicon.png' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+      ],
+      link: [
+        { rel: 'icon', type: 'image/png', href: '/favicon.png' },
+        { rel: 'apple-touch-icon', href: '/favicon.png' }
       ]
     }
   }
