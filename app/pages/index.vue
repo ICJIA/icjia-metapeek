@@ -724,7 +724,7 @@ const exportAsHtml = () => {
         </div>
         <div>
           <label for="html-input" class="text-2xl font-bold text-gray-900 dark:text-white block">
-            Paste Your &lt;head&gt; Section
+            Paste the &lt;HEAD&gt; section of the HTML you want to analyze
           </label>
           <p class="text-sm text-gray-600 dark:text-gray-400 max-w-md">
             <strong class="text-gray-700 dark:text-gray-300">What matters:</strong> The &lt;head&gt; section containing your meta tags, title, and link tags. 
