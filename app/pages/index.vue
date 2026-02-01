@@ -151,17 +151,27 @@ const tabs = [
           Open Graph &amp; Social Share Debugger
         </p>
         <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-3">
-          Control how your links look when shared
+          Preview how your links appear when shared
         </h1>
-        <p class="text-gray-700 dark:text-gray-300 max-w-2xl mb-4">
-          When someone shares your link on social media, the title, description, and image they see are controlled by 
-          <span class="font-medium text-gray-900 dark:text-white">Open Graph meta tags</span> in your HTML. 
-          Missing or misconfigured tags mean broken previews, no images, or wrong descriptions.
-        </p>
-        <p class="text-gray-600 dark:text-gray-400 max-w-2xl text-sm">
-          Unlike platform-specific tools (Facebook Debugger, Twitter Card Validator), MetaPeek shows you 
-          <span class="font-medium">all platforms at once</span>—with diagnostics and ready-to-use code fixes. 
-          No account. No rate limits. No ads.
+        <div class="text-gray-700 dark:text-gray-300 max-w-2xl mb-4 space-y-3">
+          <p>
+            When someone shares a link to your website on Facebook, LinkedIn, X, or Slack, those platforms 
+            display a preview card with a title, description, and image. <span class="font-medium text-gray-900 dark:text-white">This 
+            information comes from special HTML tags on your page</span> called Open Graph tags.
+          </p>
+          <p>
+            <span class="font-medium text-gray-900 dark:text-white">The problem:</span> If these tags are missing or misconfigured, 
+            your shared links may show the wrong title, no image, or a generic description—making your content 
+            look unprofessional or causing people to scroll past it.
+          </p>
+          <p>
+            <span class="font-medium text-gray-900 dark:text-white">MetaPeek helps you find and fix these issues.</span> 
+            Paste your page's HTML to see exactly what each platform will display, get a diagnostic report of any problems, 
+            and copy corrected code to give to your developer.
+          </p>
+        </div>
+        <p class="text-gray-500 dark:text-gray-400 max-w-2xl text-sm italic">
+          Why "MetaPeek"? You're peeking at your meta tags—the hidden HTML that controls how your content appears across the web.
         </p>
       </div>
 
@@ -288,6 +298,11 @@ const tabs = [
               :favicon="parsedTags.favicon"
               :url="parsedTags.og.url || parsedTags.canonical"
             />
+            <!-- Image Analysis - spans full width on larger screens -->
+            <ImageAnalysis
+              :image-url="parsedTags.og.image"
+              class="lg:col-span-2"
+            />
           </div>
         </div>
 
@@ -308,13 +323,14 @@ const tabs = [
       <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-5">
         <UIcon name="i-heroicons-share" class="w-8 h-8 text-gray-400" />
       </div>
-      <h2 class="text-lg font-semibold mb-2">See how your links appear when shared</h2>
-      <p class="text-gray-600 dark:text-gray-300 mb-2 max-w-md">
-        Paste your page's <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-sm font-mono">&lt;head&gt;</code> section 
-        to preview how it renders on Google, Facebook, LinkedIn, X, and Slack.
+      <h2 class="text-lg font-semibold mb-2">Check how your website looks when shared</h2>
+      <p class="text-gray-600 dark:text-gray-300 mb-3 max-w-lg">
+        Paste your page's HTML above to see exactly what Facebook, LinkedIn, X, and other platforms 
+        will display when someone shares your link.
       </p>
-      <p class="text-gray-500 dark:text-gray-400 mb-5 max-w-md text-sm">
-        You'll get instant diagnostics for missing tags and copy-paste code to fix issues.
+      <p class="text-gray-500 dark:text-gray-400 mb-5 max-w-lg text-sm">
+        MetaPeek will identify any missing or incorrect tags and provide the exact code needed to fix them.
+        <span class="block mt-1 text-xs">Not sure how to get your HTML? Right-click on your webpage and select "View Page Source."</span>
       </p>
       <UButton 
         @click="loadSample" 
@@ -323,7 +339,7 @@ const tabs = [
         icon="i-heroicons-sparkles"
         size="md"
       >
-        Try with Example HTML
+        See an Example First
       </UButton>
     </div>
 
