@@ -311,7 +311,7 @@ const tabs = [
           4
         </div>
         <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Fix Issues & Copy Code</h2>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Meta Results</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">Review diagnostics and get corrected HTML to copy</p>
         </div>
       </div>
