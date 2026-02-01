@@ -3,22 +3,13 @@
  * AppTooltip - A simple, accessible, responsive tooltip component
  * 
  * Features:
+ * - Fixed positioning (escapes overflow:hidden parents)
  * - Keyboard accessible (shows on focus)
  * - Mouse accessible (shows on hover)
  * - Screen reader compatible (aria-describedby)
  * - Auto-positioning based on viewport space
- * - Responsive (adjusts on mobile)
- * - Configurable delay
+ * - Always horizontal text layout
  * - No external dependencies
- * 
- * Usage:
- * <AppTooltip text="Tooltip content">
- *   <button>Hover me</button>
- * </AppTooltip>
- * 
- * <AppTooltip text="Tooltip" position="bottom" :delay="200">
- *   <span>With options</span>
- * </AppTooltip>
  */
 
 interface Props {
@@ -34,62 +25,111 @@ const props = withDefaults(defineProps<Props>(), {
 
 const isVisible = ref(false)
 const triggerRef = ref<HTMLElement | null>(null)
-const computedPosition = ref<'top' | 'bottom' | 'left' | 'right'>('top')
+const tooltipStyle = ref<Record<string, string>>({})
+const arrowStyle = ref<Record<string, string>>({})
+const computedPosition = ref<'top' | 'bottom' | 'left' | 'right'>('left')
 const tooltipId = `tooltip-${Math.random().toString(36).substring(2, 9)}`
 let showTimeout: ReturnType<typeof setTimeout> | null = null
 let hideTimeout: ReturnType<typeof setTimeout> | null = null
 
-// Calculate best position based on available viewport space
-const calculatePosition = () => {
-  if (props.position !== 'auto') {
-    computedPosition.value = props.position
-    return
-  }
-
-  if (!triggerRef.value) {
-    computedPosition.value = 'top'
-    return
-  }
+const calculatePositionAndStyle = () => {
+  if (!triggerRef.value) return
 
   const rect = triggerRef.value.getBoundingClientRect()
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
-  const margin = 80 // Minimum space needed for tooltip
-  
-  // Check available space in each direction
-  const spaceTop = rect.top
-  const spaceBottom = viewportHeight - rect.bottom
+  const gap = 8 // Gap between trigger and tooltip
+  const tooltipMinWidth = 200 // Estimated tooltip width for positioning
+
+  // Calculate available space
   const spaceLeft = rect.left
   const spaceRight = viewportWidth - rect.right
+  const spaceTop = rect.top
+  const spaceBottom = viewportHeight - rect.bottom
 
-  // On mobile (narrow screens), prefer top/bottom
-  const isMobile = viewportWidth < 640
-
-  if (isMobile) {
-    // On mobile, prefer bottom if enough space, otherwise top
-    computedPosition.value = spaceBottom > margin ? 'bottom' : 'top'
-    return
+  // Determine best position - prefer left/right for horizontal text
+  let pos: 'top' | 'bottom' | 'left' | 'right' = props.position !== 'auto' ? props.position : 'left'
+  
+  if (props.position === 'auto') {
+    // Prefer horizontal positioning (left/right) for better text display
+    if (spaceLeft >= tooltipMinWidth) {
+      pos = 'left'
+    } else if (spaceRight >= tooltipMinWidth) {
+      pos = 'right'
+    } else if (spaceTop > spaceBottom && spaceTop > 50) {
+      pos = 'top'
+    } else {
+      pos = 'bottom'
+    }
   }
 
-  // Find the direction with most space
-  const spaces = [
-    { dir: 'top' as const, space: spaceTop },
-    { dir: 'bottom' as const, space: spaceBottom },
-    { dir: 'left' as const, space: spaceLeft },
-    { dir: 'right' as const, space: spaceRight }
-  ]
+  computedPosition.value = pos
 
-  // Prefer top/bottom over left/right, then pick the one with most space
-  const verticalSpaces = spaces.filter(s => s.dir === 'top' || s.dir === 'bottom')
-  const bestVertical = verticalSpaces.reduce((a, b) => a.space > b.space ? a : b)
-  
-  if (bestVertical.space > margin) {
-    computedPosition.value = bestVertical.dir
-  } else {
-    // Fall back to horizontal if vertical space is limited
-    const horizontalSpaces = spaces.filter(s => s.dir === 'left' || s.dir === 'right')
-    const bestHorizontal = horizontalSpaces.reduce((a, b) => a.space > b.space ? a : b)
-    computedPosition.value = bestHorizontal.dir
+  // Calculate fixed position styles
+  const centerY = rect.top + rect.height / 2
+  const centerX = rect.left + rect.width / 2
+
+  switch (pos) {
+    case 'left':
+      tooltipStyle.value = {
+        position: 'fixed',
+        top: `${centerY}px`,
+        right: `${viewportWidth - rect.left + gap}px`,
+        transform: 'translateY(-50%)',
+        zIndex: '9999'
+      }
+      arrowStyle.value = {
+        position: 'absolute',
+        top: '50%',
+        right: '-4px',
+        transform: 'translateY(-50%) rotate(45deg)'
+      }
+      break
+    case 'right':
+      tooltipStyle.value = {
+        position: 'fixed',
+        top: `${centerY}px`,
+        left: `${rect.right + gap}px`,
+        transform: 'translateY(-50%)',
+        zIndex: '9999'
+      }
+      arrowStyle.value = {
+        position: 'absolute',
+        top: '50%',
+        left: '-4px',
+        transform: 'translateY(-50%) rotate(45deg)'
+      }
+      break
+    case 'top':
+      tooltipStyle.value = {
+        position: 'fixed',
+        bottom: `${viewportHeight - rect.top + gap}px`,
+        left: `${centerX}px`,
+        transform: 'translateX(-50%)',
+        zIndex: '9999'
+      }
+      arrowStyle.value = {
+        position: 'absolute',
+        bottom: '-4px',
+        left: '50%',
+        transform: 'translateX(-50%) rotate(45deg)'
+      }
+      break
+    case 'bottom':
+      tooltipStyle.value = {
+        position: 'fixed',
+        top: `${rect.bottom + gap}px`,
+        left: `${centerX}px`,
+        transform: 'translateX(-50%)',
+        zIndex: '9999'
+      }
+      arrowStyle.value = {
+        position: 'absolute',
+        top: '-4px',
+        left: '50%',
+        transform: 'translateX(-50%) rotate(45deg)'
+      }
+      break
   }
 }
 
@@ -99,7 +139,7 @@ const show = () => {
     hideTimeout = null
   }
   
-  calculatePosition()
+  calculatePositionAndStyle()
   
   if (props.delay > 0) {
     showTimeout = setTimeout(() => {
@@ -115,33 +155,10 @@ const hide = () => {
     clearTimeout(showTimeout)
     showTimeout = null
   }
-  // Small delay before hiding to allow moving to tooltip
   hideTimeout = setTimeout(() => {
     isVisible.value = false
   }, 100)
 }
-
-const positionClasses = computed(() => {
-  const base = 'absolute z-[9999] px-2 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded-md shadow-lg max-w-xs'
-  const positions = {
-    top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-    bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
-    left: 'right-full top-1/2 -translate-y-1/2 mr-2',
-    right: 'left-full top-1/2 -translate-y-1/2 ml-2'
-  }
-  return `${base} ${positions[computedPosition.value]}`
-})
-
-const arrowClasses = computed(() => {
-  const base = 'absolute w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45'
-  const positions = {
-    top: 'top-full left-1/2 -translate-x-1/2 -mt-1',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 -mb-1',
-    left: 'left-full top-1/2 -translate-y-1/2 -ml-1',
-    right: 'right-full top-1/2 -translate-y-1/2 -mr-1'
-  }
-  return `${base} ${positions[computedPosition.value]}`
-})
 
 onUnmounted(() => {
   if (showTimeout) clearTimeout(showTimeout)
@@ -152,7 +169,7 @@ onUnmounted(() => {
 <template>
   <div 
     ref="triggerRef"
-    class="relative inline-flex"
+    class="inline-flex"
     @mouseenter="show"
     @mouseleave="hide"
     @focusin="show"
@@ -163,24 +180,30 @@ onUnmounted(() => {
       <slot />
     </div>
     
-    <!-- Tooltip -->
-    <Transition
-      enter-active-class="transition duration-100 ease-out"
-      enter-from-class="opacity-0 scale-95"
-      enter-to-class="opacity-100 scale-100"
-      leave-active-class="transition duration-75 ease-in"
-      leave-from-class="opacity-100 scale-100"
-      leave-to-class="opacity-0 scale-95"
-    >
-      <div
-        v-if="isVisible"
-        :id="tooltipId"
-        role="tooltip"
-        :class="positionClasses"
+    <!-- Tooltip (using Teleport to body to escape overflow) -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-100 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-75 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
       >
-        {{ text }}
-        <div :class="arrowClasses" />
-      </div>
-    </Transition>
+        <div
+          v-if="isVisible"
+          :id="tooltipId"
+          role="tooltip"
+          :style="tooltipStyle"
+          class="px-2.5 py-1.5 text-sm font-medium text-white bg-gray-900 dark:bg-gray-700 rounded-md shadow-lg whitespace-nowrap"
+        >
+          {{ text }}
+          <div 
+            :style="arrowStyle"
+            class="w-2 h-2 bg-gray-900 dark:bg-gray-700"
+          />
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
