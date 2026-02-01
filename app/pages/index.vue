@@ -95,6 +95,307 @@ const tabs = [
   { label: 'Diagnostics', value: 'diagnostics', icon: 'i-heroicons-clipboard-document-check' },
   { label: 'Code', value: 'code', icon: 'i-heroicons-code-bracket' }
 ]
+
+// Export functionality
+const downloadFile = (content: string, filename: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const generateExportData = () => {
+  if (!parsedTags.value || !diagnostics.value) return null
+  
+  const timestamp = new Date().toISOString()
+  const tags = parsedTags.value
+  const diag = diagnostics.value
+  
+  return {
+    exportInfo: {
+      tool: 'MetaPeek by ICJIA',
+      version: '1.0.0',
+      exportedAt: timestamp,
+      url: 'https://metapeek.icjia.dev'
+    },
+    summary: {
+      overallStatus: diag.overall.status,
+      overallMessage: diag.overall.message,
+      suggestion: diag.overall.suggestion
+    },
+    diagnostics: {
+      title: { status: diag.title.status, message: diag.title.message, value: tags.title, charCount: tags.title?.length, limit: 60 },
+      description: { status: diag.description.status, message: diag.description.message, value: tags.description, charCount: tags.description?.length, limit: 160 },
+      canonical: { status: diag.canonical.status, message: diag.canonical.message, value: tags.canonical },
+      robots: { status: diag.robots.status, message: diag.robots.message, value: tags.robots },
+      ogTags: { status: diag.ogTags.status, message: diag.ogTags.message },
+      ogImage: { status: diag.ogImage.status, message: diag.ogImage.message, value: tags.og?.image },
+      twitterCard: { status: diag.twitterCard.status, message: diag.twitterCard.message }
+    },
+    metaTags: {
+      basic: {
+        title: tags.title,
+        description: tags.description,
+        canonical: tags.canonical,
+        robots: tags.robots,
+        viewport: tags.viewport,
+        themeColor: tags.themeColor,
+        favicon: tags.favicon,
+        author: tags.author,
+        keywords: tags.keywords,
+        language: tags.language,
+        generator: tags.generator
+      },
+      openGraph: {
+        title: tags.og?.title,
+        description: tags.og?.description,
+        type: tags.og?.type,
+        url: tags.og?.url,
+        image: tags.og?.image,
+        imageAlt: tags.og?.imageAlt,
+        imageWidth: tags.og?.imageWidth,
+        imageHeight: tags.og?.imageHeight,
+        imageType: tags.og?.imageType,
+        siteName: tags.og?.siteName,
+        locale: tags.og?.locale,
+        updatedTime: tags.og?.updatedTime,
+        video: tags.og?.video,
+        audio: tags.og?.audio
+      },
+      twitter: {
+        card: tags.twitter?.card,
+        site: tags.twitter?.site,
+        creator: tags.twitter?.creator,
+        title: tags.twitter?.title,
+        description: tags.twitter?.description,
+        image: tags.twitter?.image,
+        imageAlt: tags.twitter?.imageAlt,
+        label1: tags.twitter?.label1,
+        data1: tags.twitter?.data1,
+        label2: tags.twitter?.label2,
+        data2: tags.twitter?.data2
+      },
+      facebook: {
+        appId: tags.facebook?.appId,
+        admins: tags.facebook?.admins
+      },
+      article: {
+        author: tags.article?.author,
+        publishedTime: tags.article?.publishedTime,
+        modifiedTime: tags.article?.modifiedTime,
+        section: tags.article?.section,
+        tags: tags.article?.tags
+      },
+      pinterest: {
+        description: tags.pinterest?.description
+      },
+      apple: {
+        mobileWebAppCapable: tags.apple?.mobileWebAppCapable,
+        mobileWebAppTitle: tags.apple?.mobileWebAppTitle,
+        mobileWebAppStatusBarStyle: tags.apple?.mobileWebAppStatusBarStyle,
+        touchIcon: tags.apple?.touchIcon
+      },
+      microsoft: {
+        tileImage: tags.microsoft?.tileImage,
+        tileColor: tags.microsoft?.tileColor
+      },
+      structuredData: tags.structuredData
+    }
+  }
+}
+
+const exportAsJson = () => {
+  const data = generateExportData()
+  if (!data) return
+  
+  const json = JSON.stringify(data, null, 2)
+  const filename = `metapeek-results-${new Date().toISOString().split('T')[0]}.json`
+  downloadFile(json, filename, 'application/json')
+}
+
+const exportAsMarkdown = () => {
+  const data = generateExportData()
+  if (!data) return
+  
+  const tags = parsedTags.value!
+  const diag = diagnostics.value!
+  
+  const statusEmoji = (status: string) => status === 'green' ? '✅' : status === 'yellow' ? '⚠️' : '❌'
+  
+  let md = `# MetaPeek Analysis Results
+
+**Exported:** ${new Date().toLocaleString()}  
+**Tool:** MetaPeek by ICJIA (https://metapeek.icjia.dev)
+
+---
+
+## Summary
+
+**Overall Status:** ${statusEmoji(diag.overall.status)} ${diag.overall.message}
+${diag.overall.suggestion ? `\n**Suggestion:** ${diag.overall.suggestion}` : ''}
+
+---
+
+## Diagnostic Results
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Title | ${statusEmoji(diag.title.status)} | ${diag.title.message} |
+| Description | ${statusEmoji(diag.description.status)} | ${diag.description.message} |
+| Open Graph | ${statusEmoji(diag.ogTags.status)} | ${diag.ogTags.message} |
+| OG Image | ${statusEmoji(diag.ogImage.status)} | ${diag.ogImage.message} |
+| X/Twitter Card | ${statusEmoji(diag.twitterCard.status)} | ${diag.twitterCard.message} |
+| Canonical URL | ${statusEmoji(diag.canonical.status)} | ${diag.canonical.message} |
+| Robots | ${statusEmoji(diag.robots.status)} | ${diag.robots.message} |
+
+---
+
+## Basic Meta Tags
+
+| Tag | Value |
+|-----|-------|
+| Title | ${tags.title || '(not set)'} |
+| Title Length | ${tags.title?.length || 0}/60 characters |
+| Description | ${tags.description || '(not set)'} |
+| Description Length | ${tags.description?.length || 0}/160 characters |
+| Canonical URL | ${tags.canonical || '(not set)'} |
+| Robots | ${tags.robots || '(not set)'} |
+${tags.author ? `| Author | ${tags.author} |` : ''}
+${tags.keywords ? `| Keywords | ${tags.keywords} |` : ''}
+${tags.language ? `| Language | ${tags.language} |` : ''}
+${tags.viewport ? `| Viewport | ${tags.viewport} |` : ''}
+${tags.themeColor ? `| Theme Color | ${tags.themeColor} |` : ''}
+${tags.favicon ? `| Favicon | ${tags.favicon} |` : ''}
+
+---
+
+## Open Graph Tags
+
+| Property | Value |
+|----------|-------|
+| og:title | ${tags.og?.title || '(not set)'} |
+| og:description | ${tags.og?.description || '(not set)'} |
+| og:type | ${tags.og?.type || '(not set)'} |
+| og:url | ${tags.og?.url || '(not set)'} |
+| og:image | ${tags.og?.image || '(not set)'} |
+${tags.og?.imageAlt ? `| og:image:alt | ${tags.og.imageAlt} |` : ''}
+${tags.og?.imageWidth ? `| og:image:width | ${tags.og.imageWidth} |` : ''}
+${tags.og?.imageHeight ? `| og:image:height | ${tags.og.imageHeight} |` : ''}
+${tags.og?.siteName ? `| og:site_name | ${tags.og.siteName} |` : ''}
+${tags.og?.locale ? `| og:locale | ${tags.og.locale} |` : ''}
+${tags.og?.updatedTime ? `| og:updated_time | ${tags.og.updatedTime} |` : ''}
+
+---
+
+## X/Twitter Card Tags
+
+| Property | Value |
+|----------|-------|
+| twitter:card | ${tags.twitter?.card || '(not set)'} |
+| twitter:site | ${tags.twitter?.site || '(not set)'} |
+${tags.twitter?.creator ? `| twitter:creator | ${tags.twitter.creator} |` : ''}
+${tags.twitter?.title ? `| twitter:title | ${tags.twitter.title} |` : ''}
+${tags.twitter?.description ? `| twitter:description | ${tags.twitter.description} |` : ''}
+${tags.twitter?.image ? `| twitter:image | ${tags.twitter.image} |` : ''}
+${tags.twitter?.imageAlt ? `| twitter:image:alt | ${tags.twitter.imageAlt} |` : ''}
+${tags.twitter?.label1 ? `| twitter:label1 | ${tags.twitter.label1} |` : ''}
+${tags.twitter?.data1 ? `| twitter:data1 | ${tags.twitter.data1} |` : ''}
+`
+
+  // Add Facebook section if present
+  if (tags.facebook?.appId || tags.facebook?.admins) {
+    md += `
+---
+
+## Facebook Tags
+
+| Property | Value |
+|----------|-------|
+${tags.facebook?.appId ? `| fb:app_id | ${tags.facebook.appId} |` : ''}
+${tags.facebook?.admins ? `| fb:admins | ${tags.facebook.admins} |` : ''}
+`
+  }
+
+  // Add Article section if present
+  if (tags.article?.author || tags.article?.publishedTime || tags.article?.section) {
+    md += `
+---
+
+## Article Metadata
+
+| Property | Value |
+|----------|-------|
+${tags.article?.author ? `| article:author | ${tags.article.author} |` : ''}
+${tags.article?.publishedTime ? `| article:published_time | ${tags.article.publishedTime} |` : ''}
+${tags.article?.modifiedTime ? `| article:modified_time | ${tags.article.modifiedTime} |` : ''}
+${tags.article?.section ? `| article:section | ${tags.article.section} |` : ''}
+${tags.article?.tags?.length ? `| article:tag | ${tags.article.tags.join(', ')} |` : ''}
+`
+  }
+
+  // Add Structured Data if present
+  if (tags.structuredData?.length) {
+    md += `
+---
+
+## Structured Data (JSON-LD)
+
+Found ${tags.structuredData.length} schema(s):
+
+`
+    tags.structuredData.forEach((schema, i) => {
+      md += `### Schema ${i + 1}: ${schema['@type'] || 'Unknown'}
+
+\`\`\`json
+${JSON.stringify(schema, null, 2)}
+\`\`\`
+
+`
+    })
+  }
+
+  md += `
+---
+
+## Issues to Fix
+
+`
+  
+  // List issues
+  const issues: string[] = []
+  if (diag.title.status === 'red') issues.push(`- ❌ **Title:** ${diag.title.message}`)
+  if (diag.title.status === 'yellow') issues.push(`- ⚠️ **Title:** ${diag.title.message}`)
+  if (diag.description.status === 'red') issues.push(`- ❌ **Description:** ${diag.description.message}`)
+  if (diag.description.status === 'yellow') issues.push(`- ⚠️ **Description:** ${diag.description.message}`)
+  if (diag.ogTags.status === 'red') issues.push(`- ❌ **Open Graph:** ${diag.ogTags.message}`)
+  if (diag.ogTags.status === 'yellow') issues.push(`- ⚠️ **Open Graph:** ${diag.ogTags.message}`)
+  if (diag.ogImage.status === 'red') issues.push(`- ❌ **OG Image:** ${diag.ogImage.message}`)
+  if (diag.ogImage.status === 'yellow') issues.push(`- ⚠️ **OG Image:** ${diag.ogImage.message}`)
+  if (diag.twitterCard.status === 'red') issues.push(`- ❌ **X/Twitter:** ${diag.twitterCard.message}`)
+  if (diag.twitterCard.status === 'yellow') issues.push(`- ⚠️ **X/Twitter:** ${diag.twitterCard.message}`)
+  if (diag.canonical.status === 'red') issues.push(`- ❌ **Canonical:** ${diag.canonical.message}`)
+  if (diag.canonical.status === 'yellow') issues.push(`- ⚠️ **Canonical:** ${diag.canonical.message}`)
+  
+  if (issues.length === 0) {
+    md += `✅ No issues found! All meta tags are properly configured.\n`
+  } else {
+    md += issues.join('\n') + '\n'
+  }
+
+  md += `
+---
+
+*Generated by [MetaPeek](https://metapeek.icjia.dev) - Open Graph & Social Sharing Meta Tag Analyzer*
+`
+
+  const filename = `metapeek-results-${new Date().toISOString().split('T')[0]}.md`
+  downloadFile(md, filename, 'text/markdown')
+}
 </script>
 
 <template>
@@ -355,6 +656,50 @@ const tabs = [
         <div v-show="activeTab === 'code'">
           <CodeGenerator :tags="parsedTags" />
         </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Export Results -->
+    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-cyan-50 dark:bg-cyan-950/40 border-y border-cyan-200 dark:border-cyan-800">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="flex items-center justify-center w-20 h-20 rounded-full bg-cyan-600 text-white font-bold text-4xl shadow-lg">
+          5
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Export Results</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">Save your analysis for documentation or LLM-assisted fixes</p>
+        </div>
+      </div>
+      
+      <div class="bg-white dark:bg-gray-900 rounded-lg border border-cyan-200 dark:border-cyan-800 p-6">
+        <p class="text-gray-700 dark:text-gray-300 mb-6">
+          Download your meta tag analysis to share with your team, include in documentation, or upload to an AI assistant (ChatGPT, Claude, etc.) for help implementing fixes.
+        </p>
+        
+        <div class="flex flex-wrap gap-4">
+          <UButton
+            @click="exportAsJson"
+            size="lg"
+            variant="soft"
+            color="primary"
+            icon="i-heroicons-code-bracket"
+          >
+            Download as JSON
+          </UButton>
+          <UButton
+            @click="exportAsMarkdown"
+            size="lg"
+            variant="soft"
+            color="neutral"
+            icon="i-heroicons-document-text"
+          >
+            Download as Markdown
+          </UButton>
+        </div>
+        
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">
+          <strong>Tip:</strong> The Markdown format is ideal for pasting into LLMs — it includes all diagnostic details, current values, and issues in a structured format that AI assistants can easily understand and act on.
+        </p>
       </div>
     </div>
 
