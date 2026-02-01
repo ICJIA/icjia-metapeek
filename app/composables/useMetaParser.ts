@@ -62,9 +62,8 @@ export const useMetaParser = () => {
       try {
         const data = JSON.parse(script.textContent || '')
         structuredData.push(data)
-      } catch (e) {
-        // Invalid JSON - skip it
-        console.warn('Invalid JSON-LD found:', e)
+      } catch {
+        // Invalid JSON - skip silently (expected for malformed pages)
       }
     })
     

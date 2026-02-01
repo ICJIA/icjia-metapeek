@@ -6,10 +6,13 @@ export default defineNuxtConfig({
   
   devtools: { enabled: false },
   
-  ssr: true,
+  ssr: true, // MetaPeek practices what it preaches
+  
+  compatibilityDate: '2026-02-01',
   
   typescript: {
     strict: true,
+    // typeCheck: true, // Disabled - use `yarn typecheck` instead to avoid vite-plugin-checker issues
     shim: false
   },
 

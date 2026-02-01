@@ -17,3 +17,7 @@ dist
 .vscode/*
 !.vscode/extensions.json
 .history/*
+
+# Test artifacts
+playwright-report/
+test-results/

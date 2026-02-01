@@ -179,9 +179,12 @@ icjia-metapeek/
 │   ├── phase-1-implementation-guide.md
 │   └── initial-package-json.md
 ├── tests/                   # Test suites
-│   ├── unit/
-│   ├── integration/
-│   └── accessibility/
+│   ├── unit/                # Vitest unit tests
+│   │   ├── useMetaParser.test.ts
+│   │   ├── useDiagnostics.test.ts
+│   │   └── tagDefaults.test.ts
+│   └── e2e/                 # Playwright E2E tests
+│       └── accessibility.spec.ts
 ├── metapeek.config.ts       # Central configuration (single source of truth)
 ├── nuxt.config.ts           # Nuxt configuration
 ├── package.json
@@ -220,17 +223,50 @@ The app will be available at `http://localhost:3000`
 ### Available Scripts
 
 ```bash
+# Development
 yarn dev             # Start development server
 yarn build           # Build for production
 yarn generate        # Generate static site
 yarn preview         # Preview production build
 
-yarn test:unit       # Run unit tests
+# Testing
+yarn test            # Run unit tests (verbose output)
+yarn test:all        # Run ALL tests (unit + accessibility)
+yarn test:unit       # Run unit tests only
 yarn test:watch      # Run tests in watch mode
 yarn test:coverage   # Generate coverage report
+yarn test:accessibility  # Run Playwright accessibility tests
 
+# Type Checking
 yarn typecheck       # Check TypeScript types
 ```
+
+### Test Output
+
+Running `yarn test:all` produces verbose output showing each test:
+
+**Unit Tests (88 tests)** — Vitest with verbose reporter
+```
+✓ tagDefaults > generateDefaultTags > title generation > uses og:title when available
+✓ useDiagnostics > title diagnostics > returns red status when title is missing
+✓ useMetaParser > parseMetaTags > extracts og:title
+...
+```
+
+**Accessibility Tests (5 tests)** — Playwright with axe-core
+```
+→ Navigating to homepage...
+→ Page loaded, running axe-core scan...
+→ Scanned 24 passing rules
+→ Found 0 violations
+✓ No accessibility violations detected
+✓ 1 [chromium] › Accessibility Audit - WCAG 2.1 AA Compliance › Initial page load
+```
+
+The accessibility tests verify:
+- **WCAG 2.1 AA compliance** across all page states (initial load, analyzed content, edit mode)
+- **Keyboard navigation** including skip links and tab order
+- **Focus management** for all interactive elements
 
 ---
 
@@ -305,11 +341,13 @@ export default defineNuxtConfig({
 
 ### Testing Requirements
 
-- **Unit tests:** > 80% coverage for composables
-- **Accessibility:** Zero violations in axe DevTools
+- **Unit tests:** 88 tests covering composables and utilities (> 80% coverage)
+- **E2E accessibility:** 5 Playwright tests with axe-core (zero WCAG 2.1 AA violations)
 - **Lighthouse:** Accessibility score must be 100
 - **Manual testing:** Keyboard-only navigation must work
 - **Screen reader:** Test with NVDA or VoiceOver
+
+Run `yarn test:all` to execute the complete test suite (93 tests).
 
 ### Accessibility Standards
 

@@ -71,7 +71,7 @@ const handleImageError = () => {
           <p class="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-1">
             {{ truncatedDescription }}
           </p>
-          <p class="text-[10px] text-gray-500 dark:text-gray-500 uppercase tracking-wider">example.com</p>
+          <p class="text-[10px] text-gray-600 dark:text-gray-400 uppercase tracking-wider">example.com</p>
         </div>
       </div>
     </div>

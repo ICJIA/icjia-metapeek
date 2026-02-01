@@ -8,10 +8,12 @@
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "test": "vitest run --reporter=verbose",
+    "test:all": "vitest run --reporter=verbose && playwright test --reporter=list",
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:accessibility": "playwright test",
+    "test:accessibility": "playwright test --reporter=list",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
@@ -32,6 +34,7 @@
     "cheerio": "^1.0.0",
     "happy-dom": "^15.11.7",
     "typescript": "^5.7.2",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "vue-tsc": "^3.2.4"
   }
 }
