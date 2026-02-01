@@ -38,7 +38,9 @@ const displayUrl = computed(() => {
         </div>
         <span class="text-sm font-medium">Google</span>
       </div>
-      <UIcon name="i-heroicons-information-circle" class="w-4 h-4 text-gray-400" title="How your page appears in Google search results" />
+      <UTooltip text="How your page appears in Google search results">
+        <UIcon name="i-heroicons-information-circle" class="w-4 h-4 text-gray-400 cursor-help" />
+      </UTooltip>
     </div>
     
     <!-- Preview -->

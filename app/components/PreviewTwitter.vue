@@ -36,7 +36,9 @@ const handleImageError = () => {
         </div>
         <span class="text-sm font-medium">X / Twitter</span>
       </div>
-      <UIcon name="i-heroicons-information-circle" class="w-4 h-4 text-gray-400" :title="`${cardType === 'summary' ? 'Summary' : 'Large image'} card preview`" />
+      <UTooltip :text="`${cardType === 'summary' ? 'Summary' : 'Large image'} card preview for X (Twitter)`">
+        <UIcon name="i-heroicons-information-circle" class="w-4 h-4 text-gray-400 cursor-help" />
+      </UTooltip>
     </div>
     
     <!-- Preview -->
