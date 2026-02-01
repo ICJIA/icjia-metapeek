@@ -28,7 +28,7 @@ This makes your content look unpolished and causes people to scroll past your li
 
 You might think "I'll just use Facebook's Sharing Debugger" — but existing tools have significant limitations:
 
-- **Platform-specific** — Facebook Debugger only shows Facebook previews. Twitter Card Validator only shows Twitter. You need to check multiple tools to see the full picture.
+- **Platform-specific** — Facebook Debugger only shows Facebook previews. X/Twitter Card Validator only shows X. You need to check multiple tools to see the full picture.
 - **Account required** — Most debuggers require you to log in, creating friction and privacy concerns.
 - **Rate limited** — Free tiers restrict how many URLs you can check, or paywall you after a few uses.
 - **Preview-only** — They show you what's wrong but don't give you the code to fix it.
@@ -45,9 +45,9 @@ MetaPeek helps you **find and fix these issues** before they hurt your reach:
 2. **Diagnose** — Get a color-coded report of missing, incorrect, or suboptimal tags
 3. **Fix** — Copy ready-to-use HTML code to give to your developer
 
-| Feature | MetaPeek | Facebook Debugger | Twitter Validator |
-|---------|----------|-------------------|-------------------|
-| Multi-platform preview | ✅ All 5 platforms | ❌ Facebook only | ❌ Twitter only |
+| Feature | MetaPeek | Facebook Debugger | X/Twitter Validator |
+|---------|----------|-------------------|---------------------|
+| Multi-platform preview | ✅ All 5 platforms | ❌ Facebook only | ❌ X only |
 | Image dimension analysis | ✅ Yes | ✅ Yes | ❌ No |
 | Actionable code fixes | ✅ Copy-paste ready | ❌ Preview only | ❌ Preview only |
 | No account required | ✅ Yes | ❌ Requires login | ❌ Requires login |
@@ -71,7 +71,7 @@ You're *peeking* at your *meta* tags — the hidden HTML that controls how your 
 
 ### Phase 1 — Client-Side MVP ✅
 - [x] Paste HTML and parse instantly (< 100ms)
-- [x] Extract all meta tags, Open Graph, Twitter Cards, JSON-LD
+- [x] Extract all meta tags, Open Graph, X/Twitter Cards, JSON-LD
 - [x] Render accurate platform previews (Google, Facebook, LinkedIn, X/Twitter, Slack)
 - [x] Diagnostics panel with color-coded status
 - [x] Code generator with editable output
