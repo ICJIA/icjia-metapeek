@@ -86,6 +86,9 @@ const tabs = [
 
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+    <!-- Skip link for keyboard users -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
     <!-- Header -->
     <header class="sticky top-0 z-50 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
       <div class="max-w-6xl mx-auto px-4 sm:px-6">
@@ -98,39 +101,41 @@ const tabs = [
             <ClientOnly>
               <button
                 @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
-                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
               >
                 <UIcon 
                   :name="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'" 
                   class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                  aria-hidden="true"
                 />
               </button>
-              <template #fallback><div class="w-9 h-9" /></template>
+              <template #fallback><div class="w-9 h-9" aria-hidden="true" /></template>
             </ClientOnly>
             <a
               href="https://github.com/ICJIA/icjia-metapeek"
               target="_blank"
               rel="noopener"
-              class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="View on GitHub"
             >
-              <UIcon name="i-heroicons-code-bracket" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <UIcon name="i-heroicons-code-bracket" class="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
             </a>
           </div>
         </div>
       </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <main id="main-content" class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <!-- Hero Section - Minimal -->
       <div class="mb-8">
-        <p class="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider font-medium mb-2">
+        <p class="text-sm text-gray-600 dark:text-gray-300 uppercase tracking-wider font-medium mb-2">
           Meta Tag Inspector
         </p>
         <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
           Analyze your Open Graph markup
         </h1>
-        <p class="text-gray-600 dark:text-gray-400 max-w-2xl">
+        <p class="text-gray-700 dark:text-gray-300 max-w-2xl">
           Paste HTML to preview how your page appears on Google, Facebook, Twitter, and Slack.
         </p>
       </div>
@@ -274,7 +279,7 @@ const tabs = [
         <UIcon name="i-heroicons-code-bracket" class="w-8 h-8 text-gray-400" />
       </div>
       <h3 class="text-lg font-semibold mb-1">No HTML to analyze</h3>
-      <p class="text-gray-500 dark:text-gray-400 mb-4 max-w-sm">
+      <p class="text-gray-600 dark:text-gray-300 mb-4 max-w-sm">
         Paste your page's HTML above or try an example to see how your meta tags render across platforms.
       </p>
       <UButton 

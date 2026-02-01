@@ -1,2 +1,30 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* Enhanced focus styles for accessibility */
+@layer components {
+  /* Ensure all focusable elements have visible focus indicators */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--ui-primary);
+    outline-offset: 2px;
+  }
+  
+  /* Skip link for keyboard users */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    z-index: 100;
+    padding: 0.5rem 1rem;
+    background: var(--ui-primary);
+    color: white;
+  }
+  
+  .skip-link:focus {
+    left: 0;
+  }
+}

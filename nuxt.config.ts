@@ -20,6 +20,9 @@ export default defineNuxtConfig({
   
   app: {
     head: {
+      htmlAttrs: {
+        lang: 'en'
+      },
       title: 'MetaPeek',
       meta: [
         { name: 'description', content: 'Inspect, preview, and fix HTML meta tags and Open Graph markup.' },
