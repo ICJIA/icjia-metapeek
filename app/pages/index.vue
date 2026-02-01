@@ -145,16 +145,23 @@ const tabs = [
     </header>
 
     <main id="main-content" class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-      <!-- Hero Section - Minimal -->
+      <!-- Hero Section -->
       <div class="mb-8">
         <p class="text-sm text-gray-600 dark:text-gray-300 uppercase tracking-wider font-medium mb-2">
-          Meta Tag Inspector
+          Open Graph &amp; Social Share Debugger
         </p>
-        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
-          Analyze your Open Graph markup
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight mb-3">
+          Control how your links look when shared
         </h1>
-        <p class="text-gray-700 dark:text-gray-300 max-w-2xl">
-          Paste HTML to preview how your page appears on Google, Facebook, LinkedIn, X, and Slack.
+        <p class="text-gray-700 dark:text-gray-300 max-w-2xl mb-4">
+          When someone shares your link on social media, the title, description, and image they see are controlled by 
+          <span class="font-medium text-gray-900 dark:text-white">Open Graph meta tags</span> in your HTML. 
+          Missing or misconfigured tags mean broken previews, no images, or wrong descriptions.
+        </p>
+        <p class="text-gray-600 dark:text-gray-400 max-w-2xl text-sm">
+          Unlike platform-specific tools (Facebook Debugger, Twitter Card Validator), MetaPeek shows you 
+          <span class="font-medium">all platforms at once</span>—with diagnostics and ready-to-use code fixes. 
+          No account. No rate limits. No ads.
         </p>
       </div>
 
@@ -162,7 +169,7 @@ const tabs = [
     <div class="mb-8">
       <div class="flex items-center justify-between mb-3">
         <label for="html-input" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-          HTML Source
+          Paste your page's HTML (or just the &lt;head&gt; section)
         </label>
         <div class="flex items-center gap-2">
           <UButton
@@ -192,7 +199,7 @@ const tabs = [
           id="html-input"
           v-model="inputHtml"
           rows="10"
-          placeholder="Paste your HTML here or click 'Load Example' above..."
+          placeholder="Paste your page's <head> section here (or full HTML)..."
           class="w-full px-4 py-3 rounded-lg border-0 bg-white dark:bg-gray-900 
                  ring-1 ring-gray-300 dark:ring-gray-700 
                  focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
@@ -297,13 +304,17 @@ const tabs = [
     </div>
 
     <!-- Empty State -->
-    <div v-else class="flex flex-col items-center justify-center py-20 text-center">
-      <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-        <UIcon name="i-heroicons-code-bracket" class="w-8 h-8 text-gray-400" />
+    <div v-else class="flex flex-col items-center justify-center py-16 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-5">
+        <UIcon name="i-heroicons-share" class="w-8 h-8 text-gray-400" />
       </div>
-      <h2 class="text-lg font-semibold mb-1">No HTML to analyze</h2>
-      <p class="text-gray-600 dark:text-gray-300 mb-4 max-w-sm">
-        Paste your page's HTML above or try an example to see how your meta tags render across platforms.
+      <h2 class="text-lg font-semibold mb-2">See how your links appear when shared</h2>
+      <p class="text-gray-600 dark:text-gray-300 mb-2 max-w-md">
+        Paste your page's <code class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-sm font-mono">&lt;head&gt;</code> section 
+        to preview how it renders on Google, Facebook, LinkedIn, X, and Slack.
+      </p>
+      <p class="text-gray-500 dark:text-gray-400 mb-5 max-w-md text-sm">
+        You'll get instant diagnostics for missing tags and copy-paste code to fix issues.
       </p>
       <UButton 
         @click="loadSample" 
@@ -312,7 +323,7 @@ const tabs = [
         icon="i-heroicons-sparkles"
         size="md"
       >
-        Load Example
+        Try with Example HTML
       </UButton>
     </div>
 
