@@ -324,10 +324,5 @@ const tabs = [
       </div>
     </footer>
   </main>
-  
-  <!-- Notifications (inside landmark structure) -->
-  <aside aria-label="Notifications" class="fixed bottom-4 right-4 z-50">
-    <UNotifications />
-  </aside>
   </div>
 </template>
