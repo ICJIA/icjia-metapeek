@@ -51,52 +51,58 @@ const faviconUrl = computed(() => {
   <UCard>
     <template #header>
       <h3 class="text-lg font-semibold flex items-center gap-2">
-        <UIcon name="i-heroicons-link" class="text-xl" aria-hidden="true" />
+        <UIcon name="i-heroicons-chat-bubble-oval-left-ellipsis" class="text-xl" aria-hidden="true" />
         Slack Unfurl Preview
       </h3>
     </template>
     
     <div 
-      class="slack-preview min-h-[200px] border-l-4 border-blue-500 bg-white dark:bg-gray-900 p-3 rounded" 
+      class="slack-preview bg-white dark:bg-gray-900 rounded-lg overflow-hidden" 
       role="region" 
       aria-label="Slack link unfurl preview"
     >
-      <!-- Header with favicon and domain -->
-      <div class="flex items-center gap-2 mb-2">
-        <img 
-          :src="faviconUrl" 
-          alt=""
-          aria-hidden="true"
-          class="w-4 h-4"
-        />
-        <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">
-          {{ displayDomain }}
-        </span>
-      </div>
-      
-      <!-- Title -->
-      <p class="font-bold text-blue-600 dark:text-blue-400 mb-1 hover:underline cursor-pointer">
-        {{ truncatedTitle }}
-      </p>
-      
-      <!-- Description -->
-      <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-        {{ truncatedDescription }}
-      </p>
-      
-      <!-- Image -->
-      <div v-if="image" class="relative w-full max-w-md" style="aspect-ratio: 1.91 / 1; background: #f3f4f6;">
-        <img 
-          :src="imageUrl" 
-          :alt="title ? `Preview image for: ${title}` : 'Slack unfurl image'"
-          class="w-full h-full object-cover rounded"
-        />
+      <!-- Slack-style unfurl with left border -->
+      <div class="flex border-l-4 border-gray-400 dark:border-gray-500 ml-2">
+        <div class="pl-3 py-2 flex-1">
+          <!-- Header with favicon and domain -->
+          <div class="flex items-center gap-1.5 mb-1">
+            <img 
+              :src="faviconUrl" 
+              alt=""
+              aria-hidden="true"
+              class="w-4 h-4 rounded-sm"
+            />
+            <span class="text-sm font-bold text-gray-900 dark:text-gray-100">
+              {{ displayDomain }}
+            </span>
+          </div>
+          
+          <!-- Title -->
+          <p class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer mb-0.5">
+            {{ truncatedTitle }}
+          </p>
+          
+          <!-- Description -->
+          <p class="text-sm text-gray-600 dark:text-gray-400 leading-snug">
+            {{ truncatedDescription }}
+          </p>
+          
+          <!-- Image (inline, smaller like Slack shows) -->
+          <div v-if="image" class="mt-2 max-w-xs">
+            <img 
+              :src="imageUrl" 
+              :alt="title ? `Preview image for: ${title}` : 'Slack unfurl image'"
+              class="rounded border border-gray-200 dark:border-gray-700 max-h-48 w-auto object-contain"
+              @error="($event.target as HTMLImageElement).style.display = 'none'"
+            />
+          </div>
+        </div>
       </div>
     </div>
     
     <template #footer>
       <p class="text-xs text-gray-500 dark:text-gray-400">
-        Slack unfurls show favicon, title, description, and og:image. Minimum image size: 500×500px.
+        Slack unfurls show favicon, site name, title, description, and og:image when shared in channels.
       </p>
     </template>
   </UCard>

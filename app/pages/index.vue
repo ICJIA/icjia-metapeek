@@ -46,31 +46,35 @@ useHead({
   ]
 })
 
-// Sample HTML for demonstration
+// Sample HTML for demonstration (uses GitHub's real OG tags)
 const sampleHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Illinois Criminal Justice Information Authority</title>
-  <meta name="description" content="The Illinois Criminal Justice Information Authority is a state agency dedicated to improving the administration of criminal justice.">
+  <title>GitHub · Build and ship software on a single, collaborative platform</title>
+  <meta name="description" content="Join the world's most widely adopted AI-powered developer platform where millions of developers, businesses, and the largest open source community build software that advances humanity.">
   
   <!-- Open Graph -->
-  <meta property="og:title" content="ICJIA — Illinois Criminal Justice Information Authority">
-  <meta property="og:description" content="Research, grants, and data to improve Illinois criminal justice policy and practice.">
+  <meta property="og:site_name" content="GitHub">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://icjia.illinois.gov">
-  <meta property="og:image" content="https://picsum.photos/1200/630">
+  <meta property="og:title" content="GitHub · Build and ship software on a single, collaborative platform">
+  <meta property="og:url" content="https://github.com/">
+  <meta property="og:description" content="Join the world's most widely adopted AI-powered developer platform where millions of developers, businesses, and the largest open source community build software.">
+  <meta property="og:image" content="https://github.githubassets.com/assets/github-logo-55c5b9a1fe52.png">
   
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="ICJIA — Illinois Criminal Justice Information Authority">
-  <meta name="twitter:description" content="Research, grants, and data to improve Illinois criminal justice policy and practice.">
+  <meta name="twitter:site" content="@github">
+  <meta name="twitter:title" content="GitHub">
+  <meta name="twitter:description" content="Build and ship software on a single, collaborative platform.">
+  <meta name="twitter:image" content="https://github.githubassets.com/assets/github-logo-55c5b9a1fe52.png">
   
-  <link rel="canonical" href="https://icjia.illinois.gov">
+  <link rel="canonical" href="https://github.com/">
+  <link rel="icon" href="https://github.githubassets.com/favicons/favicon.svg">
 </head>
 <body>
-  <h1>Welcome to ICJIA</h1>
+  <h1>Welcome to GitHub</h1>
 </body>
 </html>`
 
