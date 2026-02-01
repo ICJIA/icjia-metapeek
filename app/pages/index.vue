@@ -348,7 +348,7 @@ const tabs = [
       <div class="min-h-[300px]">
         <!-- Diagnostics Tab -->
         <div v-show="activeTab === 'diagnostics'">
-          <DiagnosticsPanel :diagnostics="diagnostics" />
+          <DiagnosticsPanel :diagnostics="diagnostics" :tags="parsedTags" />
         </div>
 
         <!-- Code Tab -->
