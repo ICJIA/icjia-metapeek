@@ -45,7 +45,7 @@ const handleImageError = () => {
         <span class="text-sm font-medium">Slack</span>
       </div>
       <UTooltip text="How your link unfurls in Slack messages">
-        <UIcon name="i-heroicons-information-circle" class="w-4 h-4 text-gray-400 cursor-help" />
+        <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 cursor-help transition-colors" />
       </UTooltip>
     </div>
     
