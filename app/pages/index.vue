@@ -124,7 +124,7 @@ const tabs = [
               class="p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="View on GitHub"
             >
-              <UIcon name="i-heroicons-code-bracket" class="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
+              <UIcon name="i-simple-icons-github" class="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
             </a>
           </div>
         </div>
