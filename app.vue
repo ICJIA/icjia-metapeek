@@ -1,6 +1,6 @@
 <template>
-  <UApp :tooltip="{ delayDuration: 0 }">
+  <div>
     <NuxtPage />
     <UNotifications />
-  </UApp>
+  </div>
 </template>

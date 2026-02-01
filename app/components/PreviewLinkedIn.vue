@@ -33,9 +33,11 @@ const handleImageError = () => {
         </div>
         <span class="text-sm font-medium">LinkedIn</span>
       </div>
-      <UTooltip text="How your page appears when shared on LinkedIn">
-        <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 cursor-help transition-colors" />
-      </UTooltip>
+      <UIcon 
+        name="i-heroicons-information-circle" 
+        class="w-5 h-5 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 cursor-help transition-colors" 
+        title="How your page appears when shared on LinkedIn"
+      />
     </div>
     
     <!-- Preview -->
