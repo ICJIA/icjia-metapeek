@@ -271,6 +271,7 @@ const tabs = [
       <div class="min-h-[400px]">
         <!-- Previews Tab -->
         <div v-show="activeTab === 'previews'" class="space-y-6">
+          <!-- Platform Previews -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <PreviewGoogle 
               :title="parsedTags.og.title || parsedTags.title"
@@ -300,12 +301,10 @@ const tabs = [
               :favicon="parsedTags.favicon"
               :url="parsedTags.og.url || parsedTags.canonical"
             />
-            <!-- Image Analysis - spans full width on larger screens -->
-            <ImageAnalysis
-              :image-url="parsedTags.og.image"
-              class="lg:col-span-2"
-            />
           </div>
+          
+          <!-- Image Analysis - Separate distinctive section -->
+          <ImageAnalysis :image-url="parsedTags.og.image" />
         </div>
 
         <!-- Diagnostics Tab -->

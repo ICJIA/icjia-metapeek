@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { IMAGE_SPECS } from '~/utils/constants'
-
 interface Props {
   imageUrl?: string
 }
@@ -25,25 +23,57 @@ const imageInfo = ref<ImageInfo>({
   error: null
 })
 
-// Platform requirements for quick reference
-const platformRequirements = [
+// Platform requirements with min dimensions
+const platforms = [
   { 
     name: 'Facebook', 
-    recommended: '1200 × 630', 
-    min: '200 × 200',
-    ratio: '1.91:1'
-  },
-  { 
-    name: 'X (Twitter)', 
-    recommended: '1200 × 628', 
-    min: '300 × 157',
-    ratio: '2:1'
+    icon: 'f',
+    iconBg: 'bg-blue-600',
+    minWidth: 200, 
+    minHeight: 200,
+    recWidth: 1200,
+    recHeight: 630,
+    description: 'Feed & link shares'
   },
   { 
     name: 'LinkedIn', 
-    recommended: '1200 × 627', 
-    min: '200 × 200',
-    ratio: '1.91:1'
+    icon: 'in',
+    iconBg: 'bg-blue-700',
+    minWidth: 200, 
+    minHeight: 200,
+    recWidth: 1200,
+    recHeight: 627,
+    description: 'Post shares'
+  },
+  { 
+    name: 'X (Twitter)', 
+    icon: '𝕏',
+    iconBg: 'bg-black dark:bg-white dark:text-black',
+    minWidth: 300, 
+    minHeight: 157,
+    recWidth: 1200,
+    recHeight: 628,
+    description: 'Summary large image'
+  },
+  { 
+    name: 'Slack', 
+    icon: '#',
+    iconBg: 'bg-purple-600',
+    minWidth: 200, 
+    minHeight: 200,
+    recWidth: 800,
+    recHeight: 418,
+    description: 'Link unfurls'
+  },
+  { 
+    name: 'Google', 
+    icon: 'G',
+    iconBg: 'bg-red-500',
+    minWidth: 200, 
+    minHeight: 200,
+    recWidth: 1200,
+    recHeight: 630,
+    description: 'Discover & News'
   },
 ]
 
@@ -58,7 +88,6 @@ watch(() => props.imageUrl, async (url) => {
   imageInfo.value.error = null
   
   try {
-    // Load image to get dimensions
     const img = new Image()
     img.crossOrigin = 'anonymous'
     
@@ -87,8 +116,8 @@ watch(() => props.imageUrl, async (url) => {
       // CORS blocked - that's okay, we still have dimensions
     }
     
-  } catch (e) {
-    imageInfo.value.error = 'Could not analyze image (CORS or invalid URL)'
+  } catch {
+    imageInfo.value.error = 'Could not load image'
   } finally {
     imageInfo.value.loading = false
   }
@@ -98,73 +127,89 @@ watch(() => props.imageUrl, async (url) => {
 const formattedSize = computed(() => {
   if (!imageInfo.value.fileSize) return null
   const kb = imageInfo.value.fileSize / 1024
-  if (kb < 1024) return `${kb.toFixed(1)} KB`
-  return `${(kb / 1024).toFixed(2)} MB`
+  if (kb < 1024) return `${kb.toFixed(0)} KB`
+  return `${(kb / 1024).toFixed(1)} MB`
 })
 
-// Check if image meets requirements
-const meetsMinimum = computed(() => {
+// Check platform compatibility
+const getPlatformStatus = (platform: typeof platforms[0]) => {
+  if (!imageInfo.value.width) return 'unknown'
+  
+  const { width, height } = imageInfo.value
+  const meetsMin = width >= platform.minWidth && height >= platform.minHeight
+  const meetsRec = width >= platform.recWidth && height >= platform.recHeight
+  
+  if (meetsRec) return 'optimal'
+  if (meetsMin) return 'acceptable'
+  return 'fail'
+}
+
+// Overall status
+const overallStatus = computed(() => {
   if (!imageInfo.value.width) return null
-  return imageInfo.value.width >= 200 && imageInfo.value.height >= 200
-})
-
-const meetsRecommended = computed(() => {
-  if (!imageInfo.value.width) return null
-  return imageInfo.value.width >= 1200 && imageInfo.value.height >= 630
-})
-
-const aspectRatioStatus = computed(() => {
-  if (!imageInfo.value.aspectRatio) return null
-  const ratio = imageInfo.value.aspectRatio
-  // Ideal is 1.91:1, acceptable range is roughly 1.5:1 to 2.5:1
-  if (ratio >= 1.8 && ratio <= 2.0) return 'optimal'
-  if (ratio >= 1.5 && ratio <= 2.5) return 'acceptable'
-  return 'suboptimal'
+  const statuses = platforms.map(p => getPlatformStatus(p))
+  if (statuses.every(s => s === 'optimal')) return 'optimal'
+  if (statuses.every(s => s !== 'fail')) return 'acceptable'
+  return 'issues'
 })
 </script>
 
 <template>
-  <div class="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
+  <div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden">
     <!-- Header -->
-    <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <UIcon name="i-heroicons-photo" class="w-5 h-5 text-purple-500" />
-        <span class="text-sm font-medium">Image Analysis</span>
+    <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+            <UIcon name="i-heroicons-photo" class="w-5 h-5 text-purple-600 dark:text-purple-400" />
+          </div>
+          <div>
+            <h3 class="font-semibold text-gray-900 dark:text-white">Image Compatibility</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Will your image display correctly?</p>
+          </div>
+        </div>
+        <div v-if="overallStatus === 'optimal'" class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+          <UIcon name="i-heroicons-check-circle-solid" class="w-6 h-6" />
+          <span class="text-sm font-medium">All platforms</span>
+        </div>
+        <div v-else-if="overallStatus === 'acceptable'" class="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+          <UIcon name="i-heroicons-exclamation-circle-solid" class="w-6 h-6" />
+          <span class="text-sm font-medium">Could be larger</span>
+        </div>
+        <div v-else-if="overallStatus === 'issues'" class="flex items-center gap-2 text-red-600 dark:text-red-400">
+          <UIcon name="i-heroicons-x-circle-solid" class="w-6 h-6" />
+          <span class="text-sm font-medium">Issues found</span>
+        </div>
       </div>
-      <AppTooltip text="og:image dimensions and size compared to platform requirements">
-        <UIcon 
-          name="i-heroicons-information-circle" 
-          class="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help transition-colors" 
-        />
-      </AppTooltip>
     </div>
     
-    <div class="p-4">
+    <div class="p-5">
       <!-- No image -->
-      <div v-if="!imageUrl" class="text-center py-6 text-gray-500 dark:text-gray-400">
-        <UIcon name="i-heroicons-photo" class="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p class="text-sm">No og:image found</p>
+      <div v-if="!imageUrl" class="text-center py-8 text-gray-500 dark:text-gray-400">
+        <UIcon name="i-heroicons-photo" class="w-12 h-12 mx-auto mb-3 opacity-40" />
+        <p class="font-medium">No og:image found</p>
+        <p class="text-sm mt-1">Add an og:image tag to enable social media previews</p>
       </div>
       
       <!-- Loading -->
-      <div v-else-if="imageInfo.loading" class="text-center py-6 text-gray-500 dark:text-gray-400">
-        <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 mx-auto mb-2 animate-spin" />
+      <div v-else-if="imageInfo.loading" class="text-center py-8 text-gray-500 dark:text-gray-400">
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto mb-2 animate-spin" />
         <p class="text-sm">Analyzing image...</p>
       </div>
       
       <!-- Error -->
-      <div v-else-if="imageInfo.error" class="text-center py-6">
-        <UIcon name="i-heroicons-exclamation-triangle" class="w-8 h-8 mx-auto mb-2 text-amber-500" />
-        <p class="text-sm text-gray-600 dark:text-gray-400">{{ imageInfo.error }}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">Image URL: {{ imageUrl?.substring(0, 50) }}...</p>
+      <div v-else-if="imageInfo.error" class="text-center py-8">
+        <UIcon name="i-heroicons-exclamation-triangle" class="w-10 h-10 mx-auto mb-2 text-amber-500" />
+        <p class="font-medium text-gray-700 dark:text-gray-300">{{ imageInfo.error }}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-500 mt-2 font-mono">{{ imageUrl?.substring(0, 60) }}...</p>
       </div>
       
       <!-- Results -->
-      <div v-else class="space-y-4">
-        <!-- Image Preview & Dimensions -->
-        <div class="flex gap-4">
+      <div v-else class="space-y-5">
+        <!-- Image Info Row -->
+        <div class="flex items-start gap-4">
           <!-- Thumbnail -->
-          <div class="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
+          <div class="w-28 h-28 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0 ring-1 ring-gray-200 dark:ring-gray-700">
             <img 
               :src="imageUrl" 
               alt="OG Image preview"
@@ -172,88 +217,97 @@ const aspectRatioStatus = computed(() => {
             />
           </div>
           
-          <!-- Dimensions Info -->
-          <div class="flex-1 space-y-2">
-            <div class="flex items-center gap-2">
-              <span class="text-2xl font-bold text-gray-900 dark:text-white">
-                {{ imageInfo.width }} × {{ imageInfo.height }}
+          <!-- Dimensions -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-2 mb-2">
+              <span class="text-3xl font-bold text-gray-900 dark:text-white">
+                {{ imageInfo.width.toLocaleString() }} × {{ imageInfo.height.toLocaleString() }}
               </span>
-              <span class="text-sm text-gray-500 dark:text-gray-400">pixels</span>
+              <span class="text-sm text-gray-500 dark:text-gray-400">px</span>
             </div>
             
-            <div class="flex flex-wrap gap-2 text-xs">
-              <span v-if="formattedSize" class="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+            <div class="flex flex-wrap gap-2 text-sm">
+              <span v-if="formattedSize" class="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
                 {{ formattedSize }}
               </span>
-              <span v-if="imageInfo.format" class="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+              <span v-if="imageInfo.format" class="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
                 {{ imageInfo.format }}
               </span>
-              <span class="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
-                {{ imageInfo.aspectRatio.toFixed(2) }}:1 ratio
+              <span class="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
+                {{ imageInfo.aspectRatio.toFixed(2) }}:1
               </span>
             </div>
             
-            <!-- Status badges -->
-            <div class="flex flex-wrap gap-2">
-              <UBadge 
-                v-if="meetsRecommended"
-                color="success" 
-                size="xs" 
-                variant="subtle"
-              >
-                Meets recommended size
-              </UBadge>
-              <UBadge 
-                v-else-if="meetsMinimum"
-                color="warning" 
-                size="xs" 
-                variant="subtle"
-              >
-                Below recommended (1200×630)
-              </UBadge>
-              <UBadge 
-                v-else-if="meetsMinimum === false"
-                color="error" 
-                size="xs" 
-                variant="subtle"
-              >
-                Below minimum (200×200)
-              </UBadge>
-              
-              <UBadge 
-                v-if="aspectRatioStatus === 'optimal'"
-                color="success" 
-                size="xs" 
-                variant="subtle"
-              >
-                Optimal aspect ratio
-              </UBadge>
-              <UBadge 
-                v-else-if="aspectRatioStatus === 'suboptimal'"
-                color="warning" 
-                size="xs" 
-                variant="subtle"
-              >
-                May be cropped
-              </UBadge>
-            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">
+              Recommended: 1200 × 630 px or larger (1.91:1 aspect ratio)
+            </p>
           </div>
         </div>
         
-        <!-- Platform Requirements Reference -->
-        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-            Platform Requirements
+        <!-- Platform Compatibility Grid -->
+        <div class="border-t border-gray-100 dark:border-gray-800 pt-5">
+          <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+            Platform Compatibility
           </p>
-          <div class="grid grid-cols-3 gap-2 text-xs">
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <div 
-              v-for="platform in platformRequirements" 
+              v-for="platform in platforms" 
               :key="platform.name"
-              class="p-2 rounded bg-gray-50 dark:bg-gray-800/50"
+              :class="[
+                'p-3 rounded-lg border transition-colors',
+                getPlatformStatus(platform) === 'optimal' 
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' 
+                  : getPlatformStatus(platform) === 'acceptable'
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+              ]"
             >
-              <p class="font-medium text-gray-700 dark:text-gray-300 mb-1">{{ platform.name }}</p>
-              <p class="text-gray-500 dark:text-gray-400">{{ platform.recommended }}</p>
-              <p class="text-gray-400 dark:text-gray-500 text-[10px]">min: {{ platform.min }}</p>
+              <div class="flex items-center gap-2 mb-2">
+                <!-- Platform icon -->
+                <div :class="['w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold', platform.iconBg]">
+                  {{ platform.icon }}
+                </div>
+                <span class="font-medium text-sm text-gray-900 dark:text-white">{{ platform.name }}</span>
+                
+                <!-- Status icon -->
+                <UIcon 
+                  v-if="getPlatformStatus(platform) === 'optimal'"
+                  name="i-heroicons-check-circle-solid" 
+                  class="w-5 h-5 text-emerald-500 ml-auto"
+                />
+                <UIcon 
+                  v-else-if="getPlatformStatus(platform) === 'acceptable'"
+                  name="i-heroicons-exclamation-circle-solid" 
+                  class="w-5 h-5 text-amber-500 ml-auto"
+                />
+                <UIcon 
+                  v-else
+                  name="i-heroicons-x-circle-solid" 
+                  class="w-5 h-5 text-red-500 ml-auto"
+                />
+              </div>
+              
+              <p 
+                :class="[
+                  'text-xs',
+                  getPlatformStatus(platform) === 'optimal' 
+                    ? 'text-emerald-700 dark:text-emerald-300' 
+                    : getPlatformStatus(platform) === 'acceptable'
+                      ? 'text-amber-700 dark:text-amber-300'
+                      : 'text-red-700 dark:text-red-300'
+                ]"
+              >
+                <template v-if="getPlatformStatus(platform) === 'optimal'">
+                  Meets recommended size
+                </template>
+                <template v-else-if="getPlatformStatus(platform) === 'acceptable'">
+                  Works, but could be sharper
+                </template>
+                <template v-else>
+                  Below {{ platform.minWidth }}×{{ platform.minHeight }} minimum
+                </template>
+              </p>
             </div>
           </div>
         </div>
