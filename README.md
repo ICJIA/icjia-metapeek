@@ -2,6 +2,8 @@
 
 > A fast, clean, single-purpose web tool for inspecting, previewing, and generating HTML meta tags and Open Graph markup.
 
+**🔗 Live Demo: [https://metapeek.icjia.app](https://metapeek.icjia.app)**
+
 [![Nuxt](https://img.shields.io/badge/Nuxt-4.3.0-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
 [![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.4.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
 [![Vue](https://img.shields.io/badge/Vue-3.5.27-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
