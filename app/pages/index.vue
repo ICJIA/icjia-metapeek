@@ -178,7 +178,7 @@ const tabs = [
       </div>
 
     <!-- Input Section - Distinctive background -->
-    <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-950/30 dark:to-transparent border-y border-blue-100/50 dark:border-blue-900/30">
+    <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 bg-blue-50 dark:bg-blue-950/50 border-y border-blue-200 dark:border-blue-800">
       <div class="flex items-center gap-3 mb-4">
         <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
           <UIcon name="i-heroicons-code-bracket" class="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -313,7 +313,7 @@ const tabs = [
           </div>
           
           <!-- Image Analysis - Distinctive full-width section -->
-          <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mt-4 bg-gradient-to-b from-purple-50/50 to-transparent dark:from-purple-950/30 dark:to-transparent border-y border-purple-100/50 dark:border-purple-900/30">
+          <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mt-6 bg-purple-50 dark:bg-purple-950/50 border-y border-purple-200 dark:border-purple-800">
             <ImageAnalysis :image-url="parsedTags.og.image" />
           </div>
         </div>
