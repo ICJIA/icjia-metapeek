@@ -2,8 +2,9 @@
 
 > A fast, clean, single-purpose web tool for inspecting, previewing, and generating HTML meta tags and Open Graph markup.
 
-[![Nuxt](https://img.shields.io/badge/Nuxt-3.14-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
-[![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
+[![Nuxt](https://img.shields.io/badge/Nuxt-4.3.0-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
+[![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.4.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
+[![Vue](https://img.shields.io/badge/Vue-3.5.27-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-green?style=flat)](https://www.w3.org/WAI/WCAG21/quickref/)
 
@@ -61,13 +62,14 @@ MetaPeek is opinionated about being **fast, clean, and actionable**.
 ## Tech Stack
 
 ### Core Framework
-- **[Nuxt 3](https://nuxt.com/)** (v3.14) — Full-stack Vue framework with SSR
-- **[Vue 3](https://vuejs.org/)** (v3.5) — Progressive JavaScript framework
+- **[Nuxt 4](https://nuxt.com/)** (v4.3.0) — Full-stack Vue framework with SSR
+- **[Vue 3](https://vuejs.org/)** (v3.5.27) — Progressive JavaScript framework
 - **[TypeScript](https://www.typescriptlang.org/)** (v5.7) — Type safety throughout
+- **[VueUse](https://vueuse.org/)** (v14.2) — Essential Vue Composition Utilities
 
 ### UI & Components
-- **[Nuxt UI](https://ui.nuxt.com/)** (v2.19) — Fully styled component library
-- **[Tailwind CSS](https://tailwindcss.com/)** — Utility-first CSS (via Nuxt UI)
+- **[Nuxt UI](https://ui.nuxt.com/)** (v4.4.0) — Fully styled component library
+- **[Tailwind CSS 4](https://tailwindcss.com/)** — Utility-first CSS (via Nuxt UI)
 - **[Heroicons](https://heroicons.com/)** — Beautiful hand-crafted SVG icons
 
 ### Server & Deployment
@@ -83,7 +85,6 @@ MetaPeek is opinionated about being **fast, clean, and actionable**.
 - **[Vitest](https://vitest.dev/)** — Modern, fast unit testing
 - **[Playwright](https://playwright.dev/)** — E2E and accessibility testing
 - **[@axe-core/playwright](https://www.npmjs.com/package/@axe-core/playwright)** — Automated accessibility audits
-- **[ESLint](https://eslint.org/)** — JavaScript/TypeScript linting
 
 ### Accessibility
 - **WCAG 2.1 Level AA** compliance mandatory
@@ -150,8 +151,8 @@ icjia-metapeek/
 
 ### Prerequisites
 
-- Node.js 18.x or higher
-- npm 9.x or higher
+- Node.js 22.x (use `nvm` with included `.nvmrc`)
+- Yarn 1.22.x
 
 ### Installation
 
@@ -160,11 +161,14 @@ icjia-metapeek/
 git clone https://github.com/ICJIA/icjia-metapeek.git
 cd icjia-metapeek
 
+# Use correct Node version (if using nvm)
+nvm use
+
 # Install dependencies
-npm install
+yarn install
 
 # Start development server
-npm run dev
+yarn dev
 ```
 
 The app will be available at `http://localhost:3000`
@@ -172,18 +176,75 @@ The app will be available at `http://localhost:3000`
 ### Available Scripts
 
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run generate     # Generate static site
-npm run preview      # Preview production build
+yarn dev             # Start development server
+yarn build           # Build for production
+yarn generate        # Generate static site
+yarn preview         # Preview production build
 
-npm run test:unit    # Run unit tests
-npm run test:watch   # Run tests in watch mode
-npm run test:coverage # Generate coverage report
+yarn test:unit       # Run unit tests
+yarn test:watch      # Run tests in watch mode
+yarn test:coverage   # Generate coverage report
 
-npm run lint         # Lint code
-npm run lint:fix     # Fix linting errors
-npm run typecheck    # Check TypeScript types
+yarn typecheck       # Check TypeScript types
+```
+
+---
+
+## Troubleshooting
+
+### Native Binding Errors (oxc-parser, lightningcss, rollup)
+
+**Problem:** When running `yarn dev` or `yarn install`, you may see errors like:
+
+```
+Cannot find native binding. npm has a bug related to optional dependencies
+Error: Cannot find module '@oxc-parser/binding-darwin-arm64'
+Error: Cannot find module '../lightningcss.darwin-arm64.node'
+Error: Cannot find module '@rollup/rollup-darwin-arm64'
+```
+
+**Cause:** This typically happens when:
+1. A `.yarnrc` file contains `--ignore-optional true`, which prevents native bindings from being installed
+2. The `node_modules` folder was installed with a different Node.js version or package manager
+
+**Solution:**
+
+```bash
+# 1. Check for and remove problematic .yarnrc
+cat .yarnrc  # If it contains "--ignore-optional true", remove it
+rm .yarnrc
+
+# 2. Clean install
+rm -rf node_modules yarn.lock .nuxt
+
+# 3. Reinstall (without ignore-optional flag)
+yarn install
+
+# 4. Start dev server
+yarn dev
+```
+
+**Prevention:** Never add `--ignore-optional true` to `.yarnrc` when working with Nuxt 4, as it relies on native bindings for:
+- `oxc-parser`, `oxc-transform`, `oxc-minify` (TypeScript/JavaScript parsing)
+- `lightningcss` (CSS processing)
+- `rollup` (bundling)
+
+### VueUse Functions Not Defined
+
+**Problem:** Error like `useDebounceFn is not defined` when loading the page.
+
+**Solution:** Ensure `@vueuse/nuxt` is installed and added to `nuxt.config.ts`:
+
+```bash
+yarn add @vueuse/core @vueuse/nuxt
+```
+
+```typescript
+// nuxt.config.ts
+export default defineNuxtConfig({
+  modules: ['@nuxt/ui', '@vueuse/nuxt'],
+  // ...
+})
 ```
 
 ---

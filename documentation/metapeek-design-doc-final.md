@@ -1261,9 +1261,9 @@ The diagnostics panel uses a three-tier status system with specific conditions:
 ### Dependencies (Anticipated)
 
 **Core Framework:**
-- **Nuxt** `^3.14.0` — Latest stable Nuxt 3 (Nuxt 4 is in RC, will migrate when stable)
-- **Vue** `^3.5.0` — Latest Vue 3
-- **Nuxt UI** `^2.19.0` — Latest Nuxt UI component library
+- **Nuxt** `^4.3.0` — Latest stable Nuxt 4
+- **Vue** `^3.5.27` — Latest Vue 3
+- **Nuxt UI** `^4.4.0` — Latest stable Nuxt UI v4
 
 **Server-side Parsing:**
 - **cheerio** `^1.0.0` — Lightweight HTML parsing for server route
@@ -1275,6 +1275,8 @@ The diagnostics panel uses a three-tier status system with specific conditions:
 - **vitest** `^2.1.0` — Test runner
 
 **Note:** Client-side uses native browser DOMParser (no additional dependencies). All versions should be verified at project initialization and locked in package-lock.json.
+
+**Important:** MetaPeek uses Nuxt 4 (stable as of July 2025) and Nuxt UI v4 (latest stable release). These are the current production-ready versions.
 
 ---
 

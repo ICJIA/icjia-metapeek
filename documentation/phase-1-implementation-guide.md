@@ -9,12 +9,12 @@ This guide walks through the specific steps to implement Phase 1 (Client-Side MV
 ### 1. Create Nuxt Project
 
 ```bash
-# Create new Nuxt 3 project
+# Create new Nuxt 4 project
 npx nuxi@latest init icjia-metapeek
 
 cd icjia-metapeek
 
-# Install latest Nuxt UI
+# Install latest Nuxt UI v4
 npm install @nuxt/ui
 
 # Install additional dependencies
@@ -39,6 +39,8 @@ export default defineNuxtConfig({
     strict: true,
     typeCheck: true
   },
+  
+  compatibilityDate: '2026-02-01',
   
   app: {
     head: {

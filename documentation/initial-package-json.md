@@ -23,9 +23,9 @@ This is the initial package.json with locked dependency versions for MetaPeek Ph
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
-    "@nuxt/ui": "^2.19.2",
-    "nuxt": "^3.14.159",
-    "vue": "^3.5.12"
+    "@nuxt/ui": "^4.4.0",
+    "nuxt": "^4.3.0",
+    "vue": "^3.5.27"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
@@ -33,12 +33,12 @@ This is the initial package.json with locked dependency versions for MetaPeek Ph
     "@nuxt/test-utils": "^3.14.3",
     "@playwright/test": "^1.49.0",
     "@vue/test-utils": "^2.4.6",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "^4.0.18",
     "cheerio": "^1.0.0",
     "eslint": "^9.15.0",
     "happy-dom": "^15.11.7",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^4.0.18"
   }
 }
 ```
@@ -46,21 +46,21 @@ This is the initial package.json with locked dependency versions for MetaPeek Ph
 ## Notes on Versions
 
 ### Core Framework
-- **Nuxt 3.14.159:** Latest stable Nuxt 3 (as of Feb 2026). Nuxt 4 RC available but not production-ready yet.
-- **Vue 3.5.12:** Latest Vue 3 with performance improvements and better TypeScript support
-- **@nuxt/ui 2.19.2:** Latest Nuxt UI with full component library and accessibility improvements
+- **Nuxt 4.3.0:** Latest stable Nuxt 4 (released July 2025, stable as of Feb 2026)
+- **Vue 3.5.27:** Latest Vue 3 with performance improvements and better TypeScript support
+- **@nuxt/ui 4.4.0:** Latest stable Nuxt UI v4 with full component library and accessibility improvements
 
 ### Server-Side Parsing
 - **cheerio 1.0.0:** Fast, jQuery-like HTML parsing for server route (Phase 2)
 - Note: Client-side uses native DOMParser (no additional dependency)
 
 ### Testing Framework
-- **vitest 2.1.8:** Modern, fast test runner built on Vite
+- **vitest 4.0.18:** Modern, fast test runner built on Vite
 - **@vue/test-utils 2.4.6:** Official Vue component testing utilities
 - **happy-dom 15.11.7:** Fast DOM implementation for tests
 - **@playwright/test 1.49.0:** E2E testing framework
 - **@axe-core/playwright 4.10.2:** Accessibility testing with Playwright
-- **@vitest/coverage-v8 2.1.8:** Code coverage reporting
+- **@vitest/coverage-v8 4.0.18:** Code coverage reporting
 
 ### Development Tools
 - **typescript 5.7.2:** Latest TypeScript with improved type inference
@@ -164,10 +164,15 @@ Note: ofetch is included with Nuxt, so verify before adding separately.
 
 ## Known Issues
 
-### Issue: Nuxt 4 vs Nuxt 3
-- Design doc mentions "Nuxt 4" but uses Nuxt 3.14.x latest stable
-- Nuxt 4 is in RC as of Feb 2026, not recommended for production yet
-- When Nuxt 4 stable releases, migration guide: https://nuxt.com/docs/getting-started/upgrade
+### Issue: Nuxt 4 Stable Release
+- Design doc correctly references Nuxt 4.3.0, the latest stable version
+- Nuxt 4 was released July 2025 and is production-ready
+- Migration from Nuxt 3 to Nuxt 4 guide: https://nuxt.com/docs/getting-started/upgrade
+
+### Issue: Nuxt UI v4
+- Project uses Nuxt UI v4.4.0, the latest stable version
+- Migration from v2/v3: https://ui.nuxt.com/docs/getting-started/migration/v4
+- Breaking changes documented in migration guide
 
 ### Issue: ESLint 9 Flat Config
 - ESLint 9 uses new flat config format
