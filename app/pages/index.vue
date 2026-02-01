@@ -22,7 +22,7 @@ const inputHtml = ref('')
 const parsedTags = ref<MetaTags | null>(null)
 const diagnostics = ref<Diagnostics | null>(null)
 const hasAnalyzed = ref(false)
-const activeTab = ref('previews')
+const activeTab = ref('diagnostics')
 
 const analyze = () => {
   if (!inputHtml.value.trim()) {
