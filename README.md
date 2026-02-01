@@ -64,7 +64,7 @@ You're *peeking* at your *meta* tags — the hidden HTML that controls how your 
 
 ## Screenshot
 
-![MetaPeek — Open Graph Debugger](public/screenshot-dark.png)
+![MetaPeek — Open Graph & Social Sharing Meta Tag Analyzer](public/screenshot-full.png)
 
 ---
 
