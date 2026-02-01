@@ -1,6 +1,6 @@
 # MetaPeek
 
-> A fast, clean, single-purpose web tool for inspecting, previewing, and generating HTML meta tags and Open Graph markup.
+> Preview how your website appears when shared on social media — and fix any problems.
 
 **🔗 Live Demo: [https://metapeek.icjia.app](https://metapeek.icjia.app)**
 
@@ -12,32 +12,48 @@
 
 ---
 
-## Screenshots
+## The Problem
 
-### Dark Mode
-![MetaPeek Dark Mode](public/screenshot-dark.png)
+When someone shares a link to your website on Facebook, LinkedIn, X (Twitter), or Slack, those platforms display a **preview card** with a title, description, and image. This information comes from special HTML tags on your page called **Open Graph meta tags**.
 
-### Light Mode
-![MetaPeek Light Mode](public/screenshot-light.png)
+If these tags are missing or misconfigured, your shared links may show:
+- The wrong title or description
+- No image (or the wrong image)
+- A generic, unprofessional appearance
+
+This makes your content look unpolished and causes people to scroll past your links.
+
+## What MetaPeek Does
+
+MetaPeek helps you **find and fix these issues** before they hurt your reach:
+
+1. **Preview** — See exactly how your page will appear on Google, Facebook, LinkedIn, X, and Slack
+2. **Diagnose** — Get a color-coded report of missing, incorrect, or suboptimal tags
+3. **Fix** — Copy ready-to-use HTML code to give to your developer
+
+### Why "MetaPeek"?
+
+You're *peeking* at your *meta* tags — the hidden HTML that controls how your content appears when shared across the web.
 
 ---
 
-## What is MetaPeek?
+## Screenshot
 
-MetaPeek accepts either a live URL or pasted HTML, extracts all relevant meta tags, Open Graph markup, Twitter Cards, and structured data, then:
+![MetaPeek — Open Graph Debugger](public/screenshot-dark.png)
 
-- **Renders platform-specific previews** — See how your page appears on Google, Facebook, LinkedIn, X (Twitter), and Slack
-- **Diagnoses problems** — Get actionable warnings about missing, malformed, or suboptimal tags
-- **Generates corrected markup** — Copy ready-to-use HTML snippets with sensible defaults
+---
 
-### Why MetaPeek?
+## Why MetaPeek Over Alternatives?
 
-Current alternatives are either:
-- Ad-bloated and slow
-- Paywalled after a few uses
-- Single-platform (only Facebook or only Twitter)
-- Preview-only without actionable fixes
-- Silently fail on client-rendered SPAs
+| Feature | MetaPeek | Facebook Debugger | Twitter Validator |
+|---------|----------|-------------------|-------------------|
+| Multi-platform preview | ✅ All 5 platforms | ❌ Facebook only | ❌ Twitter only |
+| Image dimension analysis | ✅ Yes | ✅ Yes | ❌ No |
+| Actionable code fixes | ✅ Copy-paste ready | ❌ Preview only | ❌ Preview only |
+| No account required | ✅ Yes | ❌ Requires login | ❌ Requires login |
+| No rate limits | ✅ Unlimited | ⚠️ Limited | ⚠️ Limited |
+| Works offline (paste mode) | ✅ Yes | ❌ No | ❌ No |
+| Ad-free | ✅ Yes | ⚠️ Meta ecosystem | ⚠️ X ecosystem |
 
 MetaPeek is opinionated about being **fast, clean, and actionable**.
 
