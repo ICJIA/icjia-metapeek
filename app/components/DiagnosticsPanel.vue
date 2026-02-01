@@ -197,7 +197,7 @@ const diagnosticItems = computed(() => [
                   :title="`${splitAtLimit(item.value, item.limit).overage.length} characters over the ${item.limit} character limit`"
                 >{{ splitAtLimit(item.value, item.limit).overage }}</span>
               </p>
-              <p v-if="splitAtLimit(item.value, item.limit).overage" class="text-xs text-red-600 dark:text-red-400 mt-1">
+              <p v-if="splitAtLimit(item.value, item.limit).overage" class="text-[11px] text-red-600 dark:text-red-400 mt-4">
                 ✂️ Cut {{ splitAtLimit(item.value, item.limit).overage.length }} characters (highlighted in red) to meet the {{ item.limit }} character limit
               </p>
             </div>
