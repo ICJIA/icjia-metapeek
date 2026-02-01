@@ -724,10 +724,11 @@ const exportAsHtml = () => {
         </div>
         <div>
           <label for="html-input" class="text-2xl font-bold text-gray-900 dark:text-white block">
-            Paste Your HTML
+            Paste Your &lt;head&gt; Section
           </label>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
-            Paste your page's source code (or just the &lt;head&gt; section)
+          <p class="text-sm text-gray-600 dark:text-gray-400 max-w-md">
+            <strong class="text-gray-700 dark:text-gray-300">What matters:</strong> The &lt;head&gt; section containing your meta tags, title, and link tags. 
+            <span class="block mt-1 text-gray-500 dark:text-gray-500">You don't need the full HTML — the &lt;body&gt; content isn't used for social sharing previews.</span>
           </p>
         </div>
         <div class="ml-auto flex items-center gap-2">
@@ -758,7 +759,9 @@ const exportAsHtml = () => {
           id="html-input"
           v-model="inputHtml"
           rows="8"
-          placeholder="Right-click on your webpage → 'View Page Source' → Copy and paste here..."
+          placeholder="Paste your <head>...</head> section here. This contains your meta tags, title, and Open Graph tags needed for analysis.
+
+Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> section"
           class="w-full px-4 py-3 rounded-xl border-0 bg-white dark:bg-gray-900 
                  ring-1 ring-gray-200 dark:ring-gray-700 
                  focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
