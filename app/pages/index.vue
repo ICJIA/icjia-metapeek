@@ -186,7 +186,7 @@ const tabs = [
         
         <!-- Status indicator -->
         <div class="absolute bottom-3 right-3 flex items-center gap-3 text-xs">
-          <span class="text-gray-400 dark:text-gray-500 tabular-nums">
+          <span class="text-gray-500 dark:text-gray-400 tabular-nums">
             {{ inputHtml.length.toLocaleString() }} chars
           </span>
           <span 
