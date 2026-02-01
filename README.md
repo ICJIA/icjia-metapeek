@@ -100,8 +100,10 @@ MetaPeek is opinionated about being **fast, clean, and actionable**.
 ```
 icjia-metapeek/
 ├── app/
+│   ├── assets/
+│   │   └── css/
+│   │       └── main.css     # Tailwind CSS entry point
 │   ├── components/          # Vue components
-│   │   ├── InputPanel.vue
 │   │   ├── PreviewGoogle.vue
 │   │   ├── PreviewFacebook.vue
 │   │   ├── PreviewTwitter.vue
