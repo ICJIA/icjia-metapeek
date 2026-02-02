@@ -927,8 +927,8 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             <UButton
               @click="exportAsJson"
               size="lg"
-              variant="soft"
-              color="primary"
+              variant="solid"
+              class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white"
               icon="i-heroicons-code-bracket"
             >
               JSON
@@ -936,8 +936,8 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             <UButton
               @click="exportAsMarkdown"
               size="lg"
-              variant="soft"
-              color="neutral"
+              variant="solid"
+              class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
               icon="i-heroicons-document-text"
             >
               Markdown
@@ -945,8 +945,8 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             <UButton
               @click="exportAsHtml"
               size="lg"
-              variant="soft"
-              color="neutral"
+              variant="solid"
+              class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white"
               icon="i-heroicons-globe-alt"
             >
               HTML Report
