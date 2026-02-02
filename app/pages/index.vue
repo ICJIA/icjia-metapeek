@@ -1,53 +1,55 @@
 <script setup lang="ts">
-import type { MetaTags, Diagnostics } from '~/types/meta'
+import type { MetaTags, Diagnostics } from "~/types/meta";
 
-const colorMode = useColorMode()
-const { parseMetaTags } = useMetaParser()
-const { generateDiagnostics } = useDiagnostics()
+const colorMode = useColorMode();
+const { parseMetaTags } = useMetaParser();
+const { generateDiagnostics } = useDiagnostics();
 
 // Fix orphaned ARIA live regions by moving them into a landmark
 onMounted(() => {
-  const mainContent = document.getElementById('main-content')
+  const mainContent = document.getElementById("main-content");
   if (mainContent) {
     // Find orphaned alert/live region elements outside landmarks
-    const orphanedAlerts = document.querySelectorAll('body > [role="alert"], body > [aria-live]')
-    orphanedAlerts.forEach(el => {
+    const orphanedAlerts = document.querySelectorAll(
+      'body > [role="alert"], body > [aria-live]'
+    );
+    orphanedAlerts.forEach((el) => {
       // Move to end of main content
-      mainContent.appendChild(el)
-    })
+      mainContent.appendChild(el);
+    });
   }
-})
+});
 
-const inputHtml = ref('')
-const parsedTags = ref<MetaTags | null>(null)
-const diagnostics = ref<Diagnostics | null>(null)
-const hasAnalyzed = ref(false)
-const activeTab = ref('diagnostics')
+const inputHtml = ref("");
+const parsedTags = ref<MetaTags | null>(null);
+const diagnostics = ref<Diagnostics | null>(null);
+const hasAnalyzed = ref(false);
+const activeTab = ref("diagnostics");
 
 const analyze = () => {
   if (!inputHtml.value.trim()) {
-    parsedTags.value = null
-    diagnostics.value = null
-    hasAnalyzed.value = false
-    return
+    parsedTags.value = null;
+    diagnostics.value = null;
+    hasAnalyzed.value = false;
+    return;
   }
-  
-  parsedTags.value = parseMetaTags(inputHtml.value)
-  diagnostics.value = generateDiagnostics(parsedTags.value)
-  hasAnalyzed.value = true
-}
+
+  parsedTags.value = parseMetaTags(inputHtml.value);
+  diagnostics.value = generateDiagnostics(parsedTags.value);
+  hasAnalyzed.value = true;
+};
 
 // Auto-analyze with fast debounce for snappy feel
-const debouncedAnalyze = useDebounceFn(analyze, 300)
+const debouncedAnalyze = useDebounceFn(analyze, 300);
 watch(inputHtml, () => {
   if (inputHtml.value.trim()) {
-    debouncedAnalyze()
+    debouncedAnalyze();
   } else {
-    parsedTags.value = null
-    diagnostics.value = null
-    hasAnalyzed.value = false
+    parsedTags.value = null;
+    diagnostics.value = null;
+    hasAnalyzed.value = false;
   }
-})
+});
 
 // Sample HTML
 const sampleHtml = `<!DOCTYPE html>
@@ -79,96 +81,167 @@ const sampleHtml = `<!DOCTYPE html>
 <body>
   <h1>Welcome to GitHub</h1>
 </body>
-</html>`
+</html>`;
 
 const loadSample = () => {
-  inputHtml.value = sampleHtml
-}
+  inputHtml.value = sampleHtml;
+};
 
 const clearInput = () => {
-  inputHtml.value = ''
-}
+  inputHtml.value = "";
+};
+
+// Helper to resolve relative URLs to absolute using og:url or canonical as base
+const resolveUrl = (
+  relativeUrl: string | undefined,
+  baseUrl: string | undefined
+): string | undefined => {
+  if (!relativeUrl) return undefined;
+  // Already absolute
+  if (relativeUrl.startsWith("http://") || relativeUrl.startsWith("https://")) {
+    return relativeUrl;
+  }
+  // No base URL available
+  if (!baseUrl) return undefined;
+  try {
+    return new URL(relativeUrl, baseUrl).href;
+  } catch {
+    return undefined;
+  }
+};
+
+// Computed resolved favicon URL
+const resolvedFavicon = computed(() => {
+  if (!parsedTags.value) return undefined;
+  const baseUrl = parsedTags.value.og.url || parsedTags.value.canonical;
+  return resolveUrl(parsedTags.value.favicon, baseUrl);
+});
 
 // Tab items for results
 const tabs = [
-  { label: 'Previews', value: 'previews', icon: 'i-heroicons-eye' },
-  { label: 'Diagnostics', value: 'diagnostics', icon: 'i-heroicons-clipboard-document-check' },
-  { label: 'Code', value: 'code', icon: 'i-heroicons-code-bracket' }
-]
+  { label: "Previews", value: "previews", icon: "i-heroicons-eye" },
+  {
+    label: "Diagnostics",
+    value: "diagnostics",
+    icon: "i-heroicons-clipboard-document-check",
+  },
+  { label: "Code", value: "code", icon: "i-heroicons-code-bracket" },
+];
 
 // Export functionality
 const downloadFile = (content: string, filename: string, mimeType: string) => {
-  const blob = new Blob([content], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 // Clipboard copy with notification
-const copiedState = ref<string | null>(null)
+const copiedState = ref<string | null>(null);
 const copyToClipboard = async (content: string, type: string) => {
   try {
-    await navigator.clipboard.writeText(content)
-    copiedState.value = type
+    await navigator.clipboard.writeText(content);
+    copiedState.value = type;
     setTimeout(() => {
-      copiedState.value = null
-    }, 2000)
+      copiedState.value = null;
+    }, 2000);
   } catch (err) {
-    console.error('Failed to copy:', err)
+    console.error("Failed to copy:", err);
   }
-}
+};
 
 // Extract head section from HTML for reference
 const extractHeadSection = () => {
-  const html = inputHtml.value
-  const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i)
+  const html = inputHtml.value;
+  const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
   if (headMatch) {
-    return headMatch[0]
+    return headMatch[0];
   }
   // If no head tags, return the whole input (might be just meta tags)
-  return html.trim()
-}
+  return html.trim();
+};
 
 const generateExportData = () => {
-  if (!parsedTags.value || !diagnostics.value) return null
-  
-  const timestamp = new Date().toISOString()
-  const tags = parsedTags.value
-  const diag = diagnostics.value
-  const originalHtml = extractHeadSection()
-  
+  if (!parsedTags.value || !diagnostics.value) return null;
+
+  const timestamp = new Date().toISOString();
+  const tags = parsedTags.value;
+  const diag = diagnostics.value;
+  const originalHtml = extractHeadSection();
+
   return {
     exportInfo: {
-      tool: 'MetaPeek by ICJIA',
-      version: '1.0.0',
+      tool: "MetaPeek by ICJIA",
+      version: "1.0.0",
       exportedAt: timestamp,
-      toolUrl: 'https://metapeek.icjia.dev',
-      sourceType: 'html_paste', // Will be 'url_fetch' in Phase 2
-      sourceUrl: null // Will contain URL in Phase 2
+      toolUrl: "https://metapeek.icjia.dev",
+      sourceType: "html_paste", // Will be 'url_fetch' in Phase 2
+      sourceUrl: null, // Will contain URL in Phase 2
     },
     originalHtml: originalHtml,
     summary: {
       overallStatus: diag.overall.status,
       overallMessage: diag.overall.message,
       suggestion: diag.overall.suggestion,
-      issueCount: [diag.title, diag.description, diag.ogTags, diag.ogImage, diag.twitterCard, diag.canonical, diag.robots]
-        .filter(d => d.status !== 'green').length,
-      passCount: [diag.title, diag.description, diag.ogTags, diag.ogImage, diag.twitterCard, diag.canonical, diag.robots]
-        .filter(d => d.status === 'green').length
+      issueCount: [
+        diag.title,
+        diag.description,
+        diag.ogTags,
+        diag.ogImage,
+        diag.twitterCard,
+        diag.canonical,
+        diag.robots,
+      ].filter((d) => d.status !== "green").length,
+      passCount: [
+        diag.title,
+        diag.description,
+        diag.ogTags,
+        diag.ogImage,
+        diag.twitterCard,
+        diag.canonical,
+        diag.robots,
+      ].filter((d) => d.status === "green").length,
     },
     diagnostics: {
-      title: { status: diag.title.status, message: diag.title.message, value: tags.title, charCount: tags.title?.length, limit: 60 },
-      description: { status: diag.description.status, message: diag.description.message, value: tags.description, charCount: tags.description?.length, limit: 160 },
-      canonical: { status: diag.canonical.status, message: diag.canonical.message, value: tags.canonical },
-      robots: { status: diag.robots.status, message: diag.robots.message, value: tags.robots },
+      title: {
+        status: diag.title.status,
+        message: diag.title.message,
+        value: tags.title,
+        charCount: tags.title?.length,
+        limit: 60,
+      },
+      description: {
+        status: diag.description.status,
+        message: diag.description.message,
+        value: tags.description,
+        charCount: tags.description?.length,
+        limit: 160,
+      },
+      canonical: {
+        status: diag.canonical.status,
+        message: diag.canonical.message,
+        value: tags.canonical,
+      },
+      robots: {
+        status: diag.robots.status,
+        message: diag.robots.message,
+        value: tags.robots,
+      },
       ogTags: { status: diag.ogTags.status, message: diag.ogTags.message },
-      ogImage: { status: diag.ogImage.status, message: diag.ogImage.message, value: tags.og?.image },
-      twitterCard: { status: diag.twitterCard.status, message: diag.twitterCard.message }
+      ogImage: {
+        status: diag.ogImage.status,
+        message: diag.ogImage.message,
+        value: tags.og?.image,
+      },
+      twitterCard: {
+        status: diag.twitterCard.status,
+        message: diag.twitterCard.message,
+      },
     },
     metaTags: {
       basic: {
@@ -182,7 +255,7 @@ const generateExportData = () => {
         author: tags.author,
         keywords: tags.keywords,
         language: tags.language,
-        generator: tags.generator
+        generator: tags.generator,
       },
       openGraph: {
         title: tags.og?.title,
@@ -198,7 +271,7 @@ const generateExportData = () => {
         locale: tags.og?.locale,
         updatedTime: tags.og?.updatedTime,
         video: tags.og?.video,
-        audio: tags.og?.audio
+        audio: tags.og?.audio,
       },
       twitter: {
         card: tags.twitter?.card,
@@ -211,56 +284,59 @@ const generateExportData = () => {
         label1: tags.twitter?.label1,
         data1: tags.twitter?.data1,
         label2: tags.twitter?.label2,
-        data2: tags.twitter?.data2
+        data2: tags.twitter?.data2,
       },
       facebook: {
         appId: tags.facebook?.appId,
-        admins: tags.facebook?.admins
+        admins: tags.facebook?.admins,
       },
       article: {
         author: tags.article?.author,
         publishedTime: tags.article?.publishedTime,
         modifiedTime: tags.article?.modifiedTime,
         section: tags.article?.section,
-        tags: tags.article?.tags
+        tags: tags.article?.tags,
       },
       pinterest: {
-        description: tags.pinterest?.description
+        description: tags.pinterest?.description,
       },
       apple: {
         mobileWebAppCapable: tags.apple?.mobileWebAppCapable,
         mobileWebAppTitle: tags.apple?.mobileWebAppTitle,
         mobileWebAppStatusBarStyle: tags.apple?.mobileWebAppStatusBarStyle,
-        touchIcon: tags.apple?.touchIcon
+        touchIcon: tags.apple?.touchIcon,
       },
       microsoft: {
         tileImage: tags.microsoft?.tileImage,
-        tileColor: tags.microsoft?.tileColor
+        tileColor: tags.microsoft?.tileColor,
       },
-      structuredData: tags.structuredData
-    }
-  }
-}
+      structuredData: tags.structuredData,
+    },
+  };
+};
 
 const exportAsJson = () => {
-  const data = generateExportData()
-  if (!data) return
-  
-  const json = JSON.stringify(data, null, 2)
-  const filename = `metapeek-results-${new Date().toISOString().split('T')[0]}.json`
-  downloadFile(json, filename, 'application/json')
-}
+  const data = generateExportData();
+  if (!data) return;
+
+  const json = JSON.stringify(data, null, 2);
+  const filename = `metapeek-results-${
+    new Date().toISOString().split("T")[0]
+  }.json`;
+  downloadFile(json, filename, "application/json");
+};
 
 const generateMarkdownContent = () => {
-  const data = generateExportData()
-  if (!data) return null
-  
-  const tags = parsedTags.value!
-  const diag = diagnostics.value!
-  const originalHtml = extractHeadSection()
-  
-  const statusEmoji = (status: string) => status === 'green' ? '✅' : status === 'yellow' ? '⚠️' : '❌'
-  
+  const data = generateExportData();
+  if (!data) return null;
+
+  const tags = parsedTags.value!;
+  const diag = diagnostics.value!;
+  const originalHtml = extractHeadSection();
+
+  const statusEmoji = (status: string) =>
+    status === "green" ? "✅" : status === "yellow" ? "⚠️" : "❌";
+
   let md = `# MetaPeek Analysis Results
 
 **Exported:** ${new Date().toLocaleString()}  
@@ -271,10 +347,12 @@ const generateMarkdownContent = () => {
 
 ## Summary
 
-**Overall Status:** ${statusEmoji(diag.overall.status)} ${diag.overall.message}  
+**Overall Status:** ${statusEmoji(diag.overall.status)} ${
+    diag.overall.message
+  }  
 **Checks Passed:** ${data.summary.passCount}/7  
 **Issues Found:** ${data.summary.issueCount}
-${diag.overall.suggestion ? `\n**Suggestion:** ${diag.overall.suggestion}` : ''}
+${diag.overall.suggestion ? `\n**Suggestion:** ${diag.overall.suggestion}` : ""}
 
 ---
 
@@ -283,11 +361,17 @@ ${diag.overall.suggestion ? `\n**Suggestion:** ${diag.overall.suggestion}` : ''}
 | Check | Status | Details |
 |-------|--------|---------|
 | Title | ${statusEmoji(diag.title.status)} | ${diag.title.message} |
-| Description | ${statusEmoji(diag.description.status)} | ${diag.description.message} |
+| Description | ${statusEmoji(diag.description.status)} | ${
+    diag.description.message
+  } |
 | Open Graph | ${statusEmoji(diag.ogTags.status)} | ${diag.ogTags.message} |
 | OG Image | ${statusEmoji(diag.ogImage.status)} | ${diag.ogImage.message} |
-| X/Twitter Card | ${statusEmoji(diag.twitterCard.status)} | ${diag.twitterCard.message} |
-| Canonical URL | ${statusEmoji(diag.canonical.status)} | ${diag.canonical.message} |
+| X/Twitter Card | ${statusEmoji(diag.twitterCard.status)} | ${
+    diag.twitterCard.message
+  } |
+| Canonical URL | ${statusEmoji(diag.canonical.status)} | ${
+    diag.canonical.message
+  } |
 | Robots | ${statusEmoji(diag.robots.status)} | ${diag.robots.message} |
 
 ---
@@ -296,18 +380,18 @@ ${diag.overall.suggestion ? `\n**Suggestion:** ${diag.overall.suggestion}` : ''}
 
 | Tag | Value |
 |-----|-------|
-| Title | ${tags.title || '(not set)'} |
+| Title | ${tags.title || "(not set)"} |
 | Title Length | ${tags.title?.length || 0}/60 characters |
-| Description | ${tags.description || '(not set)'} |
+| Description | ${tags.description || "(not set)"} |
 | Description Length | ${tags.description?.length || 0}/160 characters |
-| Canonical URL | ${tags.canonical || '(not set)'} |
-| Robots | ${tags.robots || '(not set)'} |
-${tags.author ? `| Author | ${tags.author} |` : ''}
-${tags.keywords ? `| Keywords | ${tags.keywords} |` : ''}
-${tags.language ? `| Language | ${tags.language} |` : ''}
-${tags.viewport ? `| Viewport | ${tags.viewport} |` : ''}
-${tags.themeColor ? `| Theme Color | ${tags.themeColor} |` : ''}
-${tags.favicon ? `| Favicon | ${tags.favicon} |` : ''}
+| Canonical URL | ${tags.canonical || "(not set)"} |
+| Robots | ${tags.robots || "(not set)"} |
+${tags.author ? `| Author | ${tags.author} |` : ""}
+${tags.keywords ? `| Keywords | ${tags.keywords} |` : ""}
+${tags.language ? `| Language | ${tags.language} |` : ""}
+${tags.viewport ? `| Viewport | ${tags.viewport} |` : ""}
+${tags.themeColor ? `| Theme Color | ${tags.themeColor} |` : ""}
+${tags.favicon ? `| Favicon | ${tags.favicon} |` : ""}
 
 ---
 
@@ -315,17 +399,17 @@ ${tags.favicon ? `| Favicon | ${tags.favicon} |` : ''}
 
 | Property | Value |
 |----------|-------|
-| og:title | ${tags.og?.title || '(not set)'} |
-| og:description | ${tags.og?.description || '(not set)'} |
-| og:type | ${tags.og?.type || '(not set)'} |
-| og:url | ${tags.og?.url || '(not set)'} |
-| og:image | ${tags.og?.image || '(not set)'} |
-${tags.og?.imageAlt ? `| og:image:alt | ${tags.og.imageAlt} |` : ''}
-${tags.og?.imageWidth ? `| og:image:width | ${tags.og.imageWidth} |` : ''}
-${tags.og?.imageHeight ? `| og:image:height | ${tags.og.imageHeight} |` : ''}
-${tags.og?.siteName ? `| og:site_name | ${tags.og.siteName} |` : ''}
-${tags.og?.locale ? `| og:locale | ${tags.og.locale} |` : ''}
-${tags.og?.updatedTime ? `| og:updated_time | ${tags.og.updatedTime} |` : ''}
+| og:title | ${tags.og?.title || "(not set)"} |
+| og:description | ${tags.og?.description || "(not set)"} |
+| og:type | ${tags.og?.type || "(not set)"} |
+| og:url | ${tags.og?.url || "(not set)"} |
+| og:image | ${tags.og?.image || "(not set)"} |
+${tags.og?.imageAlt ? `| og:image:alt | ${tags.og.imageAlt} |` : ""}
+${tags.og?.imageWidth ? `| og:image:width | ${tags.og.imageWidth} |` : ""}
+${tags.og?.imageHeight ? `| og:image:height | ${tags.og.imageHeight} |` : ""}
+${tags.og?.siteName ? `| og:site_name | ${tags.og.siteName} |` : ""}
+${tags.og?.locale ? `| og:locale | ${tags.og.locale} |` : ""}
+${tags.og?.updatedTime ? `| og:updated_time | ${tags.og.updatedTime} |` : ""}
 
 ---
 
@@ -333,16 +417,24 @@ ${tags.og?.updatedTime ? `| og:updated_time | ${tags.og.updatedTime} |` : ''}
 
 | Property | Value |
 |----------|-------|
-| twitter:card | ${tags.twitter?.card || '(not set)'} |
-| twitter:site | ${tags.twitter?.site || '(not set)'} |
-${tags.twitter?.creator ? `| twitter:creator | ${tags.twitter.creator} |` : ''}
-${tags.twitter?.title ? `| twitter:title | ${tags.twitter.title} |` : ''}
-${tags.twitter?.description ? `| twitter:description | ${tags.twitter.description} |` : ''}
-${tags.twitter?.image ? `| twitter:image | ${tags.twitter.image} |` : ''}
-${tags.twitter?.imageAlt ? `| twitter:image:alt | ${tags.twitter.imageAlt} |` : ''}
-${tags.twitter?.label1 ? `| twitter:label1 | ${tags.twitter.label1} |` : ''}
-${tags.twitter?.data1 ? `| twitter:data1 | ${tags.twitter.data1} |` : ''}
-`
+| twitter:card | ${tags.twitter?.card || "(not set)"} |
+| twitter:site | ${tags.twitter?.site || "(not set)"} |
+${tags.twitter?.creator ? `| twitter:creator | ${tags.twitter.creator} |` : ""}
+${tags.twitter?.title ? `| twitter:title | ${tags.twitter.title} |` : ""}
+${
+  tags.twitter?.description
+    ? `| twitter:description | ${tags.twitter.description} |`
+    : ""
+}
+${tags.twitter?.image ? `| twitter:image | ${tags.twitter.image} |` : ""}
+${
+  tags.twitter?.imageAlt
+    ? `| twitter:image:alt | ${tags.twitter.imageAlt} |`
+    : ""
+}
+${tags.twitter?.label1 ? `| twitter:label1 | ${tags.twitter.label1} |` : ""}
+${tags.twitter?.data1 ? `| twitter:data1 | ${tags.twitter.data1} |` : ""}
+`;
 
   // Add Facebook section if present
   if (tags.facebook?.appId || tags.facebook?.admins) {
@@ -353,13 +445,17 @@ ${tags.twitter?.data1 ? `| twitter:data1 | ${tags.twitter.data1} |` : ''}
 
 | Property | Value |
 |----------|-------|
-${tags.facebook?.appId ? `| fb:app_id | ${tags.facebook.appId} |` : ''}
-${tags.facebook?.admins ? `| fb:admins | ${tags.facebook.admins} |` : ''}
-`
+${tags.facebook?.appId ? `| fb:app_id | ${tags.facebook.appId} |` : ""}
+${tags.facebook?.admins ? `| fb:admins | ${tags.facebook.admins} |` : ""}
+`;
   }
 
   // Add Article section if present
-  if (tags.article?.author || tags.article?.publishedTime || tags.article?.section) {
+  if (
+    tags.article?.author ||
+    tags.article?.publishedTime ||
+    tags.article?.section
+  ) {
     md += `
 ---
 
@@ -367,12 +463,24 @@ ${tags.facebook?.admins ? `| fb:admins | ${tags.facebook.admins} |` : ''}
 
 | Property | Value |
 |----------|-------|
-${tags.article?.author ? `| article:author | ${tags.article.author} |` : ''}
-${tags.article?.publishedTime ? `| article:published_time | ${tags.article.publishedTime} |` : ''}
-${tags.article?.modifiedTime ? `| article:modified_time | ${tags.article.modifiedTime} |` : ''}
-${tags.article?.section ? `| article:section | ${tags.article.section} |` : ''}
-${tags.article?.tags?.length ? `| article:tag | ${tags.article.tags.join(', ')} |` : ''}
-`
+${tags.article?.author ? `| article:author | ${tags.article.author} |` : ""}
+${
+  tags.article?.publishedTime
+    ? `| article:published_time | ${tags.article.publishedTime} |`
+    : ""
+}
+${
+  tags.article?.modifiedTime
+    ? `| article:modified_time | ${tags.article.modifiedTime} |`
+    : ""
+}
+${tags.article?.section ? `| article:section | ${tags.article.section} |` : ""}
+${
+  tags.article?.tags?.length
+    ? `| article:tag | ${tags.article.tags.join(", ")} |`
+    : ""
+}
+`;
   }
 
   // Add Structured Data if present
@@ -384,16 +492,16 @@ ${tags.article?.tags?.length ? `| article:tag | ${tags.article.tags.join(', ')} 
 
 Found ${tags.structuredData.length} schema(s):
 
-`
+`;
     tags.structuredData.forEach((schema, i) => {
-      md += `### Schema ${i + 1}: ${schema['@type'] || 'Unknown'}
+      md += `### Schema ${i + 1}: ${schema["@type"] || "Unknown"}
 
 \`\`\`json
 ${JSON.stringify(schema, null, 2)}
 \`\`\`
 
-`
-    })
+`;
+    });
   }
 
   md += `
@@ -401,27 +509,39 @@ ${JSON.stringify(schema, null, 2)}
 
 ## Issues to Fix
 
-`
-  
+`;
+
   // List issues
-  const issues: string[] = []
-  if (diag.title.status === 'red') issues.push(`- ❌ **Title:** ${diag.title.message}`)
-  if (diag.title.status === 'yellow') issues.push(`- ⚠️ **Title:** ${diag.title.message}`)
-  if (diag.description.status === 'red') issues.push(`- ❌ **Description:** ${diag.description.message}`)
-  if (diag.description.status === 'yellow') issues.push(`- ⚠️ **Description:** ${diag.description.message}`)
-  if (diag.ogTags.status === 'red') issues.push(`- ❌ **Open Graph:** ${diag.ogTags.message}`)
-  if (diag.ogTags.status === 'yellow') issues.push(`- ⚠️ **Open Graph:** ${diag.ogTags.message}`)
-  if (diag.ogImage.status === 'red') issues.push(`- ❌ **OG Image:** ${diag.ogImage.message}`)
-  if (diag.ogImage.status === 'yellow') issues.push(`- ⚠️ **OG Image:** ${diag.ogImage.message}`)
-  if (diag.twitterCard.status === 'red') issues.push(`- ❌ **X/Twitter:** ${diag.twitterCard.message}`)
-  if (diag.twitterCard.status === 'yellow') issues.push(`- ⚠️ **X/Twitter:** ${diag.twitterCard.message}`)
-  if (diag.canonical.status === 'red') issues.push(`- ❌ **Canonical:** ${diag.canonical.message}`)
-  if (diag.canonical.status === 'yellow') issues.push(`- ⚠️ **Canonical:** ${diag.canonical.message}`)
-  
+  const issues: string[] = [];
+  if (diag.title.status === "red")
+    issues.push(`- ❌ **Title:** ${diag.title.message}`);
+  if (diag.title.status === "yellow")
+    issues.push(`- ⚠️ **Title:** ${diag.title.message}`);
+  if (diag.description.status === "red")
+    issues.push(`- ❌ **Description:** ${diag.description.message}`);
+  if (diag.description.status === "yellow")
+    issues.push(`- ⚠️ **Description:** ${diag.description.message}`);
+  if (diag.ogTags.status === "red")
+    issues.push(`- ❌ **Open Graph:** ${diag.ogTags.message}`);
+  if (diag.ogTags.status === "yellow")
+    issues.push(`- ⚠️ **Open Graph:** ${diag.ogTags.message}`);
+  if (diag.ogImage.status === "red")
+    issues.push(`- ❌ **OG Image:** ${diag.ogImage.message}`);
+  if (diag.ogImage.status === "yellow")
+    issues.push(`- ⚠️ **OG Image:** ${diag.ogImage.message}`);
+  if (diag.twitterCard.status === "red")
+    issues.push(`- ❌ **X/Twitter:** ${diag.twitterCard.message}`);
+  if (diag.twitterCard.status === "yellow")
+    issues.push(`- ⚠️ **X/Twitter:** ${diag.twitterCard.message}`);
+  if (diag.canonical.status === "red")
+    issues.push(`- ❌ **Canonical:** ${diag.canonical.message}`);
+  if (diag.canonical.status === "yellow")
+    issues.push(`- ⚠️ **Canonical:** ${diag.canonical.message}`);
+
   if (issues.length === 0) {
-    md += `✅ No issues found! All meta tags are properly configured.\n`
+    md += `✅ No issues found! All meta tags are properly configured.\n`;
   } else {
-    md += issues.join('\n') + '\n'
+    md += issues.join("\n") + "\n";
   }
 
   md += `
@@ -438,48 +558,65 @@ ${originalHtml}
 ---
 
 *Generated by [MetaPeek](https://metapeek.icjia.dev) - Open Graph & Social Sharing Meta Tag Analyzer*
-`
+`;
 
-  return md
-}
+  return md;
+};
 
 const exportAsMarkdown = () => {
-  const md = generateMarkdownContent()
-  if (!md) return
-  const filename = `metapeek-results-${new Date().toISOString().split('T')[0]}.md`
-  downloadFile(md, filename, 'text/markdown')
-}
+  const md = generateMarkdownContent();
+  if (!md) return;
+  const filename = `metapeek-results-${
+    new Date().toISOString().split("T")[0]
+  }.md`;
+  downloadFile(md, filename, "text/markdown");
+};
 
 const copyMarkdownToClipboard = () => {
-  const md = generateMarkdownContent()
-  if (!md) return
-  copyToClipboard(md, 'markdown')
-}
+  const md = generateMarkdownContent();
+  if (!md) return;
+  copyToClipboard(md, "markdown");
+};
 
 const copyJsonToClipboard = () => {
-  const data = generateExportData()
-  if (!data) return
-  const json = JSON.stringify(data, null, 2)
-  copyToClipboard(json, 'json')
-}
+  const data = generateExportData();
+  if (!data) return;
+  const json = JSON.stringify(data, null, 2);
+  copyToClipboard(json, "json");
+};
 
 const exportAsHtml = () => {
-  const data = generateExportData()
-  if (!data) return
-  
-  const tags = parsedTags.value!
-  const diag = diagnostics.value!
-  const originalHtml = extractHeadSection()
-  
-  const statusColor = (status: string) => status === 'green' ? '#10b981' : status === 'yellow' ? '#f59e0b' : '#ef4444'
-  const statusBg = (status: string) => status === 'green' ? '#d1fae5' : status === 'yellow' ? '#fef3c7' : '#fee2e2'
-  const statusEmoji = (status: string) => status === 'green' ? '✅' : status === 'yellow' ? '⚠️' : '❌'
-  
+  const data = generateExportData();
+  if (!data) return;
+
+  const tags = parsedTags.value!;
+  const diag = diagnostics.value!;
+  const originalHtml = extractHeadSection();
+
+  const statusColor = (status: string) =>
+    status === "green"
+      ? "#10b981"
+      : status === "yellow"
+      ? "#f59e0b"
+      : "#ef4444";
+  const statusBg = (status: string) =>
+    status === "green"
+      ? "#d1fae5"
+      : status === "yellow"
+      ? "#fef3c7"
+      : "#fee2e2";
+  const statusEmoji = (status: string) =>
+    status === "green" ? "✅" : status === "yellow" ? "⚠️" : "❌";
+
   const escapeHtml = (str: string | undefined) => {
-    if (!str) return '(not set)'
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  }
-  
+    if (!str) return "(not set)";
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  };
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -531,14 +668,22 @@ const exportAsHtml = () => {
     <div class="content">
       <div class="summary ${diag.overall.status}">
         <h2>${statusEmoji(diag.overall.status)} ${diag.overall.message}</h2>
-        ${diag.overall.suggestion ? `<p style="margin-top: 0.5rem; opacity: 0.8;">${diag.overall.suggestion}</p>` : ''}
+        ${
+          diag.overall.suggestion
+            ? `<p style="margin-top: 0.5rem; opacity: 0.8;">${diag.overall.suggestion}</p>`
+            : ""
+        }
         <div class="stats">
           <div class="stat">
-            <div class="stat-value" style="color: #10b981;">${data.summary.passCount}</div>
+            <div class="stat-value" style="color: #10b981;">${
+              data.summary.passCount
+            }</div>
             <div class="stat-label">Passed</div>
           </div>
           <div class="stat">
-            <div class="stat-value" style="color: #ef4444;">${data.summary.issueCount}</div>
+            <div class="stat-value" style="color: #ef4444;">${
+              data.summary.issueCount
+            }</div>
             <div class="stat-label">Issues</div>
           </div>
         </div>
@@ -548,68 +693,244 @@ const exportAsHtml = () => {
         <h3>📋 Diagnostic Results</h3>
         <table>
           <tr><th>Check</th><th>Status</th><th>Details</th></tr>
-          <tr><td>Title</td><td><span class="status ${diag.title.status}">${statusEmoji(diag.title.status)} ${diag.title.status === 'green' ? 'Pass' : diag.title.status === 'yellow' ? 'Warning' : 'Error'}</span></td><td>${diag.title.message}</td></tr>
-          <tr><td>Description</td><td><span class="status ${diag.description.status}">${statusEmoji(diag.description.status)} ${diag.description.status === 'green' ? 'Pass' : diag.description.status === 'yellow' ? 'Warning' : 'Error'}</span></td><td>${diag.description.message}</td></tr>
-          <tr><td>Open Graph</td><td><span class="status ${diag.ogTags.status}">${statusEmoji(diag.ogTags.status)} ${diag.ogTags.status === 'green' ? 'Pass' : diag.ogTags.status === 'yellow' ? 'Warning' : 'Error'}</span></td><td>${diag.ogTags.message}</td></tr>
-          <tr><td>OG Image</td><td><span class="status ${diag.ogImage.status}">${statusEmoji(diag.ogImage.status)} ${diag.ogImage.status === 'green' ? 'Pass' : diag.ogImage.status === 'yellow' ? 'Warning' : 'Error'}</span></td><td>${diag.ogImage.message}</td></tr>
-          <tr><td>X/Twitter Card</td><td><span class="status ${diag.twitterCard.status}">${statusEmoji(diag.twitterCard.status)} ${diag.twitterCard.status === 'green' ? 'Pass' : diag.twitterCard.status === 'yellow' ? 'Warning' : 'Error'}</span></td><td>${diag.twitterCard.message}</td></tr>
-          <tr><td>Canonical URL</td><td><span class="status ${diag.canonical.status}">${statusEmoji(diag.canonical.status)} ${diag.canonical.status === 'green' ? 'Pass' : diag.canonical.status === 'yellow' ? 'Warning' : 'Error'}</span></td><td>${diag.canonical.message}</td></tr>
-          <tr><td>Robots</td><td><span class="status ${diag.robots.status}">${statusEmoji(diag.robots.status)} ${diag.robots.status === 'green' ? 'Pass' : diag.robots.status === 'yellow' ? 'Warning' : 'Error'}</span></td><td>${diag.robots.message}</td></tr>
+          <tr><td>Title</td><td><span class="status ${
+            diag.title.status
+          }">${statusEmoji(diag.title.status)} ${
+    diag.title.status === "green"
+      ? "Pass"
+      : diag.title.status === "yellow"
+      ? "Warning"
+      : "Error"
+  }</span></td><td>${diag.title.message}</td></tr>
+          <tr><td>Description</td><td><span class="status ${
+            diag.description.status
+          }">${statusEmoji(diag.description.status)} ${
+    diag.description.status === "green"
+      ? "Pass"
+      : diag.description.status === "yellow"
+      ? "Warning"
+      : "Error"
+  }</span></td><td>${diag.description.message}</td></tr>
+          <tr><td>Open Graph</td><td><span class="status ${
+            diag.ogTags.status
+          }">${statusEmoji(diag.ogTags.status)} ${
+    diag.ogTags.status === "green"
+      ? "Pass"
+      : diag.ogTags.status === "yellow"
+      ? "Warning"
+      : "Error"
+  }</span></td><td>${diag.ogTags.message}</td></tr>
+          <tr><td>OG Image</td><td><span class="status ${
+            diag.ogImage.status
+          }">${statusEmoji(diag.ogImage.status)} ${
+    diag.ogImage.status === "green"
+      ? "Pass"
+      : diag.ogImage.status === "yellow"
+      ? "Warning"
+      : "Error"
+  }</span></td><td>${diag.ogImage.message}</td></tr>
+          <tr><td>X/Twitter Card</td><td><span class="status ${
+            diag.twitterCard.status
+          }">${statusEmoji(diag.twitterCard.status)} ${
+    diag.twitterCard.status === "green"
+      ? "Pass"
+      : diag.twitterCard.status === "yellow"
+      ? "Warning"
+      : "Error"
+  }</span></td><td>${diag.twitterCard.message}</td></tr>
+          <tr><td>Canonical URL</td><td><span class="status ${
+            diag.canonical.status
+          }">${statusEmoji(diag.canonical.status)} ${
+    diag.canonical.status === "green"
+      ? "Pass"
+      : diag.canonical.status === "yellow"
+      ? "Warning"
+      : "Error"
+  }</span></td><td>${diag.canonical.message}</td></tr>
+          <tr><td>Robots</td><td><span class="status ${
+            diag.robots.status
+          }">${statusEmoji(diag.robots.status)} ${
+    diag.robots.status === "green"
+      ? "Pass"
+      : diag.robots.status === "yellow"
+      ? "Warning"
+      : "Error"
+  }</span></td><td>${diag.robots.message}</td></tr>
         </table>
       </div>
       
       <div class="section">
         <h3>📝 Basic Meta Tags</h3>
         <table>
-          <tr><td>Title</td><td><span class="value">${escapeHtml(tags.title)}</span> <span class="char-count ${(tags.title?.length || 0) > 60 ? 'over-limit' : ''}">(${tags.title?.length || 0}/60 chars)</span></td></tr>
-          <tr><td>Description</td><td><span class="value">${escapeHtml(tags.description)}</span> <span class="char-count ${(tags.description?.length || 0) > 160 ? 'over-limit' : ''}">(${tags.description?.length || 0}/160 chars)</span></td></tr>
-          <tr><td>Canonical URL</td><td><span class="value">${escapeHtml(tags.canonical)}</span></td></tr>
-          <tr><td>Robots</td><td><span class="value">${escapeHtml(tags.robots)}</span></td></tr>
-          ${tags.author ? `<tr><td>Author</td><td><span class="value">${escapeHtml(tags.author)}</span></td></tr>` : ''}
-          ${tags.keywords ? `<tr><td>Keywords</td><td><span class="value">${escapeHtml(tags.keywords)}</span></td></tr>` : ''}
-          ${tags.viewport ? `<tr><td>Viewport</td><td><span class="value">${escapeHtml(tags.viewport)}</span></td></tr>` : ''}
-          ${tags.themeColor ? `<tr><td>Theme Color</td><td><span style="display:inline-block;width:16px;height:16px;background:${tags.themeColor};border:1px solid #ccc;border-radius:3px;vertical-align:middle;margin-right:8px;"></span><span class="value">${escapeHtml(tags.themeColor)}</span></td></tr>` : ''}
+          <tr><td>Title</td><td><span class="value">${escapeHtml(
+            tags.title
+          )}</span> <span class="char-count ${
+    (tags.title?.length || 0) > 60 ? "over-limit" : ""
+  }">(${tags.title?.length || 0}/60 chars)</span></td></tr>
+          <tr><td>Description</td><td><span class="value">${escapeHtml(
+            tags.description
+          )}</span> <span class="char-count ${
+    (tags.description?.length || 0) > 160 ? "over-limit" : ""
+  }">(${tags.description?.length || 0}/160 chars)</span></td></tr>
+          <tr><td>Canonical URL</td><td><span class="value">${escapeHtml(
+            tags.canonical
+          )}</span></td></tr>
+          <tr><td>Robots</td><td><span class="value">${escapeHtml(
+            tags.robots
+          )}</span></td></tr>
+          ${
+            tags.author
+              ? `<tr><td>Author</td><td><span class="value">${escapeHtml(
+                  tags.author
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.keywords
+              ? `<tr><td>Keywords</td><td><span class="value">${escapeHtml(
+                  tags.keywords
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.viewport
+              ? `<tr><td>Viewport</td><td><span class="value">${escapeHtml(
+                  tags.viewport
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.themeColor
+              ? `<tr><td>Theme Color</td><td><span style="display:inline-block;width:16px;height:16px;background:${
+                  tags.themeColor
+                };border:1px solid #ccc;border-radius:3px;vertical-align:middle;margin-right:8px;"></span><span class="value">${escapeHtml(
+                  tags.themeColor
+                )}</span></td></tr>`
+              : ""
+          }
         </table>
       </div>
       
       <div class="section">
         <h3>🌐 Open Graph Tags</h3>
         <table>
-          <tr><td>og:title</td><td><span class="value">${escapeHtml(tags.og?.title)}</span></td></tr>
-          <tr><td>og:description</td><td><span class="value">${escapeHtml(tags.og?.description)}</span></td></tr>
-          <tr><td>og:type</td><td><span class="value">${escapeHtml(tags.og?.type)}</span></td></tr>
-          <tr><td>og:url</td><td><span class="value">${escapeHtml(tags.og?.url)}</span></td></tr>
-          <tr><td>og:image</td><td><span class="value">${escapeHtml(tags.og?.image)}</span></td></tr>
-          ${tags.og?.imageAlt ? `<tr><td>og:image:alt</td><td><span class="value">${escapeHtml(tags.og.imageAlt)}</span></td></tr>` : ''}
-          ${tags.og?.imageWidth ? `<tr><td>og:image:width</td><td><span class="value">${escapeHtml(tags.og.imageWidth)}</span></td></tr>` : ''}
-          ${tags.og?.imageHeight ? `<tr><td>og:image:height</td><td><span class="value">${escapeHtml(tags.og.imageHeight)}</span></td></tr>` : ''}
-          ${tags.og?.siteName ? `<tr><td>og:site_name</td><td><span class="value">${escapeHtml(tags.og.siteName)}</span></td></tr>` : ''}
-          ${tags.og?.locale ? `<tr><td>og:locale</td><td><span class="value">${escapeHtml(tags.og.locale)}</span></td></tr>` : ''}
+          <tr><td>og:title</td><td><span class="value">${escapeHtml(
+            tags.og?.title
+          )}</span></td></tr>
+          <tr><td>og:description</td><td><span class="value">${escapeHtml(
+            tags.og?.description
+          )}</span></td></tr>
+          <tr><td>og:type</td><td><span class="value">${escapeHtml(
+            tags.og?.type
+          )}</span></td></tr>
+          <tr><td>og:url</td><td><span class="value">${escapeHtml(
+            tags.og?.url
+          )}</span></td></tr>
+          <tr><td>og:image</td><td><span class="value">${escapeHtml(
+            tags.og?.image
+          )}</span></td></tr>
+          ${
+            tags.og?.imageAlt
+              ? `<tr><td>og:image:alt</td><td><span class="value">${escapeHtml(
+                  tags.og.imageAlt
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.og?.imageWidth
+              ? `<tr><td>og:image:width</td><td><span class="value">${escapeHtml(
+                  tags.og.imageWidth
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.og?.imageHeight
+              ? `<tr><td>og:image:height</td><td><span class="value">${escapeHtml(
+                  tags.og.imageHeight
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.og?.siteName
+              ? `<tr><td>og:site_name</td><td><span class="value">${escapeHtml(
+                  tags.og.siteName
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.og?.locale
+              ? `<tr><td>og:locale</td><td><span class="value">${escapeHtml(
+                  tags.og.locale
+                )}</span></td></tr>`
+              : ""
+          }
         </table>
       </div>
       
       <div class="section">
         <h3>🐦 X/Twitter Card Tags</h3>
         <table>
-          <tr><td>twitter:card</td><td><span class="value">${escapeHtml(tags.twitter?.card)}</span></td></tr>
-          <tr><td>twitter:site</td><td><span class="value">${escapeHtml(tags.twitter?.site)}</span></td></tr>
-          ${tags.twitter?.creator ? `<tr><td>twitter:creator</td><td><span class="value">${escapeHtml(tags.twitter.creator)}</span></td></tr>` : ''}
-          ${tags.twitter?.title ? `<tr><td>twitter:title</td><td><span class="value">${escapeHtml(tags.twitter.title)}</span></td></tr>` : ''}
-          ${tags.twitter?.description ? `<tr><td>twitter:description</td><td><span class="value">${escapeHtml(tags.twitter.description)}</span></td></tr>` : ''}
-          ${tags.twitter?.image ? `<tr><td>twitter:image</td><td><span class="value">${escapeHtml(tags.twitter.image)}</span></td></tr>` : ''}
+          <tr><td>twitter:card</td><td><span class="value">${escapeHtml(
+            tags.twitter?.card
+          )}</span></td></tr>
+          <tr><td>twitter:site</td><td><span class="value">${escapeHtml(
+            tags.twitter?.site
+          )}</span></td></tr>
+          ${
+            tags.twitter?.creator
+              ? `<tr><td>twitter:creator</td><td><span class="value">${escapeHtml(
+                  tags.twitter.creator
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.twitter?.title
+              ? `<tr><td>twitter:title</td><td><span class="value">${escapeHtml(
+                  tags.twitter.title
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.twitter?.description
+              ? `<tr><td>twitter:description</td><td><span class="value">${escapeHtml(
+                  tags.twitter.description
+                )}</span></td></tr>`
+              : ""
+          }
+          ${
+            tags.twitter?.image
+              ? `<tr><td>twitter:image</td><td><span class="value">${escapeHtml(
+                  tags.twitter.image
+                )}</span></td></tr>`
+              : ""
+          }
         </table>
       </div>
       
-      ${tags.structuredData?.length ? `
+      ${
+        tags.structuredData?.length
+          ? `
       <div class="section">
         <h3>📊 Structured Data (JSON-LD)</h3>
-        <p style="margin-bottom: 1rem; color: #6b7280;">Found ${tags.structuredData.length} schema(s)</p>
-        ${tags.structuredData.map((schema, i) => `
-          <p style="font-weight: 600; margin-bottom: 0.5rem;">Schema ${i + 1}: ${schema['@type'] || 'Unknown'}</p>
-          <pre class="code-block">${escapeHtml(JSON.stringify(schema, null, 2))}</pre>
-        `).join('')}
+        <p style="margin-bottom: 1rem; color: #6b7280;">Found ${
+          tags.structuredData.length
+        } schema(s)</p>
+        ${tags.structuredData
+          .map(
+            (schema, i) => `
+          <p style="font-weight: 600; margin-bottom: 0.5rem;">Schema ${
+            i + 1
+          }: ${schema["@type"] || "Unknown"}</p>
+          <pre class="code-block">${escapeHtml(
+            JSON.stringify(schema, null, 2)
+          )}</pre>
+        `
+          )
+          .join("")}
       </div>
-      ` : ''}
+      `
+          : ""
+      }
       
       <div class="section">
         <h3>📄 Original HTML Source</h3>
@@ -624,50 +945,77 @@ const exportAsHtml = () => {
     </div>
   </div>
 </body>
-</html>`
+</html>`;
 
-  const filename = `metapeek-report-${new Date().toISOString().split('T')[0]}.html`
-  downloadFile(html, filename, 'text/html')
-}
+  const filename = `metapeek-report-${
+    new Date().toISOString().split("T")[0]
+  }.html`;
+  downloadFile(html, filename, "text/html");
+};
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+  <div
+    class="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100"
+  >
     <!-- Skip link for keyboard users -->
     <a href="#main-content" class="skip-link">Skip to main content</a>
-    
+
     <!-- Header -->
-    <header class="sticky top-0 z-50 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
+    <header
+      class="sticky top-0 z-50 bg-white/90 dark:bg-gray-950/90 backdrop-blur border-b border-gray-200 dark:border-gray-800"
+    >
       <div class="max-w-6xl mx-auto px-4 sm:px-6">
         <div class="flex items-center justify-between h-20 sm:h-24">
           <div class="flex items-center gap-4">
-            <img 
-              src="~/assets/images/icjia-logo.png" 
-              alt="ICJIA Logo" 
+            <img
+              src="~/assets/images/icjia-logo.png"
+              alt="ICJIA Logo"
               class="h-12 sm:h-14 w-auto"
             />
             <div>
               <div class="flex items-center gap-2">
-                <span class="text-2xl sm:text-3xl font-extrabold tracking-tight">MetaPeek</span>
-                <span class="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded">Beta</span>
+                <span class="text-2xl sm:text-3xl font-extrabold tracking-tight"
+                  >MetaPeek</span
+                >
+                <span
+                  class="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded"
+                  >Beta</span
+                >
               </div>
-              <span class="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">Open Graph & Social Sharing Meta Tag Analyzer</span>
+              <span
+                class="text-xs text-gray-500 dark:text-gray-400 hidden sm:block"
+                >Open Graph & Social Sharing Meta Tag Analyzer</span
+              >
             </div>
           </div>
           <div class="flex items-center gap-1">
             <ClientOnly>
               <button
-                @click="colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'"
+                @click="
+                  colorMode.preference =
+                    colorMode.value === 'dark' ? 'light' : 'dark'
+                "
                 class="p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+                :aria-label="
+                  colorMode.value === 'dark'
+                    ? 'Switch to light mode'
+                    : 'Switch to dark mode'
+                "
               >
-                <UIcon 
-                  :name="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'" 
+                <UIcon
+                  :name="
+                    colorMode.value === 'dark'
+                      ? 'i-heroicons-sun'
+                      : 'i-heroicons-moon'
+                  "
                   class="w-5 h-5 text-gray-600 dark:text-gray-400"
                   aria-hidden="true"
                 />
               </button>
-              <template #fallback><div class="w-9 h-9" aria-hidden="true" /></template>
+              <template #fallback
+                ><div class="w-9 h-9" aria-hidden="true"
+              /></template>
             </ClientOnly>
             <a
               href="https://github.com/ICJIA/icjia-metapeek"
@@ -676,7 +1024,11 @@ const exportAsHtml = () => {
               class="p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="View on GitHub"
             >
-              <UIcon name="i-simple-icons-github" class="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
+              <UIcon
+                name="i-simple-icons-github"
+                class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                aria-hidden="true"
+              />
             </a>
           </div>
         </div>
@@ -686,373 +1038,496 @@ const exportAsHtml = () => {
     <main id="main-content" class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <!-- Hero Section -->
       <div class="mb-8">
-        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-2 text-gray-900 dark:text-white">
+        <h1
+          class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-2 text-gray-900 dark:text-white"
+        >
           Open Graph &amp; Social Sharing Meta Tag Analyzer
         </h1>
         <p class="text-lg text-gray-600 dark:text-gray-300 mb-4">
           Preview how your links appear when shared on social media
         </p>
-        
+
         <!-- Two-column layout on larger screens -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
           <div class="space-y-2">
             <p class="text-gray-700 dark:text-gray-300">
-              When you share a link on social media, platforms display a preview card with a title, image, and description. 
-              This comes from <span class="font-medium text-gray-900 dark:text-white">Open Graph tags</span> in your HTML.
+              When you share a link on social media, platforms display a preview
+              card with a title, image, and description. This comes from
+              <span class="font-medium text-gray-900 dark:text-white"
+                >Open Graph tags</span
+              >
+              in your HTML.
             </p>
             <p class="text-gray-600 dark:text-gray-400 text-sm">
-              Missing or broken tags = unprofessional previews that people scroll past.
+              Missing or broken tags = unprofessional previews that people
+              scroll past.
             </p>
           </div>
           <div class="space-y-2">
             <p class="text-gray-700 dark:text-gray-300">
-              <span class="font-medium text-gray-900 dark:text-white">MetaPeek</span> shows you exactly what each platform will display, 
-              diagnoses problems, and gives you the code to fix them.
+              <span class="font-medium text-gray-900 dark:text-white"
+                >MetaPeek</span
+              >
+              shows you exactly what each platform will display, diagnoses
+              problems, and gives you the code to fix them.
             </p>
             <p class="text-gray-500 dark:text-gray-400 text-sm italic">
-              "Peek" at your meta tags — the hidden HTML controlling your social presence.
+              "Peek" at your meta tags — the hidden HTML controlling your social
+              presence.
             </p>
           </div>
         </div>
       </div>
 
-    <!-- Step 1: Input Section -->
-    <div class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-blue-50 dark:bg-blue-950/40 border-y border-blue-200 dark:border-blue-800">
-      <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-24 h-24 rounded-full bg-blue-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-blue-200 dark:ring-blue-800">
-          1
-        </div>
-        <div>
-          <label for="html-input" class="text-2xl font-bold text-gray-900 dark:text-white block">
-            Paste the &lt;head&gt; section of the HTML you want to analyze
-          </label>
-          <p class="text-sm text-gray-600 dark:text-gray-400 max-w-lg">
-            Copy the entire section from the starting tag <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs">&lt;head&gt;</code> to the ending tag <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs">&lt;/head&gt;</code>
-            <span class="block mt-1 text-gray-500 dark:text-gray-500">The &lt;body&gt; content isn't needed — only the head section contains meta tags for social sharing.</span>
-          </p>
-        </div>
-        <div class="ml-auto flex items-center gap-2">
-          <UButton
-            v-if="inputHtml.trim()"
-            size="sm"
-            variant="ghost"
-            color="neutral"
-            icon="i-heroicons-x-mark"
-            @click="clearInput"
+      <!-- Step 1: Input Section -->
+      <div
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-blue-50 dark:bg-blue-950/40 border-y border-blue-200 dark:border-blue-800"
+      >
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-24 h-24 rounded-full bg-blue-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-blue-200 dark:ring-blue-800"
           >
-            Clear
-          </UButton>
-          <UButton
-            size="sm"
-            variant="soft"
-            color="primary"
-            icon="i-heroicons-document-duplicate"
-            @click="loadSample"
-          >
-            Load Example
-          </UButton>
+            1
+          </div>
+          <div>
+            <label
+              for="html-input"
+              class="text-2xl font-bold text-gray-900 dark:text-white block"
+            >
+              Paste the &lt;head&gt; section of the HTML you want to analyze
+            </label>
+            <p class="text-sm text-gray-600 dark:text-gray-400 max-w-lg">
+              Copy the entire section from the starting tag
+              <code
+                class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs"
+                >&lt;head&gt;</code
+              >
+              to the ending tag
+              <code
+                class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs"
+                >&lt;/head&gt;</code
+              >
+              <span class="block mt-1 text-gray-500 dark:text-gray-500"
+                >The &lt;body&gt; content isn't needed — only the head section
+                contains meta tags for social sharing.</span
+              >
+            </p>
+          </div>
+          <div class="ml-auto flex items-center gap-2">
+            <UButton
+              v-if="inputHtml.trim()"
+              size="sm"
+              variant="ghost"
+              color="neutral"
+              icon="i-heroicons-x-mark"
+              @click="clearInput"
+            >
+              Clear
+            </UButton>
+            <UButton
+              size="sm"
+              variant="soft"
+              color="primary"
+              icon="i-heroicons-document-duplicate"
+              @click="loadSample"
+            >
+              Load Example
+            </UButton>
+          </div>
         </div>
-      </div>
-      
-      <div class="relative">
-        <textarea
-          id="html-input"
-          v-model="inputHtml"
-          rows="8"
-          placeholder="Paste your <head>...</head> section here. This contains your meta tags, title, and Open Graph tags needed for analysis.
+
+        <div class="relative">
+          <textarea
+            id="html-input"
+            v-model="inputHtml"
+            rows="8"
+            placeholder="Paste your <head>...</head> section here. This contains your meta tags, title, and Open Graph tags needed for analysis.
 
 Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> section"
-          class="w-full px-4 py-3 rounded-xl border-0 bg-white dark:bg-gray-900 
-                 ring-1 ring-gray-200 dark:ring-gray-700 
-                 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
-                 font-mono text-sm leading-relaxed
-                 placeholder:text-gray-400 dark:placeholder:text-gray-500
-                 resize-none transition-shadow duration-150
-                 shadow-sm"
-          spellcheck="false"
-        />
-        
-        <!-- Status indicator -->
-        <div class="absolute bottom-3 right-3 flex items-center gap-3 text-xs">
-          <span class="text-gray-400 dark:text-gray-500 tabular-nums">
-            {{ inputHtml.length.toLocaleString() }} chars
-          </span>
-          <span 
-            v-if="hasAnalyzed" 
-            class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
+            class="w-full px-4 py-3 rounded-xl border-0 bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 font-mono text-sm leading-relaxed placeholder:text-gray-400 dark:placeholder:text-gray-500 resize-none transition-shadow duration-150 shadow-sm"
+            spellcheck="false"
+          />
+
+          <!-- Status indicator -->
+          <div
+            class="absolute bottom-3 right-3 flex items-center gap-3 text-xs"
           >
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Analyzed
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 2: Image Analysis - Right after Step 1 -->
-    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-purple-50 dark:bg-purple-950/40 border-y border-purple-200 dark:border-purple-800">
-      <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-24 h-24 rounded-full bg-purple-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-purple-200 dark:ring-purple-800">
-          2
-        </div>
-        <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Image Size Check</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400">Will your og:image display correctly on each platform?</p>
-        </div>
-      </div>
-      <ImageAnalysis :image-url="parsedTags.og.image" />
-    </div>
-
-    <!-- Step 3: Platform Previews -->
-    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-emerald-50 dark:bg-emerald-950/40 border-y border-emerald-200 dark:border-emerald-800">
-      <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-24 h-24 rounded-full bg-emerald-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-emerald-200 dark:ring-emerald-800">
-          3
-        </div>
-        <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Platform Preview</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400">See exactly how your links will appear when shared</p>
-        </div>
-      </div>
-      
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <PreviewGoogle 
-          :title="parsedTags.og.title || parsedTags.title"
-          :description="parsedTags.og.description || parsedTags.description"
-          :url="parsedTags.og.url || parsedTags.canonical"
-        />
-        <PreviewFacebook
-          :title="parsedTags.og.title"
-          :description="parsedTags.og.description"
-          :image="parsedTags.og.image"
-        />
-        <PreviewLinkedIn
-          :title="parsedTags.og.title"
-          :description="parsedTags.og.description"
-          :image="parsedTags.og.image"
-        />
-        <PreviewTwitter
-          :card="parsedTags.twitter.card"
-          :title="parsedTags.twitter.title || parsedTags.og.title"
-          :description="parsedTags.twitter.description || parsedTags.og.description"
-          :image="parsedTags.twitter.image || parsedTags.og.image"
-        />
-        <PreviewSlack
-          :title="parsedTags.og.title || parsedTags.title"
-          :description="parsedTags.og.description || parsedTags.description"
-          :image="parsedTags.og.image"
-          :favicon="parsedTags.favicon"
-          :url="parsedTags.og.url || parsedTags.canonical"
-        />
-      </div>
-    </div>
-
-    <!-- Step 4: Diagnostics & Code -->
-    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 bg-amber-50 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800">
-      <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-24 h-24 rounded-full bg-amber-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-amber-200 dark:ring-amber-800">
-          4
-        </div>
-        <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Meta Results and Suggestions</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400">Review diagnostics and get corrected HTML to copy</p>
-        </div>
-      </div>
-      
-      <!-- Tab Navigation -->
-      <div class="border-b border-amber-200 dark:border-amber-800 mb-6">
-        <nav class="flex gap-6" aria-label="Results tabs">
-          <button
-            v-for="tab in tabs.filter(t => t.value !== 'previews')"
-            :key="tab.value"
-            @click="activeTab = tab.value"
-            :class="[
-              'flex items-center gap-2 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
-              activeTab === tab.value 
-                ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white' 
-                : 'border-transparent text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            ]"
-          >
-            <UIcon :name="tab.icon" class="w-4 h-4" />
-            {{ tab.label }}
-            <UBadge 
-              v-if="tab.value === 'diagnostics'" 
-              :color="diagnostics.overall.status === 'green' ? 'success' : diagnostics.overall.status === 'yellow' ? 'warning' : 'error'"
-              size="xs"
-              variant="subtle"
+            <span class="text-gray-400 dark:text-gray-500 tabular-nums">
+              {{ inputHtml.length.toLocaleString() }} chars
+            </span>
+            <span
+              v-if="hasAnalyzed"
+              class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
             >
-              {{ diagnostics.overall.status === 'green' ? '✓' : diagnostics.overall.status === 'yellow' ? '!' : '✕' }}
-            </UBadge>
-          </button>
-        </nav>
-      </div>
-
-      <!-- Tab Panels -->
-      <div class="min-h-[300px]">
-        <!-- Diagnostics Tab -->
-        <div v-show="activeTab === 'diagnostics'">
-          <DiagnosticsPanel :diagnostics="diagnostics" :tags="parsedTags" />
-        </div>
-
-        <!-- Code Tab -->
-        <div v-show="activeTab === 'code'">
-          <CodeGenerator :tags="parsedTags" />
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 5: Export Results -->
-    <div v-if="parsedTags && diagnostics" class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-cyan-50 dark:bg-cyan-950/40 border-y border-cyan-200 dark:border-cyan-800">
-      <div class="flex items-center gap-4 mb-6">
-        <div class="flex items-center justify-center w-24 h-24 rounded-full bg-cyan-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-cyan-200 dark:ring-cyan-800">
-          5
-        </div>
-        <div>
-          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Export Results</h2>
-          <p class="text-sm text-gray-600 dark:text-gray-400">Save your analysis for documentation or LLM-assisted fixes</p>
-        </div>
-      </div>
-      
-      <div class="bg-white dark:bg-gray-900 rounded-lg border border-cyan-200 dark:border-cyan-800 p-6">
-        <p class="text-gray-700 dark:text-gray-300 mb-6">
-          Download your meta tag analysis to share with your team, include in documentation, or upload to an AI assistant (ChatGPT, Claude, etc.) for help implementing fixes. All exports include the original HTML source.
-        </p>
-        
-        <!-- Download buttons -->
-        <div class="mb-6">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-            <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
-            Download Files
-          </h3>
-          <div class="flex flex-wrap gap-3">
-            <AppTooltip text="Structured data for developers and automated tools" position="top">
-              <UButton
-                @click="exportAsJson"
-                size="lg"
-                variant="solid"
-                class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white"
-                icon="i-heroicons-code-bracket"
-              >
-                JSON
-              </UButton>
-            </AppTooltip>
-            <AppTooltip text="Best for pasting into ChatGPT, Claude, or other AI assistants" position="top">
-              <UButton
-                @click="exportAsMarkdown"
-                size="lg"
-                variant="solid"
-                class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
-                icon="i-heroicons-document-text"
-              >
-                Markdown
-              </UButton>
-            </AppTooltip>
-            <AppTooltip text="Printable report to share with your team or stakeholders" position="top">
-              <UButton
-                @click="exportAsHtml"
-                size="lg"
-                variant="solid"
-                class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white"
-                icon="i-heroicons-globe-alt"
-              >
-                HTML Report
-              </UButton>
-            </AppTooltip>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Analyzed
+            </span>
           </div>
         </div>
-        
-        <!-- Copy to clipboard buttons -->
-        <div class="mb-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-            <UIcon name="i-heroicons-clipboard-document" class="w-4 h-4" />
-            Copy to Clipboard
-          </h3>
-          <div class="flex flex-wrap items-center gap-3">
-            <AppTooltip text="Copy formatted text — ideal for pasting into AI assistants" position="top">
-              <UButton
-                @click="copyMarkdownToClipboard"
-                size="lg"
-                variant="outline"
-                color="neutral"
-                icon="i-heroicons-clipboard-document"
-              >
-                Copy Markdown
-              </UButton>
-            </AppTooltip>
-            <AppTooltip text="Copy structured data for use in scripts or APIs" position="top">
-              <UButton
-                @click="copyJsonToClipboard"
-                size="lg"
-                variant="outline"
-                color="neutral"
-                icon="i-heroicons-clipboard-document"
-              >
-                Copy JSON
-              </UButton>
-            </AppTooltip>
-            
-            <!-- Copied indicator -->
-            <Transition
-              enter-active-class="transition-all duration-200 ease-out"
-              enter-from-class="opacity-0 translate-x-2"
-              enter-to-class="opacity-100 translate-x-0"
-              leave-active-class="transition-all duration-150 ease-in"
-              leave-from-class="opacity-100 translate-x-0"
-              leave-to-class="opacity-0 translate-x-2"
-            >
-              <span 
-                v-if="copiedState" 
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-sm font-medium"
-              >
-                <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
-                {{ copiedState === 'markdown' ? 'Markdown' : 'JSON' }} copied!
-              </span>
-            </Transition>
-          </div>
-        </div>
-        
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <strong>💡 Tip:</strong> The Markdown format is ideal for pasting into LLMs — it includes all diagnostic details, current values, issues, and the original HTML source in a structured format that AI assistants can easily understand and act on.
-        </p>
       </div>
-    </div>
 
-    <!-- Empty State -->
-    <div v-else class="flex flex-col items-center justify-center py-16 text-center">
-      <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-5">
-        <UIcon name="i-heroicons-share" class="w-8 h-8 text-gray-400" />
-      </div>
-      <h2 class="text-lg font-semibold mb-2">Check how your website looks when shared</h2>
-      <p class="text-gray-600 dark:text-gray-300 mb-3 max-w-lg">
-        Paste your page's HTML above to see exactly what Facebook, LinkedIn, X, and other platforms 
-        will display when someone shares your link.
-      </p>
-      <p class="text-gray-500 dark:text-gray-400 mb-5 max-w-lg text-sm">
-        MetaPeek will identify any missing or incorrect tags and provide the exact code needed to fix them.
-        <span class="block mt-1 text-xs">Not sure how to get your HTML? Right-click on your webpage and select "View Page Source."</span>
-      </p>
-      <UButton 
-        @click="loadSample" 
-        variant="soft"
-        color="neutral"
-        icon="i-heroicons-sparkles"
-        size="md"
+      <!-- Step 2: Image Analysis - Right after Step 1 -->
+      <div
+        v-if="parsedTags && diagnostics"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-purple-50 dark:bg-purple-950/40 border-y border-purple-200 dark:border-purple-800"
       >
-        See an Example First
-      </UButton>
-    </div>
-
-    <!-- Footer -->
-    <footer class="mt-16 pt-6 border-t border-gray-200 dark:border-gray-800">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500 dark:text-gray-400">
-        <p>
-          Built by <a href="https://icjia.illinois.gov" class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors inline-block py-2">ICJIA</a>
-        </p>
-        <p class="flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          No tracking · No ads · No account
-        </p>
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-24 h-24 rounded-full bg-purple-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-purple-200 dark:ring-purple-800"
+          >
+            2
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              Image Size Check
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Will your og:image display correctly on each platform?
+            </p>
+          </div>
+        </div>
+        <ImageAnalysis :image-url="parsedTags.og.image" />
       </div>
-    </footer>
-  </main>
+
+      <!-- Step 3: Platform Previews -->
+      <div
+        v-if="parsedTags && diagnostics"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-emerald-50 dark:bg-emerald-950/40 border-y border-emerald-200 dark:border-emerald-800"
+      >
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-24 h-24 rounded-full bg-emerald-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-emerald-200 dark:ring-emerald-800"
+          >
+            3
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              Platform Preview
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              See exactly how your links will appear when shared
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <PreviewGoogle
+            :title="parsedTags.og.title || parsedTags.title"
+            :description="parsedTags.og.description || parsedTags.description"
+            :url="parsedTags.og.url || parsedTags.canonical"
+          />
+          <PreviewFacebook
+            :title="parsedTags.og.title"
+            :description="parsedTags.og.description"
+            :image="parsedTags.og.image"
+          />
+          <PreviewLinkedIn
+            :title="parsedTags.og.title"
+            :description="parsedTags.og.description"
+            :image="parsedTags.og.image"
+          />
+          <PreviewTwitter
+            :card="parsedTags.twitter.card"
+            :title="parsedTags.twitter.title || parsedTags.og.title"
+            :description="
+              parsedTags.twitter.description || parsedTags.og.description
+            "
+            :image="parsedTags.twitter.image || parsedTags.og.image"
+          />
+          <PreviewSlack
+            :title="parsedTags.og.title || parsedTags.title"
+            :description="parsedTags.og.description || parsedTags.description"
+            :image="parsedTags.og.image"
+            :favicon="resolvedFavicon"
+            :url="parsedTags.og.url || parsedTags.canonical"
+          />
+        </div>
+      </div>
+
+      <!-- Step 4: Diagnostics & Code -->
+      <div
+        v-if="parsedTags && diagnostics"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 bg-amber-50 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800"
+      >
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-24 h-24 rounded-full bg-amber-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-amber-200 dark:ring-amber-800"
+          >
+            4
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              Meta Results and Suggestions
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Review diagnostics and get corrected HTML to copy
+            </p>
+          </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="border-b border-amber-200 dark:border-amber-800 mb-6">
+          <nav class="flex gap-6" aria-label="Results tabs">
+            <button
+              v-for="tab in tabs.filter((t) => t.value !== 'previews')"
+              :key="tab.value"
+              @click="activeTab = tab.value"
+              :class="[
+                'flex items-center gap-2 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+                activeTab === tab.value
+                  ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white'
+                  : 'border-transparent text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200',
+              ]"
+            >
+              <UIcon :name="tab.icon" class="w-4 h-4" />
+              {{ tab.label }}
+              <UBadge
+                v-if="tab.value === 'diagnostics'"
+                :color="
+                  diagnostics.overall.status === 'green'
+                    ? 'success'
+                    : diagnostics.overall.status === 'yellow'
+                    ? 'warning'
+                    : 'error'
+                "
+                size="xs"
+                variant="subtle"
+              >
+                {{
+                  diagnostics.overall.status === "green"
+                    ? "✓"
+                    : diagnostics.overall.status === "yellow"
+                    ? "!"
+                    : "✕"
+                }}
+              </UBadge>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Tab Panels -->
+        <div class="min-h-[300px]">
+          <!-- Diagnostics Tab -->
+          <div v-show="activeTab === 'diagnostics'">
+            <DiagnosticsPanel :diagnostics="diagnostics" :tags="parsedTags" />
+          </div>
+
+          <!-- Code Tab -->
+          <div v-show="activeTab === 'code'">
+            <CodeGenerator :tags="parsedTags" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5: Export Results -->
+      <div
+        v-if="parsedTags && diagnostics"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-cyan-50 dark:bg-cyan-950/40 border-y border-cyan-200 dark:border-cyan-800"
+      >
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-24 h-24 rounded-full bg-cyan-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-cyan-200 dark:ring-cyan-800"
+          >
+            5
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              Export Results
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Save your analysis for documentation or LLM-assisted fixes
+            </p>
+          </div>
+        </div>
+
+        <div
+          class="bg-white dark:bg-gray-900 rounded-lg border border-cyan-200 dark:border-cyan-800 p-6"
+        >
+          <p class="text-gray-700 dark:text-gray-300 mb-6">
+            Download your meta tag analysis to share with your team, include in
+            documentation, or upload to an AI assistant (ChatGPT, Claude, etc.)
+            for help implementing fixes. All exports include the original HTML
+            source.
+          </p>
+
+          <!-- Download buttons -->
+          <div class="mb-6">
+            <h3
+              class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2"
+            >
+              <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
+              Download Files
+            </h3>
+            <div class="flex flex-wrap gap-3">
+              <AppTooltip
+                text="Structured data for developers and automated tools"
+                position="top"
+              >
+                <UButton
+                  @click="exportAsJson"
+                  size="lg"
+                  variant="solid"
+                  class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white"
+                  icon="i-heroicons-code-bracket"
+                >
+                  JSON
+                </UButton>
+              </AppTooltip>
+              <AppTooltip
+                text="Best for pasting into ChatGPT, Claude, or other AI assistants"
+                position="top"
+              >
+                <UButton
+                  @click="exportAsMarkdown"
+                  size="lg"
+                  variant="solid"
+                  class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
+                  icon="i-heroicons-document-text"
+                >
+                  Markdown
+                </UButton>
+              </AppTooltip>
+              <AppTooltip
+                text="Printable report to share with your team or stakeholders"
+                position="top"
+              >
+                <UButton
+                  @click="exportAsHtml"
+                  size="lg"
+                  variant="solid"
+                  class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white"
+                  icon="i-heroicons-globe-alt"
+                >
+                  HTML Report
+                </UButton>
+              </AppTooltip>
+            </div>
+          </div>
+
+          <!-- Copy to clipboard buttons -->
+          <div class="mb-4">
+            <h3
+              class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2"
+            >
+              <UIcon name="i-heroicons-clipboard-document" class="w-4 h-4" />
+              Copy to Clipboard
+            </h3>
+            <div class="flex flex-wrap items-center gap-3">
+              <AppTooltip
+                text="Copy formatted text — ideal for pasting into AI assistants"
+                position="top"
+              >
+                <UButton
+                  @click="copyMarkdownToClipboard"
+                  size="lg"
+                  variant="outline"
+                  color="neutral"
+                  icon="i-heroicons-clipboard-document"
+                >
+                  Copy Markdown
+                </UButton>
+              </AppTooltip>
+              <AppTooltip
+                text="Copy structured data for use in scripts or APIs"
+                position="top"
+              >
+                <UButton
+                  @click="copyJsonToClipboard"
+                  size="lg"
+                  variant="outline"
+                  color="neutral"
+                  icon="i-heroicons-clipboard-document"
+                >
+                  Copy JSON
+                </UButton>
+              </AppTooltip>
+
+              <!-- Copied indicator -->
+              <Transition
+                enter-active-class="transition-all duration-200 ease-out"
+                enter-from-class="opacity-0 translate-x-2"
+                enter-to-class="opacity-100 translate-x-0"
+                leave-active-class="transition-all duration-150 ease-in"
+                leave-from-class="opacity-100 translate-x-0"
+                leave-to-class="opacity-0 translate-x-2"
+              >
+                <span
+                  v-if="copiedState"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-sm font-medium"
+                >
+                  <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+                  {{ copiedState === "markdown" ? "Markdown" : "JSON" }} copied!
+                </span>
+              </Transition>
+            </div>
+          </div>
+
+          <p
+            class="text-xs text-gray-500 dark:text-gray-400 mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+          >
+            <strong>💡 Tip:</strong> The Markdown format is ideal for pasting
+            into LLMs — it includes all diagnostic details, current values,
+            issues, and the original HTML source in a structured format that AI
+            assistants can easily understand and act on.
+          </p>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div
+        v-else
+        class="flex flex-col items-center justify-center py-16 text-center"
+      >
+        <div
+          class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-5"
+        >
+          <UIcon name="i-heroicons-share" class="w-8 h-8 text-gray-400" />
+        </div>
+        <h2 class="text-lg font-semibold mb-2">
+          Check how your website looks when shared
+        </h2>
+        <p class="text-gray-600 dark:text-gray-300 mb-3 max-w-lg">
+          Paste your page's HTML above to see exactly what Facebook, LinkedIn,
+          X, and other platforms will display when someone shares your link.
+        </p>
+        <p class="text-gray-500 dark:text-gray-400 mb-5 max-w-lg text-sm">
+          MetaPeek will identify any missing or incorrect tags and provide the
+          exact code needed to fix them.
+          <span class="block mt-1 text-xs"
+            >Not sure how to get your HTML? Right-click on your webpage and
+            select "View Page Source."</span
+          >
+        </p>
+        <UButton
+          @click="loadSample"
+          variant="soft"
+          color="neutral"
+          icon="i-heroicons-sparkles"
+          size="md"
+        >
+          See an Example First
+        </UButton>
+      </div>
+
+      <!-- Footer -->
+      <footer class="mt-16 pt-6 border-t border-gray-200 dark:border-gray-800">
+        <div
+          class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500 dark:text-gray-400"
+        >
+          <p>
+            Built by
+            <a
+              href="https://icjia.illinois.gov"
+              class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors inline-block py-2"
+              >ICJIA</a
+            >
+          </p>
+          <p class="flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            No tracking · No ads · No account
+          </p>
+        </div>
+      </footer>
+    </main>
   </div>
 </template>
