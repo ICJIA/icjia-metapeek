@@ -924,33 +924,39 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             Download Files
           </h3>
           <div class="flex flex-wrap gap-3">
-            <UButton
-              @click="exportAsJson"
-              size="lg"
-              variant="solid"
-              class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white"
-              icon="i-heroicons-code-bracket"
-            >
-              JSON
-            </UButton>
-            <UButton
-              @click="exportAsMarkdown"
-              size="lg"
-              variant="solid"
-              class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
-              icon="i-heroicons-document-text"
-            >
-              Markdown
-            </UButton>
-            <UButton
-              @click="exportAsHtml"
-              size="lg"
-              variant="solid"
-              class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white"
-              icon="i-heroicons-globe-alt"
-            >
-              HTML Report
-            </UButton>
+            <AppTooltip text="Structured data for developers and automated tools" position="top">
+              <UButton
+                @click="exportAsJson"
+                size="lg"
+                variant="solid"
+                class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white"
+                icon="i-heroicons-code-bracket"
+              >
+                JSON
+              </UButton>
+            </AppTooltip>
+            <AppTooltip text="Best for pasting into ChatGPT, Claude, or other AI assistants" position="top">
+              <UButton
+                @click="exportAsMarkdown"
+                size="lg"
+                variant="solid"
+                class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
+                icon="i-heroicons-document-text"
+              >
+                Markdown
+              </UButton>
+            </AppTooltip>
+            <AppTooltip text="Printable report to share with your team or stakeholders" position="top">
+              <UButton
+                @click="exportAsHtml"
+                size="lg"
+                variant="solid"
+                class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white"
+                icon="i-heroicons-globe-alt"
+              >
+                HTML Report
+              </UButton>
+            </AppTooltip>
           </div>
         </div>
         
@@ -961,24 +967,28 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             Copy to Clipboard
           </h3>
           <div class="flex flex-wrap items-center gap-3">
-            <UButton
-              @click="copyMarkdownToClipboard"
-              size="lg"
-              variant="outline"
-              color="neutral"
-              icon="i-heroicons-clipboard-document"
-            >
-              Copy Markdown
-            </UButton>
-            <UButton
-              @click="copyJsonToClipboard"
-              size="lg"
-              variant="outline"
-              color="neutral"
-              icon="i-heroicons-clipboard-document"
-            >
-              Copy JSON
-            </UButton>
+            <AppTooltip text="Copy formatted text — ideal for pasting into AI assistants" position="top">
+              <UButton
+                @click="copyMarkdownToClipboard"
+                size="lg"
+                variant="outline"
+                color="neutral"
+                icon="i-heroicons-clipboard-document"
+              >
+                Copy Markdown
+              </UButton>
+            </AppTooltip>
+            <AppTooltip text="Copy structured data for use in scripts or APIs" position="top">
+              <UButton
+                @click="copyJsonToClipboard"
+                size="lg"
+                variant="outline"
+                color="neutral"
+                icon="i-heroicons-clipboard-document"
+              >
+                Copy JSON
+              </UButton>
+            </AppTooltip>
             
             <!-- Copied indicator -->
             <Transition
