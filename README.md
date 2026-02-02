@@ -132,6 +132,10 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - **[Tailwind CSS 4](https://tailwindcss.com/)** — Utility-first CSS (via Nuxt UI)
 - **[Heroicons](https://heroicons.com/)** — Beautiful hand-crafted SVG icons
 
+### SEO & Meta
+- **[@nuxtjs/seo](https://nuxtseo.com/)** (v3.4.0) — Technical SEO: sitemap, robots.txt, schema.org, Open Graph meta tags
+- **Static OG image** — `public/og-image-v2.png` (1200×630) for social sharing previews
+
 ### Server & Deployment
 - **[Nitro](https://nitro.unjs.io/)** — Nuxt's server engine for API routes
 - **[Netlify](https://www.netlify.com/)** — Serverless functions + edge deployment
@@ -233,6 +237,11 @@ icjia-metapeek/
 │   │   └── tagDefaults.test.ts
 │   └── e2e/                 # Playwright E2E tests
 │       └── accessibility.spec.ts
+├── public/                  # Static assets
+│   ├── favicon.png
+│   ├── og-image-v2.png      # Open Graph social share image (1200×630)
+│   ├── icjia-logo.png
+│   └── screenshot-*.png
 ├── metapeek.config.ts       # Central configuration (single source of truth)
 ├── nuxt.config.ts           # Nuxt configuration
 ├── package.json
@@ -370,7 +379,7 @@ yarn add @vueuse/core @vueuse/nuxt
 ```typescript
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@vueuse/nuxt'],
+  modules: ['@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/seo'],
   // ...
 })
 ```
@@ -414,6 +423,24 @@ See `documentation/accessibility-guidelines.md` for detailed requirements.
 ---
 
 ## Configuration
+
+### SEO (Nuxt Site Config)
+
+The `@nuxtjs/seo` module uses `site` config in `nuxt.config.ts` for sitemap, robots.txt, and Open Graph meta tags:
+
+```typescript
+// nuxt.config.ts
+site: {
+  url: 'https://metapeek.icjia.app',
+  name: 'MetaPeek',
+  description: 'Inspect, preview, and fix HTML meta tags and Open Graph markup.',
+  defaultLocale: 'en'
+}
+```
+
+The OG image (`public/og-image-v2.png`) is referenced via `defineOgImage()` in `app/pages/index.vue`.
+
+### MetaPeek Config
 
 All non-secret configuration lives in `metapeek.config.ts`:
 

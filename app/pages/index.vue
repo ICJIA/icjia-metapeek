@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import type { MetaTags, Diagnostics } from "~/types/meta";
 
+// OG Image for social sharing (Nuxt SEO) — static image in public/
+defineOgImage({
+  url: "/og-image-v2.png",
+  alt: "MetaPeek - Open Graph & Social Sharing Meta Tag Analyzer by ICJIA",
+  width: 1200,
+  height: 630,
+});
+
 const colorMode = useColorMode();
 const { parseMetaTags } = useMetaParser();
 const { generateDiagnostics } = useDiagnostics();
