@@ -75,6 +75,8 @@ const calculatePositionAndStyle = () => {
   // Calculate fixed position styles
   const centerY = rect.top + rect.height / 2
   const centerX = rect.left + rect.width / 2
+  const padding = 12 // Minimum padding from viewport edges
+  const estimatedTooltipWidth = Math.max(tooltipMinWidth, props.text.length * 7) // Rough estimate
 
   switch (pos) {
     case 'left':
@@ -108,35 +110,60 @@ const calculatePositionAndStyle = () => {
       }
       break
     case 'top':
-      tooltipStyle.value = {
-        position: 'fixed',
-        bottom: `${viewportHeight - rect.top + gap}px`,
-        left: `${centerX}px`,
-        transform: 'translateX(-50%)',
-        zIndex: '9999'
+    case 'bottom': {
+      // Calculate clamped horizontal position to keep tooltip within viewport
+      const halfTooltipWidth = estimatedTooltipWidth / 2
+      let leftPos = centerX
+      let arrowLeftPercent = '50%'
+      
+      // Check if tooltip would overflow left edge
+      if (centerX - halfTooltipWidth < padding) {
+        leftPos = padding + halfTooltipWidth
+        // Calculate arrow position relative to where trigger actually is
+        const arrowOffset = ((centerX - padding) / estimatedTooltipWidth) * 100
+        arrowLeftPercent = `${Math.max(10, Math.min(90, arrowOffset))}%`
       }
-      arrowStyle.value = {
-        position: 'absolute',
-        bottom: '-4px',
-        left: '50%',
-        transform: 'translateX(-50%) rotate(45deg)'
+      // Check if tooltip would overflow right edge
+      else if (centerX + halfTooltipWidth > viewportWidth - padding) {
+        leftPos = viewportWidth - padding - halfTooltipWidth
+        // Calculate arrow position relative to where trigger actually is
+        const arrowOffset = ((centerX - (viewportWidth - padding - estimatedTooltipWidth)) / estimatedTooltipWidth) * 100
+        arrowLeftPercent = `${Math.max(10, Math.min(90, arrowOffset))}%`
+      }
+      
+      if (pos === 'top') {
+        tooltipStyle.value = {
+          position: 'fixed',
+          bottom: `${viewportHeight - rect.top + gap}px`,
+          left: `${leftPos}px`,
+          transform: 'translateX(-50%)',
+          zIndex: '9999',
+          maxWidth: `${viewportWidth - padding * 2}px`
+        }
+        arrowStyle.value = {
+          position: 'absolute',
+          bottom: '-4px',
+          left: arrowLeftPercent,
+          transform: 'translateX(-50%) rotate(45deg)'
+        }
+      } else {
+        tooltipStyle.value = {
+          position: 'fixed',
+          top: `${rect.bottom + gap}px`,
+          left: `${leftPos}px`,
+          transform: 'translateX(-50%)',
+          zIndex: '9999',
+          maxWidth: `${viewportWidth - padding * 2}px`
+        }
+        arrowStyle.value = {
+          position: 'absolute',
+          top: '-4px',
+          left: arrowLeftPercent,
+          transform: 'translateX(-50%) rotate(45deg)'
+        }
       }
       break
-    case 'bottom':
-      tooltipStyle.value = {
-        position: 'fixed',
-        top: `${rect.bottom + gap}px`,
-        left: `${centerX}px`,
-        transform: 'translateX(-50%)',
-        zIndex: '9999'
-      }
-      arrowStyle.value = {
-        position: 'absolute',
-        top: '-4px',
-        left: '50%',
-        transform: 'translateX(-50%) rotate(45deg)'
-      }
-      break
+    }
   }
 }
 
