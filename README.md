@@ -111,7 +111,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 ## Screenshot
 
-![MetaPeek — Open Graph & Social Sharing Meta Tag Analyzer](public/screenshot-full.png)
+![MetaPeek — Open Graph & Social Sharing Meta Tag Analyzer](public/screenshot.jpg)
 
 ---
 
@@ -379,6 +379,7 @@ The app will be available at `http://localhost:3000`
 **Two modes available:**
 
 1. **Paste HTML Mode** (default)
+
    - Click "Load Example" to see GitHub's meta tags
    - Paste your page's `<head>` section
    - Analysis happens instantly (< 100ms)
@@ -650,20 +651,24 @@ git push origin main
    ```
 
 2. **Verify rate limiting:**
+
    - Test 31 requests rapidly (should return 429 on last request)
    - Confirm rate-limited requests don't count as invocations
 
 3. **Test SSRF protection:**
+
    - Try internal IPs: `http://127.0.0.1`, `http://169.254.169.254`
    - Try private networks: `http://192.168.1.1`
    - All should return 400 with security message
 
 4. **Monitor Netlify function logs:**
+
    - Watch for unusual patterns or errors
    - Check function invocation count vs rate limit triggers
    - Verify structured logging in production
 
 5. **Test from different locations:**
+
    - Use VPN or proxy to test from different geolocations
    - Verify CORS headers work correctly
    - Test with various real-world URLs
