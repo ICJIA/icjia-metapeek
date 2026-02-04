@@ -160,7 +160,7 @@ describe("SSRF Protection", () => {
     });
 
     it("rejects non-string inputs", async () => {
-      const result = await validateUrl(null as any);
+      const result = await validateUrl(null as unknown as string);
       expect(result.ok).toBe(false);
       expect(result.reason).toContain("required");
     });

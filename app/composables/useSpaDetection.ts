@@ -1,13 +1,13 @@
 // app/composables/useSpaDetection.ts
 // SPA detection heuristics with scoring system
 
-import type { MetaTags } from '~/types/meta'
+import type { MetaTags } from "~/types/meta";
 
 export interface SPADetectionResult {
-  isSPA: boolean
-  confidence: 'low' | 'medium' | 'high'
-  score: number
-  signals: string[]
+  isSPA: boolean;
+  confidence: "low" | "medium" | "high";
+  score: number;
+  signals: string[];
 }
 
 /**
@@ -28,10 +28,10 @@ export function useSpaDetection() {
       /<div\s+id=["']main["']/i,
       /<div\s+class=["'][^"']*ng-app[^"']*["']/i,
       /<div\s+class=["'][^"']*v-app[^"']*["']/i,
-    ]
+    ];
 
-    return mountPatterns.some(pattern => pattern.test(bodySnippet))
-  }
+    return mountPatterns.some((pattern) => pattern.test(bodySnippet));
+  };
 
   /**
    * Check if body has minimal content (true SPA with empty HTML)
@@ -39,78 +39,84 @@ export function useSpaDetection() {
   const hasMinimalBodyContent = (bodySnippet: string): boolean => {
     // Check if body has very little actual text content
     const strippedBody = bodySnippet
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
-    return strippedBody.length < 100
-  }
+    return strippedBody.length < 100;
+  };
 
   /**
    * Check if body has substantial content (likely SSG/SSR, not pure SPA)
    */
   const hasSubstantialContent = (bodySnippet: string): boolean => {
     const strippedBody = bodySnippet
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
-    return strippedBody.length > 500
-  }
+    return strippedBody.length > 500;
+  };
 
   /**
    * Check if title is generic (framework default)
    */
   const hasGenericTitle = (title?: string): boolean => {
-    if (!title) return false
+    if (!title) return false;
 
     const genericTitles = [
-      'vite app',
-      'react app',
-      'vue app',
-      'angular app',
-      'svelte app',
-      'next.js',
-      'nuxt',
-      'loading...',
-      'loading',
-      'welcome',
-      'home',
-    ]
+      "vite app",
+      "react app",
+      "vue app",
+      "angular app",
+      "svelte app",
+      "next.js",
+      "nuxt",
+      "loading...",
+      "loading",
+      "welcome",
+      "home",
+    ];
 
-    const lowerTitle = title.toLowerCase().trim()
-    return genericTitles.some(generic => lowerTitle === generic || lowerTitle.startsWith(generic))
-  }
+    const lowerTitle = title.toLowerCase().trim();
+    return genericTitles.some(
+      (generic) => lowerTitle === generic || lowerTitle.startsWith(generic),
+    );
+  };
 
   /**
    * Check if page has no OG tags but has JavaScript bundles
    */
   const hasJsButNoOG = (tags: MetaTags, bodySnippet: string): boolean => {
-    const hasOgTags = !!(tags.og?.title || tags.og?.description || tags.og?.image)
-    const hasJsBundles = /<script[^>]+src=/i.test(bodySnippet)
+    const hasOgTags = !!(
+      tags.og?.title ||
+      tags.og?.description ||
+      tags.og?.image
+    );
+    const hasJsBundles = /<script[^>]+src=/i.test(bodySnippet);
 
-    return !hasOgTags && hasJsBundles
-  }
+    return !hasOgTags && hasJsBundles;
+  };
 
   /**
    * Check if body text content is minimal
    */
-  const hasMinimalContent = (bodySnippet: string): boolean => {
+  const _hasMinimalContent = (bodySnippet: string): boolean => {
     // Remove script and style tags
     const strippedBody = bodySnippet
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, '')
-      .trim()
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, "")
+      .trim();
 
-    return strippedBody.length < 100
-  }
+    return strippedBody.length < 100;
+  };
 
   /**
    * Check for framework-specific classes or attributes
@@ -123,10 +129,10 @@ export function useSpaDetection() {
       /v-cloak/i,
       /data-reactroot/i,
       /data-react-helmet/i,
-    ]
+    ];
 
-    return frameworkPatterns.some(pattern => pattern.test(bodySnippet))
-  }
+    return frameworkPatterns.some((pattern) => pattern.test(bodySnippet));
+  };
 
   /**
    * Check for bundled/chunked JavaScript files (webpack, vite, etc.)
@@ -134,16 +140,16 @@ export function useSpaDetection() {
    */
   const hasBundledJS = (bodySnippet: string): boolean => {
     const bundlePatterns = [
-      /\.(chunk|bundle|app|main|vendor)\.[a-f0-9]+\.js/i,  // Hashed filenames
+      /\.(chunk|bundle|app|main|vendor)\.[a-f0-9]+\.js/i, // Hashed filenames
       /webpack/i,
       /vite/i,
       /__webpack/i,
-      /_next\/static/i,  // Next.js
-      /_nuxt\//i,        // Nuxt.js
-    ]
+      /_next\/static/i, // Next.js
+      /_nuxt\//i, // Nuxt.js
+    ];
 
-    return bundlePatterns.some(pattern => pattern.test(bodySnippet))
-  }
+    return bundlePatterns.some((pattern) => pattern.test(bodySnippet));
+  };
 
   /**
    * Detect if the page is likely a SPA using scoring heuristics (CONSERVATIVE MODE)
@@ -166,73 +172,89 @@ export function useSpaDetection() {
    * score 5-6: Likely SPA (medium confidence)
    * score >= 7: Definitely SPA (high confidence)
    */
-  const detectSpa = (bodySnippet: string, tags: MetaTags): SPADetectionResult => {
-    let score = 0
-    const signals: string[] = []
+  const detectSpa = (
+    bodySnippet: string,
+    tags: MetaTags,
+  ): SPADetectionResult => {
+    let score = 0;
+    const signals: string[] = [];
 
-    const hasMountDiv = hasSingleMountDiv(bodySnippet)
-    const hasProperMetaTags = !!(tags.og?.title && tags.og?.description && tags.title && !hasGenericTitle(tags.title))
+    const hasMountDiv = hasSingleMountDiv(bodySnippet);
+    const hasProperMetaTags = !!(
+      tags.og?.title &&
+      tags.og?.description &&
+      tags.title &&
+      !hasGenericTitle(tags.title)
+    );
 
     // Signal 1: Single mount div (+3)
     if (hasMountDiv) {
-      score += 3
-      signals.push('Body contains framework mount div (app/root/__nuxt/etc.)')
+      score += 3;
+      signals.push("Body contains framework mount div (app/root/__nuxt/etc.)");
     }
 
     // Signal 2: Minimal body content (+3) - STRONGEST SPA INDICATOR
     // This separates true SPAs (empty HTML) from SSG/SSR (full HTML)
     if (hasMinimalBodyContent(bodySnippet)) {
-      score += 3
-      signals.push('Body has minimal text content (<100 chars) - everything rendered by JS')
+      score += 3;
+      signals.push(
+        "Body has minimal text content (<100 chars) - everything rendered by JS",
+      );
     }
 
     // Signal 3: Bundled JS files (+2)
     if (hasBundledJS(bodySnippet)) {
-      score += 2
-      signals.push('Bundled/chunked JavaScript files detected (webpack/vite build artifacts)')
+      score += 2;
+      signals.push(
+        "Bundled/chunked JavaScript files detected (webpack/vite build artifacts)",
+      );
     }
 
     // Signal 4: Generic title (+2)
     if (hasGenericTitle(tags.title)) {
-      score += 2
-      signals.push(`Title is generic framework default: "${tags.title}"`)
+      score += 2;
+      signals.push(`Title is generic framework default: "${tags.title}"`);
     }
 
     // Signal 5: No OG tags but has JS (+2)
     if (hasJsButNoOG(tags, bodySnippet)) {
-      score += 2
-      signals.push('Page has JavaScript bundles but no Open Graph tags')
+      score += 2;
+      signals.push("Page has JavaScript bundles but no Open Graph tags");
     }
 
     // Signal 6: Framework classes (+1)
     if (hasFrameworkClasses(bodySnippet)) {
-      score += 1
-      signals.push('Framework-specific classes or attributes detected')
+      score += 1;
+      signals.push("Framework-specific classes or attributes detected");
     }
 
     // NEGATIVE Signal 1: Mount div + Proper meta tags (-4) - SSG/SSR with hydration
     // This is KEY: static generated sites have both framework code AND good meta tags
     if (hasMountDiv && hasProperMetaTags) {
-      score -= 4
-      signals.push('Has framework mount div BUT also proper meta tags (og:title, og:description, title) - likely SSG/SSR with hydration, not pure SPA')
+      score -= 4;
+      signals.push(
+        "Has framework mount div BUT also proper meta tags (og:title, og:description, title) - likely SSG/SSR with hydration, not pure SPA",
+      );
     }
 
     // NEGATIVE Signal 2: Substantial content (-3) - SSG/SSR with hydration, not pure SPA
     if (hasSubstantialContent(bodySnippet)) {
-      score -= 3
-      signals.push('Body has substantial text content (>500 chars) - likely static site with hydration, not pure SPA')
+      score -= 3;
+      signals.push(
+        "Body has substantial text content (>500 chars) - likely static site with hydration, not pure SPA",
+      );
     }
 
     // Determine result based on score
-    let isSPA = false
-    let confidence: 'low' | 'medium' | 'high' = 'low'
+    let isSPA = false;
+    let confidence: "low" | "medium" | "high" = "low";
 
     if (score >= 7) {
-      isSPA = true
-      confidence = 'high'
+      isSPA = true;
+      confidence = "high";
     } else if (score >= 5) {
-      isSPA = true
-      confidence = 'medium'
+      isSPA = true;
+      confidence = "medium";
     }
 
     return {
@@ -240,10 +262,10 @@ export function useSpaDetection() {
       confidence,
       score,
       signals,
-    }
-  }
+    };
+  };
 
   return {
     detectSpa,
-  }
+  };
 }

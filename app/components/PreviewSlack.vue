@@ -67,7 +67,7 @@ const handleImageError = () => {
               alt=""
               class="w-4 h-4 rounded-sm"
               @error="($event.target as HTMLImageElement).style.display = 'none'"
-            />
+            >
             <span class="text-sm font-bold text-gray-900 dark:text-gray-100">
               {{ displayDomain }}
             </span>
@@ -93,7 +93,7 @@ const handleImageError = () => {
               :alt="title || 'Preview'"
               class="max-h-24 w-auto object-contain"
               @error="handleImageError"
-            />
+            >
           </div>
         </div>
       </div>

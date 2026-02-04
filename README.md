@@ -231,6 +231,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - **[Vitest](https://vitest.dev/)** — Modern, fast unit testing
 - **[Playwright](https://playwright.dev/)** — E2E and accessibility testing
 - **[@axe-core/playwright](https://www.npmjs.com/package/@axe-core/playwright)** — Automated accessibility audits
+- **[ESLint](https://eslint.org/)** — Code linting with [@nuxt/eslint](https://eslint.nuxt.com/) module
 
 ### Accessibility
 
@@ -418,6 +419,10 @@ yarn test:accessibility  # Run Playwright accessibility tests
 
 # Type Checking
 yarn typecheck       # Check TypeScript types
+
+# Linting
+yarn lint            # Run ESLint on all files
+yarn lint:fix        # Auto-fix linting issues
 ```
 
 ### Test Output
@@ -525,13 +530,14 @@ export default defineNuxtConfig({
 
 ### Testing Requirements
 
-- **Unit tests:** 88 tests covering composables and utilities (> 80% coverage)
+- **Unit tests:** 139 tests covering composables and utilities (> 85% coverage for security)
 - **E2E accessibility:** 5 Playwright tests with axe-core (zero WCAG 2.1 AA violations)
 - **Lighthouse:** Accessibility score must be 100
 - **Manual testing:** Keyboard-only navigation must work
 - **Screen reader:** Test with NVDA or VoiceOver
+- **Linting:** Zero ESLint errors or warnings
 
-Run `yarn test:all` to execute the complete test suite (93 tests).
+Run `yarn test:all` to execute the complete test suite (144 tests).
 
 ### Accessibility Standards
 

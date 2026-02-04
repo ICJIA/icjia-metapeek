@@ -269,7 +269,7 @@ const overallStatus = computed(() => {
               :src="imageUrl"
               alt="OG Image preview"
               class="max-w-full max-h-full object-contain"
-            />
+            >
           </div>
 
           <!-- Dimensions -->

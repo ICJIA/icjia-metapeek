@@ -88,7 +88,7 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
         };
       }
     }
-  } catch (err) {
+  } catch (_err) {
     // IPv4 resolution failed - might be IPv6-only, continue checking
   }
 
@@ -105,7 +105,7 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
         };
       }
     }
-  } catch (err) {
+  } catch (_err) {
     // IPv6 resolution failed - might be IPv4-only
   }
 
@@ -137,7 +137,7 @@ export function isPrivateIp(ip: string): boolean {
     return true; // Treat invalid IPs as private (block them)
   }
 
-  const [a, b, c, d] = parts;
+  const [a, b] = parts;
 
   // 10.0.0.0/8 - Private network
   if (a === 10) return true;

@@ -14,7 +14,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:accessibility": "playwright test --reporter=list",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@nuxt/ui": "^4.4.0",
@@ -28,11 +30,13 @@
     "@axe-core/playwright": "^4.10.2",
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/simple-icons": "^1.2.69",
+    "@nuxt/eslint": "^1.13.0",
     "@nuxt/test-utils": "^3.14.3",
     "@playwright/test": "^1.49.0",
     "@vitest/coverage-v8": "^3.2.0",
     "@vue/test-utils": "^2.4.6",
     "cheerio": "^1.0.0",
+    "eslint": "^9.39.2",
     "happy-dom": "^20.0.2",
     "typescript": "^5.7.2",
     "vitest": "^3.2.0",

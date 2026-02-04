@@ -65,7 +65,7 @@ const handleImageError = () => {
             :alt="title || 'Preview'"
             class="w-full h-full object-cover"
             @error="handleImageError"
-          />
+          >
         </div>
         <div
           v-else

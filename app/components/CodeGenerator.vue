@@ -238,8 +238,8 @@ const twitterFields = [
           color="neutral"
           variant="ghost"
           size="sm"
-          @click="resetToOriginal"
           aria-label="Reset to original values"
+          @click="resetToOriginal"
         >
           Reset
         </UButton>
@@ -295,7 +295,7 @@ const twitterFields = [
                      ring-1 ring-gray-300 dark:ring-gray-700 
                      focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
                      placeholder:text-gray-400 dark:placeholder:text-gray-600"
-            />
+            >
           </div>
         </div>
       </div>
@@ -329,7 +329,7 @@ const twitterFields = [
                      ring-1 ring-gray-300 dark:ring-gray-700 
                      focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
                      placeholder:text-gray-400 dark:placeholder:text-gray-600"
-            />
+            >
           </div>
         </div>
       </div>
@@ -363,7 +363,7 @@ const twitterFields = [
                      ring-1 ring-gray-300 dark:ring-gray-700 
                      focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
                      placeholder:text-gray-400 dark:placeholder:text-gray-600"
-            />
+            >
           </div>
         </div>
       </div>
@@ -375,9 +375,9 @@ const twitterFields = [
       
       <!-- Copy button overlay -->
       <button
-        @click="copyToClipboard"
         class="absolute top-2 right-2 p-1.5 rounded bg-gray-800 hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
         aria-label="Copy code"
+        @click="copyToClipboard"
       >
         <UIcon 
           :name="copied ? 'i-heroicons-check' : 'i-heroicons-clipboard'" 
