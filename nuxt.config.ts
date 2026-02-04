@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import metapeekConfig from './metapeek.config'
+
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/seo'],
 
@@ -41,6 +43,18 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/png', href: '/favicon.png' },
         { rel: 'apple-touch-icon', href: '/favicon.png' }
       ]
+    }
+  },
+
+  // CORS configuration for Phase 2 proxy endpoint
+  routeRules: {
+    '/api/**': {
+      cors: true,
+      headers: {
+        'Access-Control-Allow-Origin': metapeekConfig.cors.allowedOrigins[0],
+        'Access-Control-Allow-Methods': metapeekConfig.cors.allowedMethods.join(', '),
+        'Access-Control-Allow-Headers': metapeekConfig.cors.allowedHeaders.join(', '),
+      }
     }
   }
 })

@@ -10,8 +10,16 @@ defineOgImage({
 });
 
 const colorMode = useColorMode();
+const route = useRoute();
 const { parseMetaTags } = useMetaParser();
 const { generateDiagnostics } = useDiagnostics();
+const { computeScore } = useMetaScore();
+const { fetchUrl } = useFetchProxy();
+const fetchStatus = useFetchStatus();
+const { detectSpa } = useSpaDetection();
+
+// Import image analysis result type
+import type { ImageAnalysisResult } from '~/composables/useDiagnostics';
 
 // Fix orphaned ARIA live regions by moving them into a landmark
 onMounted(() => {
@@ -28,35 +36,73 @@ onMounted(() => {
   }
 });
 
+// Input mode: 'html' for paste HTML, 'url' for fetch URL
+const inputMode = ref<'html' | 'url'>('html');
 const inputHtml = ref("");
+const inputUrl = ref("");
 const parsedTags = ref<MetaTags | null>(null);
 const diagnostics = ref<Diagnostics | null>(null);
 const hasAnalyzed = ref(false);
 const activeTab = ref("diagnostics");
+const spaDetectionResult = ref<ReturnType<typeof detectSpa> | null>(null);
+const imageAnalysisResult = ref<ImageAnalysisResult | undefined>(undefined);
+
+// Compute meta tag score when diagnostics are available
+const metaScore = computed(() =>
+  diagnostics.value ? computeScore(diagnostics.value) : null
+);
 
 const analyze = () => {
   if (!inputHtml.value.trim()) {
     parsedTags.value = null;
     diagnostics.value = null;
     hasAnalyzed.value = false;
+    imageAnalysisResult.value = undefined;
     return;
   }
 
   parsedTags.value = parseMetaTags(inputHtml.value);
-  diagnostics.value = generateDiagnostics(parsedTags.value);
+  diagnostics.value = generateDiagnostics(parsedTags.value, imageAnalysisResult.value);
   hasAnalyzed.value = true;
 };
 
-// Auto-analyze with fast debounce for snappy feel
+// Handle image analysis completion
+const handleImageAnalysisComplete = (result: ImageAnalysisResult) => {
+  imageAnalysisResult.value = result;
+
+  // Regenerate diagnostics with image dimension data
+  if (parsedTags.value) {
+    diagnostics.value = generateDiagnostics(parsedTags.value, result);
+  }
+};
+
+// Auto-analyze with fast debounce for snappy feel (HTML paste mode only)
 const debouncedAnalyze = useDebounceFn(analyze, 300);
 watch(inputHtml, () => {
-  if (inputHtml.value.trim()) {
-    debouncedAnalyze();
-  } else {
-    parsedTags.value = null;
-    diagnostics.value = null;
-    hasAnalyzed.value = false;
+  if (inputMode.value === 'html') {
+    if (inputHtml.value.trim()) {
+      // Clear old image analysis when HTML changes
+      imageAnalysisResult.value = undefined;
+      debouncedAnalyze();
+      spaDetectionResult.value = null; // Clear SPA detection for HTML mode
+    } else {
+      parsedTags.value = null;
+      diagnostics.value = null;
+      hasAnalyzed.value = false;
+      spaDetectionResult.value = null;
+      imageAnalysisResult.value = undefined;
+    }
   }
+});
+
+// Reset results when switching modes
+watch(inputMode, () => {
+  parsedTags.value = null;
+  diagnostics.value = null;
+  hasAnalyzed.value = false;
+  spaDetectionResult.value = null;
+  imageAnalysisResult.value = undefined;
+  fetchStatus.reset();
 });
 
 // Sample HTML
@@ -92,12 +138,69 @@ const sampleHtml = `<!DOCTYPE html>
 </html>`;
 
 const loadSample = () => {
-  inputHtml.value = sampleHtml;
+  if (inputMode.value === 'html') {
+    inputHtml.value = sampleHtml;
+  } else {
+    inputUrl.value = 'https://github.com';
+  }
 };
 
 const clearInput = () => {
   inputHtml.value = "";
+  inputUrl.value = "";
+  fetchStatus.reset();
+  spaDetectionResult.value = null;
+  imageAnalysisResult.value = undefined;
 };
+
+// URL Fetching (Phase 2)
+const handleFetchUrl = async () => {
+  if (!inputUrl.value.trim()) return;
+
+  try {
+    // Set fetching state
+    fetchStatus.setValidating();
+    await nextTick();
+    fetchStatus.setFetching(inputUrl.value);
+
+    // Fetch URL via proxy
+    const { tags, response } = await fetchUrl(inputUrl.value);
+
+    // Parse complete
+    fetchStatus.setParsing();
+
+    // Store results
+    parsedTags.value = tags;
+    diagnostics.value = generateDiagnostics(tags, imageAnalysisResult.value);
+    hasAnalyzed.value = true;
+
+    // Detect SPA
+    spaDetectionResult.value = detectSpa(response.bodySnippet, tags);
+
+    // Complete
+    fetchStatus.setComplete(response.timing);
+  } catch (error: any) {
+    // Handle error
+    fetchStatus.setError(error.statusCode || 0, error.message || 'An error occurred');
+
+    // Clear results
+    parsedTags.value = null;
+    diagnostics.value = null;
+    hasAnalyzed.value = false;
+    spaDetectionResult.value = null;
+    imageAnalysisResult.value = undefined;
+  }
+};
+
+// Support shareable URLs via query parameter
+onMounted(() => {
+  const urlParam = route.query.url;
+  if (urlParam && typeof urlParam === 'string') {
+    inputMode.value = 'url';
+    inputUrl.value = urlParam;
+    // DO NOT auto-fetch - user must click button
+  }
+});
 
 // Helper to resolve relative URLs to absolute using og:url or canonical as base
 const resolveUrl = (
@@ -181,6 +284,7 @@ const generateExportData = () => {
   const tags = parsedTags.value;
   const diag = diagnostics.value;
   const originalHtml = extractHeadSection();
+  const score = metaScore.value;
 
   return {
     exportInfo: {
@@ -192,6 +296,19 @@ const generateExportData = () => {
       sourceUrl: null, // Will contain URL in Phase 2
     },
     originalHtml: originalHtml,
+    score: score ? {
+      overall: score.overall,
+      grade: score.grade,
+      totalIssues: score.totalIssues,
+      categories: Object.entries(score.categories).map(([key, cat]) => ({
+        name: cat.name,
+        score: cat.score,
+        maxScore: cat.maxScore,
+        status: cat.status,
+        weight: cat.weight,
+        issues: cat.issues,
+      })),
+    } : null,
     summary: {
       overallStatus: diag.overall.status,
       overallMessage: diag.overall.message,
@@ -347,9 +464,19 @@ const generateMarkdownContent = () => {
 
   let md = `# MetaPeek Analysis Results
 
-**Exported:** ${new Date().toLocaleString()}  
-**Tool:** MetaPeek by ICJIA (https://metapeek.icjia.dev)  
+**Exported:** ${new Date().toLocaleString()}
+**Tool:** MetaPeek by ICJIA (https://metapeek.icjia.dev)
 **Source:** HTML paste (URL fetch coming in Phase 2)
+
+---
+
+## Overall Score
+
+**Score:** ${data.score?.overall || 'N/A'}/100
+**Grade:** ${data.score?.grade || 'N/A'}
+**Issues:** ${data.score?.totalIssues || 0}
+
+${data.score?.overall === 100 ? '🎉 **Perfect score!** Your meta tags are fully optimized.' : data.score && data.score.overall >= 90 ? '✅ **Excellent!** Just a few minor improvements possible.' : data.score && data.score.overall >= 80 ? '👍 **Good work!** Some areas could use improvement.' : data.score && data.score.overall >= 70 ? '⚠️ **Decent**, but several issues need attention.' : data.score && data.score.overall >= 60 ? '⚠️ **Needs work.** Multiple critical issues found.' : '❌ **Significant improvements needed** for proper social sharing.'}
 
 ---
 
@@ -357,10 +484,32 @@ const generateMarkdownContent = () => {
 
 **Overall Status:** ${statusEmoji(diag.overall.status)} ${
     diag.overall.message
-  }  
-**Checks Passed:** ${data.summary.passCount}/7  
+  }
+**Checks Passed:** ${data.summary.passCount}/7
 **Issues Found:** ${data.summary.issueCount}
 ${diag.overall.suggestion ? `\n**Suggestion:** ${diag.overall.suggestion}` : ""}
+
+---
+
+## Score Breakdown
+
+${data.score ? `
+| Category | Score | Weight | Status |
+|----------|-------|--------|--------|
+${data.score.categories.map(cat =>
+  `| ${cat.name} | ${cat.score}/${cat.maxScore} | ${cat.weight}% | ${statusEmoji(cat.status === 'pass' ? 'green' : cat.status === 'warning' ? 'yellow' : 'red')} |`
+).join('\n')}
+
+### How the Score is Calculated
+
+Your overall score (${data.score.overall}/100) is a weighted average of seven category scores:
+
+- **Scoring:** Green status = 100 points, Yellow = 60 points, Red = 0 points
+- **Weights:** Open Graph (25%), OG Image (20%), Title (15%), Description (15%), Canonical (10%), Twitter (10%), Robots (5%)
+- **Grades:** A (90-100), B (80-89), C (70-79), D (60-69), F (0-59)
+
+Open Graph tags and images are weighted most heavily because they directly control how your links appear on social media platforms.
+` : 'Score calculation not available.'}
 
 ---
 
@@ -674,6 +823,54 @@ const exportAsHtml = () => {
     </div>
     
     <div class="content">
+      ${data.score ? `
+      <div class="section" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem;">
+        <h3 style="color: white; border: none; padding: 0; margin-bottom: 1.5rem;">📊 Overall Meta Tag Score</h3>
+        <div style="display: flex; align-items: center; justify-content: space-around; flex-wrap: wrap; gap: 2rem;">
+          <div style="text-align: center;">
+            <div style="font-size: 4rem; font-weight: bold; line-height: 1;">${data.score.overall}</div>
+            <div style="font-size: 1.25rem; opacity: 0.9;">out of 100</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 3rem; font-weight: bold; background: rgba(255,255,255,0.2); padding: 0.5rem 1.5rem; border-radius: 12px;">
+              Grade: ${data.score.grade}
+            </div>
+            <div style="margin-top: 1rem; font-size: 0.875rem; opacity: 0.9;">
+              ${data.score.overall === 100 ? '🎉 Perfect score!' : data.score.overall >= 90 ? '✅ Excellent!' : data.score.overall >= 80 ? '👍 Good work!' : data.score.overall >= 70 ? '⚠️ Decent' : data.score.overall >= 60 ? '⚠️ Needs work' : '❌ Needs improvement'}
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 2.5rem; font-weight: bold;">${data.score.totalIssues}</div>
+            <div style="font-size: 0.875rem; opacity: 0.9;">${data.score.totalIssues === 1 ? 'Issue' : 'Issues'} Found</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>📈 Category Scores</h3>
+        <table>
+          <tr><th>Category</th><th>Score</th><th>Weight</th><th>Status</th></tr>
+          ${data.score.categories.map(cat => `
+            <tr>
+              <td>${cat.name}</td>
+              <td>${cat.score}/${cat.maxScore}</td>
+              <td>${cat.weight}%</td>
+              <td><span class="status ${cat.status === 'pass' ? 'green' : cat.status === 'warning' ? 'yellow' : 'red'}">
+                ${statusEmoji(cat.status === 'pass' ? 'green' : cat.status === 'warning' ? 'yellow' : 'red')}
+                ${cat.status === 'pass' ? 'Pass' : cat.status === 'warning' ? 'Warning' : 'Fail'}
+              </span></td>
+            </tr>
+          `).join('')}
+        </table>
+        <div style="margin-top: 1.5rem; padding: 1rem; background: #f9fafb; border-radius: 8px; font-size: 0.8rem; color: #6b7280;">
+          <strong>How is this calculated?</strong><br>
+          Your overall score (${data.score.overall}/100) is a weighted average. Green status = 100 points, Yellow = 60 points, Red = 0 points.
+          Weights: Open Graph (25%), OG Image (20%), Title (15%), Description (15%), Canonical (10%), Twitter (10%), Robots (5%).
+          Grades: A (90-100), B (80-89), C (70-79), D (60-69), F (0-59).
+        </div>
+      </div>
+      ` : ''}
+
       <div class="summary ${diag.overall.status}">
         <h2>${statusEmoji(diag.overall.status)} ${diag.overall.message}</h2>
         ${
@@ -696,7 +893,7 @@ const exportAsHtml = () => {
           </div>
         </div>
       </div>
-      
+
       <div class="section">
         <h3>📋 Diagnostic Results</h3>
         <table>
@@ -1097,33 +1294,17 @@ const exportAsHtml = () => {
           >
             1
           </div>
-          <div>
-            <label
-              for="html-input"
-              class="text-2xl font-bold text-gray-900 dark:text-white block"
-            >
-              Paste the &lt;head&gt; section of the HTML you want to analyze
-            </label>
-            <p class="text-sm text-gray-600 dark:text-gray-400 max-w-lg">
-              Copy the entire section from the starting tag
-              <code
-                class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs"
-                >&lt;head&gt;</code
-              >
-              to the ending tag
-              <code
-                class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs"
-                >&lt;/head&gt;</code
-              >
-              <span class="block mt-1 text-gray-500 dark:text-gray-500"
-                >The &lt;body&gt; content isn't needed — only the head section
-                contains meta tags for social sharing.</span
-              >
+          <div class="flex-1">
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white block mb-2">
+              Analyze Your Meta Tags
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Choose how you want to analyze: paste HTML directly or fetch from a live URL
             </p>
           </div>
           <div class="ml-auto flex items-center gap-2">
             <UButton
-              v-if="inputHtml.trim()"
+              v-if="inputHtml.trim() || inputUrl.trim()"
               size="sm"
               variant="ghost"
               color="neutral"
@@ -1144,7 +1325,37 @@ const exportAsHtml = () => {
           </div>
         </div>
 
-        <div class="relative">
+        <!-- Simple Mode Toggle -->
+        <div class="mb-4">
+          <div class="inline-flex rounded-lg bg-white dark:bg-gray-900 p-1 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700">
+            <button
+              @click="inputMode = 'html'"
+              :class="[
+                'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                inputMode === 'html'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+              ]"
+            >
+              📋 Paste HTML
+            </button>
+            <button
+              @click="inputMode = 'url'"
+              :class="[
+                'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                inputMode === 'url'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+              ]"
+            >
+              🌐 Fetch URL
+            </button>
+          </div>
+        </div>
+
+        <!-- HTML Paste Mode -->
+        <div v-if="inputMode === 'html'" class="relative">
+          <label for="html-input" class="sr-only">Paste HTML</label>
           <textarea
             id="html-input"
             v-model="inputHtml"
@@ -1164,12 +1375,114 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               {{ inputHtml.length.toLocaleString() }} chars
             </span>
             <span
-              v-if="hasAnalyzed"
+              v-if="hasAnalyzed && inputMode === 'html'"
               class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300"
             >
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Analyzed
             </span>
+          </div>
+        </div>
+
+        <!-- URL Fetch Mode -->
+        <div v-if="inputMode === 'url'" class="space-y-4">
+          <div class="relative">
+            <label for="url-input" class="sr-only">Enter URL</label>
+            <input
+              id="url-input"
+              v-model="inputUrl"
+              type="url"
+              placeholder="https://example.com"
+              class="w-full px-4 py-3 pr-32 rounded-xl border-0 bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-shadow duration-150 shadow-sm"
+              @keyup.enter="handleFetchUrl"
+            />
+            <div class="absolute right-2 top-1/2 -translate-y-1/2">
+              <UButton
+                @click="handleFetchUrl"
+                :disabled="!inputUrl.trim() || fetchStatus.state.value.status === 'fetching'"
+                size="sm"
+                color="primary"
+                :loading="fetchStatus.state.value.status === 'fetching'"
+              >
+                {{ fetchStatus.state.value.status === 'fetching' ? 'Fetching...' : 'Fetch' }}
+              </UButton>
+            </div>
+          </div>
+
+          <!-- Status Bar (during fetch) -->
+          <div
+            v-if="fetchStatus.state.value.status === 'fetching' && fetchStatus.statusMessage.value"
+            role="status"
+            aria-live="polite"
+            :class="[
+              'flex items-center justify-between px-4 py-3 rounded-lg text-sm',
+              fetchStatus.statusMessage.value.tone === 'neutral' && 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300',
+              fetchStatus.statusMessage.value.tone === 'amber' && 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300',
+              fetchStatus.statusMessage.value.tone === 'red' && 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300'
+            ]"
+          >
+            <span>{{ fetchStatus.statusMessage.value.message }}</span>
+            <span class="font-mono">{{ (fetchStatus.elapsedTime.value / 1000).toFixed(1) }}s</span>
+          </div>
+
+          <!-- Error State -->
+          <div
+            v-if="fetchStatus.state.value.status === 'error'"
+            role="alert"
+            class="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
+          >
+            <p class="font-medium text-red-900 dark:text-red-100 mb-1">
+              {{ fetchStatus.state.value.message }}
+            </p>
+            <p class="text-sm text-red-700 dark:text-red-300">
+              {{ fetchStatus.state.value.suggestion }}
+            </p>
+          </div>
+
+          <!-- Success State -->
+          <div
+            v-if="fetchStatus.state.value.status === 'complete'"
+            role="status"
+            class="flex items-center gap-2 px-4 py-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-sm"
+          >
+            <UIcon name="i-heroicons-check-circle" class="w-5 h-5" />
+            <span>Fetched in {{ fetchStatus.state.value.timing }}ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SPA Warning Banner -->
+      <div
+        v-if="spaDetectionResult?.isSPA && spaDetectionResult.confidence !== 'low'"
+        role="alert"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 bg-amber-50 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800"
+      >
+        <div class="flex gap-4">
+          <div class="flex-shrink-0">
+            <UIcon name="i-heroicons-exclamation-triangle" class="w-8 h-8 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-bold text-amber-900 dark:text-amber-100 mb-2">
+              ⚠️ Single-Page Application Detected
+              <span class="text-sm font-normal text-amber-700 dark:text-amber-300">
+                ({{ spaDetectionResult.confidence }} confidence)
+              </span>
+            </h3>
+            <p class="text-amber-800 dark:text-amber-200 mb-3">
+              This page appears to be a single-page application. The HTML returned by the server contains no meaningful content or meta tags.
+              <strong>Social platforms and search engines fetch HTML without executing JavaScript</strong> — they will see an empty page.
+            </p>
+            <p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
+              <strong>Solutions:</strong> Consider server-side rendering (SSR), static site generation (SSG), or injecting meta tags via server middleware.
+            </p>
+            <details class="text-sm text-amber-700 dark:text-amber-300">
+              <summary class="cursor-pointer font-medium hover:text-amber-900 dark:hover:text-amber-100">
+                Detection signals ({{ spaDetectionResult.score }} points)
+              </summary>
+              <ul class="mt-2 space-y-1 list-disc list-inside">
+                <li v-for="signal in spaDetectionResult.signals" :key="signal">{{ signal }}</li>
+              </ul>
+            </details>
           </div>
         </div>
       </div>
@@ -1194,7 +1507,10 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             </p>
           </div>
         </div>
-        <ImageAnalysis :image-url="parsedTags.og.image" />
+        <ImageAnalysis
+          :image-url="parsedTags.og.image"
+          @analysis-complete="handleImageAnalysisComplete"
+        />
       </div>
 
       <!-- Step 3: Platform Previews -->
@@ -1242,11 +1558,23 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             "
             :image="parsedTags.twitter.image || parsedTags.og.image"
           />
+          <PreviewWhatsApp
+            :title="parsedTags.og.title || parsedTags.title"
+            :description="parsedTags.og.description || parsedTags.description"
+            :image="parsedTags.og.image"
+            :url="parsedTags.og.url || parsedTags.canonical"
+          />
           <PreviewSlack
             :title="parsedTags.og.title || parsedTags.title"
             :description="parsedTags.og.description || parsedTags.description"
             :image="parsedTags.og.image"
             :favicon="resolvedFavicon"
+            :url="parsedTags.og.url || parsedTags.canonical"
+          />
+          <PreviewiMessage
+            :title="parsedTags.og.title || parsedTags.title"
+            :description="parsedTags.og.description || parsedTags.description"
+            :image="parsedTags.og.image"
             :url="parsedTags.og.url || parsedTags.canonical"
           />
         </div>
@@ -1327,7 +1655,280 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
         </div>
       </div>
 
-      <!-- Step 5: Export Results -->
+      <!-- Step 5: Overall Score -->
+      <div
+        v-if="parsedTags && diagnostics && metaScore"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-indigo-50 dark:bg-indigo-950/40 border-y border-indigo-200 dark:border-indigo-800"
+      >
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-24 h-24 rounded-full bg-indigo-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-indigo-200 dark:ring-indigo-800"
+          >
+            5
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              Overall Meta Tag Score
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Comprehensive quality assessment of your meta tags
+            </p>
+          </div>
+        </div>
+
+        <!-- Score Card -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl border border-indigo-200 dark:border-indigo-800 p-6 mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <!-- Score Display -->
+            <div class="text-center">
+              <div class="mb-4">
+                <div class="inline-flex items-center justify-center w-48 h-48 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-2xl">
+                  <div class="text-center">
+                    <div class="text-7xl font-extrabold">{{ metaScore.overall }}</div>
+                    <div class="text-xl font-medium opacity-90">/ 100</div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center justify-center gap-3">
+                <span
+                  :class="[
+                    'text-4xl font-extrabold px-6 py-3 rounded-xl',
+                    metaScore.grade === 'A' && 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300',
+                    metaScore.grade === 'B' && 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
+                    metaScore.grade === 'C' && 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
+                    metaScore.grade === 'D' && 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300',
+                    metaScore.grade === 'F' && 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                  ]"
+                >
+                  Grade: {{ metaScore.grade }}
+                </span>
+              </div>
+              <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                <template v-if="metaScore.overall === 100">
+                  🎉 Perfect score! Your meta tags are fully optimized.
+                </template>
+                <template v-else-if="metaScore.overall >= 90">
+                  Excellent! Just a few minor improvements possible.
+                </template>
+                <template v-else-if="metaScore.overall >= 80">
+                  Good work! Some areas could use improvement.
+                </template>
+                <template v-else-if="metaScore.overall >= 70">
+                  Decent, but several issues need attention.
+                </template>
+                <template v-else-if="metaScore.overall >= 60">
+                  Needs work. Multiple critical issues found.
+                </template>
+                <template v-else>
+                  Significant improvements needed for proper social sharing.
+                </template>
+              </p>
+            </div>
+
+            <!-- Issues Summary -->
+            <div>
+              <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                {{ metaScore.totalIssues === 0 ? '✅ No Issues Found' : `⚠️ ${metaScore.totalIssues} ${metaScore.totalIssues === 1 ? 'Issue' : 'Issues'} to Fix` }}
+              </h3>
+              <div v-if="metaScore.totalIssues > 0" class="space-y-3">
+                <template v-for="(category, key) in metaScore.categories" :key="key">
+                  <div v-if="category.issues.length > 0" class="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+                    <UIcon
+                      :name="category.status === 'fail' ? 'i-heroicons-x-circle-solid' : 'i-heroicons-exclamation-circle-solid'"
+                      :class="[
+                        'w-5 h-5 flex-shrink-0 mt-0.5',
+                        category.status === 'fail' ? 'text-red-500' : 'text-amber-500'
+                      ]"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <p class="font-medium text-gray-900 dark:text-white text-sm">
+                        {{ category.name }}
+                      </p>
+                      <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {{ category.issues[0] }}
+                      </p>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div v-else class="p-6 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-center">
+                <p class="text-emerald-700 dark:text-emerald-300 font-medium">
+                  All meta tags are properly configured!
+                </p>
+                <p class="text-sm text-emerald-600 dark:text-emerald-400 mt-1">
+                  Your pages will look great when shared on social media.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl border border-indigo-200 dark:border-indigo-800 p-6 mb-6">
+          <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            Category Breakdown
+          </h3>
+          <div class="space-y-4">
+            <template v-for="(category, key) in metaScore.categories" :key="key">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="font-medium text-gray-900 dark:text-white text-sm">
+                      {{ category.name }}
+                    </span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      ({{ category.weight }}% weight)
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span
+                      :class="[
+                        'text-sm font-semibold',
+                        category.status === 'pass' && 'text-emerald-600 dark:text-emerald-400',
+                        category.status === 'warning' && 'text-amber-600 dark:text-amber-400',
+                        category.status === 'fail' && 'text-red-600 dark:text-red-400'
+                      ]"
+                    >
+                      {{ category.score }}/{{ category.maxScore }}
+                    </span>
+                    <UIcon
+                      :name="category.status === 'pass' ? 'i-heroicons-check-circle-solid' : category.status === 'warning' ? 'i-heroicons-exclamation-circle-solid' : 'i-heroicons-x-circle-solid'"
+                      :class="[
+                        'w-5 h-5',
+                        category.status === 'pass' && 'text-emerald-500',
+                        category.status === 'warning' && 'text-amber-500',
+                        category.status === 'fail' && 'text-red-500'
+                      ]"
+                    />
+                  </div>
+                </div>
+                <div class="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    :class="[
+                      'absolute left-0 top-0 h-full transition-all duration-500',
+                      category.status === 'pass' && 'bg-emerald-500',
+                      category.status === 'warning' && 'bg-amber-500',
+                      category.status === 'fail' && 'bg-red-500'
+                    ]"
+                    :style="{ width: `${category.score}%` }"
+                  />
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Scoring Methodology -->
+        <div class="bg-white dark:bg-gray-900 rounded-xl border border-indigo-200 dark:border-indigo-800 p-6">
+          <details class="group">
+            <summary class="cursor-pointer list-none flex items-center justify-between font-bold text-gray-900 dark:text-white">
+              <span class="flex items-center gap-2">
+                <UIcon name="i-heroicons-information-circle" class="w-5 h-5" />
+                How is this score calculated?
+              </span>
+              <UIcon
+                name="i-heroicons-chevron-down"
+                class="w-5 h-5 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div class="mt-4 space-y-4 text-sm text-gray-700 dark:text-gray-300">
+              <p>
+                Your overall score is a weighted average of seven category scores, similar to Google Lighthouse scoring.
+                Each category is evaluated based on diagnostic status and assigned a weight based on its importance for SEO and social sharing.
+              </p>
+
+              <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 dark:text-white mb-2">Scoring System:</h4>
+                <ul class="space-y-1 text-xs">
+                  <li class="flex items-center gap-2">
+                    <span class="w-16 h-6 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-semibold">100</span>
+                    <span>Green status (pass) — tag is properly configured</span>
+                  </li>
+                  <li class="flex items-center gap-2">
+                    <span class="w-16 h-6 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 flex items-center justify-center font-semibold">60</span>
+                    <span>Yellow status (warning) — tag exists but could be improved</span>
+                  </li>
+                  <li class="flex items-center gap-2">
+                    <span class="w-16 h-6 rounded bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 flex items-center justify-center font-semibold">0</span>
+                    <span>Red status (fail) — tag is missing or critically flawed</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 dark:text-white mb-2">Category Weights:</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div class="flex justify-between">
+                    <span>Open Graph Tags:</span>
+                    <span class="font-semibold">25%</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>OG Image:</span>
+                    <span class="font-semibold">20%</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Title Tag:</span>
+                    <span class="font-semibold">15%</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Meta Description:</span>
+                    <span class="font-semibold">15%</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Canonical URL:</span>
+                    <span class="font-semibold">10%</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>X/Twitter Card:</span>
+                    <span class="font-semibold">10%</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Robots Meta:</span>
+                    <span class="font-semibold">5%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <h4 class="font-semibold text-gray-900 dark:text-white mb-2">Letter Grades:</h4>
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                  <div class="text-center p-2 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 font-semibold">
+                    A: 90-100
+                  </div>
+                  <div class="text-center p-2 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-semibold">
+                    B: 80-89
+                  </div>
+                  <div class="text-center p-2 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-semibold">
+                    C: 70-79
+                  </div>
+                  <div class="text-center p-2 rounded bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-semibold">
+                    D: 60-69
+                  </div>
+                  <div class="text-center p-2 rounded bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 font-semibold">
+                    F: 0-59
+                  </div>
+                </div>
+              </div>
+
+              <p class="text-xs italic">
+                Open Graph tags and images are weighted most heavily because they directly control how your links appear on social media platforms.
+                Title and description are also critical for both SEO and social sharing.
+              </p>
+
+              <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h5 class="font-semibold text-blue-900 dark:text-blue-100 text-xs mb-2">💡 Technical Detail: Trailing Slashes Matter</h5>
+                <p class="text-xs text-blue-800 dark:text-blue-200">
+                  URLs with and without trailing slashes (e.g., <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">/page</code> vs <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">/page/</code>)
+                  are treated as different pages by search engines. Inconsistency between your canonical URL and og:url can split ranking signals and cause duplicate content issues.
+                  MetaPeek checks for this and penalizes inconsistent trailing slash usage.
+                </p>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Step 6: Export Results -->
       <div
         v-if="parsedTags && diagnostics"
         class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-cyan-50 dark:bg-cyan-950/40 border-y border-cyan-200 dark:border-cyan-800"
@@ -1336,14 +1937,14 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
           <div
             class="flex items-center justify-center w-24 h-24 rounded-full bg-cyan-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-cyan-200 dark:ring-cyan-800"
           >
-            5
+            6
           </div>
           <div>
             <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
               Export Results
             </h2>
             <p class="text-sm text-gray-600 dark:text-gray-400">
-              Save your analysis for documentation or LLM-assisted fixes
+              Save your analysis with score and recommendations
             </p>
           </div>
         </div>
@@ -1354,8 +1955,8 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
           <p class="text-gray-700 dark:text-gray-300 mb-6">
             Download your meta tag analysis to share with your team, include in
             documentation, or upload to an AI assistant (ChatGPT, Claude, etc.)
-            for help implementing fixes. All exports include the original HTML
-            source.
+            for help implementing fixes. All exports include your overall score,
+            category breakdown, specific recommendations, and the original HTML source.
           </p>
 
           <!-- Download buttons -->

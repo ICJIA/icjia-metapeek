@@ -5,6 +5,15 @@ interface Props {
 
 const props = defineProps<Props>();
 
+// Emit image analysis results
+const emit = defineEmits<{
+  analysisComplete: [result: {
+    width: number;
+    height: number;
+    overallStatus: 'optimal' | 'acceptable' | 'issues' | null;
+  }];
+}>();
+
 interface ImageInfo {
   width: number;
   height: number;
@@ -56,14 +65,34 @@ const platforms = [
     description: "Summary large image",
   },
   {
+    name: "WhatsApp",
+    icon: "W",
+    iconBg: "bg-[#25D366]",
+    minWidth: 300,
+    minHeight: 200,
+    recWidth: 1200,
+    recHeight: 630,
+    description: "Link previews",
+  },
+  {
     name: "Slack",
     icon: "#",
-    iconBg: "bg-purple-600",
+    iconBg: "bg-[#4A154B]",
     minWidth: 200,
     minHeight: 200,
     recWidth: 800,
     recHeight: 418,
     description: "Link unfurls",
+  },
+  {
+    name: "iMessage",
+    icon: "i",
+    iconBg: "bg-[#007AFF]",
+    minWidth: 300,
+    minHeight: 200,
+    recWidth: 1200,
+    recHeight: 630,
+    description: "Link previews",
   },
   {
     name: "Google",
@@ -128,8 +157,21 @@ watch(
       ) {
         imageInfo.value.format = extension === "JPEG" ? "JPG" : extension;
       }
+
+      // Emit analysis results
+      emit('analysisComplete', {
+        width: imageInfo.value.width,
+        height: imageInfo.value.height,
+        overallStatus: overallStatus.value,
+      });
     } catch {
       imageInfo.value.error = "Could not load image";
+      // Emit null status on error
+      emit('analysisComplete', {
+        width: 0,
+        height: 0,
+        overallStatus: null,
+      });
     } finally {
       imageInfo.value.loading = false;
     }
@@ -274,7 +316,7 @@ const overallStatus = computed(() => {
             Platform Compatibility
           </p>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             <div
               v-for="platform in platforms"
               :key="platform.name"

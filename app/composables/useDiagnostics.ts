@@ -3,8 +3,14 @@
 import type { MetaTags, Diagnostics, DiagnosticResult } from '~/types/meta'
 import { LIMITS } from '~/utils/constants'
 
+export interface ImageAnalysisResult {
+  width: number
+  height: number
+  overallStatus: 'optimal' | 'acceptable' | 'issues' | null
+}
+
 export const useDiagnostics = () => {
-  const generateDiagnostics = (tags: MetaTags): Diagnostics => {
+  const generateDiagnostics = (tags: MetaTags, imageAnalysis?: ImageAnalysisResult): Diagnostics => {
     // Title checks
     const title = checkTitle(tags.title)
     
@@ -13,16 +19,16 @@ export const useDiagnostics = () => {
     
     // OG tags checks
     const ogTags = checkOGTags(tags.og)
-    
-    // OG image checks
-    const ogImage = checkOGImage(tags.og.image)
-    
+
+    // OG image checks (with optional dimension analysis)
+    const ogImage = checkOGImage(tags.og.image, imageAnalysis)
+
     // Twitter card checks
     const twitterCard = checkTwitterCard(tags.twitter, tags.og)
-    
-    // Canonical checks
-    const canonical = checkCanonical(tags.canonical)
-    
+
+    // Canonical checks (with og:url for trailing slash validation)
+    const canonical = checkCanonical(tags.canonical, tags.og.url)
+
     // Robots checks
     const robots = checkRobots(tags.robots)
     
@@ -105,21 +111,23 @@ export const useDiagnostics = () => {
   }
   
   const checkOGTags = (og: MetaTags['og']): DiagnosticResult => {
-    if (!og.title && !og.description && !og.image) {
-      return {
-        status: 'red',
-        icon: 'error',
-        message: 'Open Graph tags missing',
-        suggestion: 'Add og:title, og:description, and og:image for social media sharing'
-      }
-    }
-    
     const missing = []
     if (!og.title) missing.push('og:title')
     if (!og.description) missing.push('og:description')
     if (!og.image) missing.push('og:image')
-    
-    if (missing.length > 0) {
+
+    // All 3 missing or 2+ missing = RED (critical failure)
+    if (missing.length >= 2) {
+      return {
+        status: 'red',
+        icon: 'error',
+        message: `Missing: ${missing.join(', ')}`,
+        suggestion: 'Add all three core Open Graph tags for social media sharing'
+      }
+    }
+
+    // Only 1 missing = YELLOW (partial implementation)
+    if (missing.length === 1) {
       return {
         status: 'yellow',
         icon: 'warning',
@@ -127,7 +135,7 @@ export const useDiagnostics = () => {
         suggestion: 'Add all three core Open Graph tags for optimal social sharing'
       }
     }
-    
+
     return {
       status: 'green',
       icon: 'check',
@@ -135,16 +143,16 @@ export const useDiagnostics = () => {
     }
   }
   
-  const checkOGImage = (image?: string): DiagnosticResult => {
+  const checkOGImage = (image?: string, imageAnalysis?: ImageAnalysisResult): DiagnosticResult => {
     if (!image) {
       return {
-        status: 'yellow',
-        icon: 'warning',
-        message: 'og:image not set',
-        suggestion: 'Add og:image for better social media previews'
+        status: 'red',
+        icon: 'error',
+        message: 'og:image missing',
+        suggestion: 'Add og:image — this is critical for social media previews'
       }
     }
-    
+
     // Check if image URL is relative
     if (!image.startsWith('http://') && !image.startsWith('https://')) {
       return {
@@ -154,7 +162,36 @@ export const useDiagnostics = () => {
         suggestion: 'Use an absolute URL (https://...) for og:image'
       }
     }
-    
+
+    // If we have dimension analysis, score based on image quality
+    if (imageAnalysis && imageAnalysis.overallStatus) {
+      if (imageAnalysis.overallStatus === 'issues') {
+        return {
+          status: 'red',
+          icon: 'error',
+          message: `Image too small (${imageAnalysis.width}×${imageAnalysis.height}px)`,
+          suggestion: 'Image fails minimum size requirements for most platforms. Use at least 1200×630px for optimal social sharing.'
+        }
+      }
+
+      if (imageAnalysis.overallStatus === 'acceptable') {
+        return {
+          status: 'yellow',
+          icon: 'warning',
+          message: `Image meets minimums but could be larger (${imageAnalysis.width}×${imageAnalysis.height}px)`,
+          suggestion: 'Image will work but may appear pixelated on some platforms. Recommended: 1200×630px or larger.'
+        }
+      }
+
+      // overallStatus === 'optimal'
+      return {
+        status: 'green',
+        icon: 'check',
+        message: `Image dimensions optimal (${imageAnalysis.width}×${imageAnalysis.height}px)`
+      }
+    }
+
+    // No dimension analysis yet (still loading) - give provisional green
     return {
       status: 'green',
       icon: 'check',
@@ -164,16 +201,16 @@ export const useDiagnostics = () => {
   
   const checkTwitterCard = (twitter: MetaTags['twitter'], og: MetaTags['og']): DiagnosticResult => {
     const hasOG = og.title || og.description || og.image
-    
+
     if (!twitter.card && hasOG) {
       return {
-        status: 'yellow',
-        icon: 'warning',
-        message: 'Twitter Card tags missing',
-        suggestion: 'Add <meta name="twitter:card" content="summary_large_image"> for better X/Twitter previews'
+        status: 'red',
+        icon: 'error',
+        message: 'Twitter Card missing',
+        suggestion: 'Add <meta name="twitter:card" content="summary_large_image"> for X/Twitter previews'
       }
     }
-    
+
     if (twitter.card) {
       return {
         status: 'green',
@@ -181,7 +218,7 @@ export const useDiagnostics = () => {
         message: 'Twitter Card configured'
       }
     }
-    
+
     return {
       status: 'green',
       icon: 'check',
@@ -189,16 +226,35 @@ export const useDiagnostics = () => {
     }
   }
   
-  const checkCanonical = (canonical?: string): DiagnosticResult => {
+  const checkCanonical = (canonical?: string, ogUrl?: string): DiagnosticResult => {
     if (!canonical) {
       return {
-        status: 'yellow',
-        icon: 'warning',
+        status: 'red',
+        icon: 'error',
         message: 'Canonical URL missing',
-        suggestion: 'Consider adding <link rel="canonical" href="..."> to prevent duplicate content issues'
+        suggestion: 'Add <link rel="canonical" href="..."> to prevent duplicate content issues'
       }
     }
-    
+
+    // Check for trailing slash inconsistency with og:url
+    if (ogUrl) {
+      const canonicalNormalized = canonical.replace(/\/$/, '')
+      const ogUrlNormalized = ogUrl.replace(/\/$/, '')
+
+      // If URLs are the same except for trailing slash, warn about inconsistency
+      if (canonicalNormalized === ogUrlNormalized && canonical !== ogUrl) {
+        const canonicalHasSlash = canonical.endsWith('/')
+        const ogUrlHasSlash = ogUrl.endsWith('/')
+
+        return {
+          status: 'yellow',
+          icon: 'warning',
+          message: 'Trailing slash inconsistency with og:url',
+          suggestion: `Canonical ${canonicalHasSlash ? 'has' : 'lacks'} trailing slash but og:url ${ogUrlHasSlash ? 'has' : 'lacks'} it. WHY THIS MATTERS FOR SEO: Search engines treat URLs with and without trailing slashes as technically different pages (e.g., /page vs /page/). This inconsistency can split your ranking signals between two versions of the same content, causing duplicate content issues that hurt SEO. Social platforms may share one URL while search engines index another. Fix: Choose one format (with or without trailing slash) and use it consistently across canonical, og:url, and all meta tags.`
+        }
+      }
+    }
+
     return {
       status: 'green',
       icon: 'check',

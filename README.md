@@ -2,8 +2,6 @@
 
 > Preview how your website appears when shared on social media — and fix any problems.
 
-**🔗 Live Demo: [https://metapeek.icjia.app](https://metapeek.icjia.app)**
-
 [![Netlify Status](https://api.netlify.com/api/v1/badges/e2999615-35c5-44fa-8486-fc7c555c9916/deploy-status)](https://app.netlify.com/projects/clinquant-lily-1beabe/deploys)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4.3.0-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
@@ -19,6 +17,7 @@
 When someone shares a link to your website on Facebook, LinkedIn, X (Twitter), or Slack, those platforms display a **preview card** with a title, description, and image. This information comes from special HTML tags on your page called **Open Graph meta tags**.
 
 If these tags are missing or misconfigured, your shared links may show:
+
 - The wrong title or description
 - No image (or the wrong image)
 - A generic, unprofessional appearance
@@ -42,23 +41,45 @@ You might think "I'll just use Facebook's Sharing Debugger" — but existing too
 
 MetaPeek helps you **find and fix these issues** before they hurt your reach:
 
-1. **Preview** — See exactly how your page will appear on Google, Facebook, LinkedIn, X, and Slack — all at once
+1. **Preview** — See exactly how your page will appear on 7 major platforms — all at once
 2. **Diagnose** — Get a color-coded report of missing, incorrect, or suboptimal tags
 3. **Fix** — Copy ready-to-use HTML code to give to your developer
+4. **Fetch** — Enter any URL to analyze live websites, or paste HTML for offline analysis
 
-| Feature | MetaPeek | Facebook Debugger | X/Twitter Validator |
-|---------|----------|-------------------|---------------------|
-| Multi-platform preview | ✅ All 5 platforms | ❌ Facebook only | ❌ X only |
-| Image dimension analysis | ✅ Yes | ✅ Yes | ❌ No |
-| Actionable code fixes | ✅ Copy-paste ready | ❌ Preview only | ❌ Preview only |
-| No account required | ✅ Yes | ❌ Requires login | ❌ Requires login |
-| No rate limits | ✅ Unlimited | ⚠️ Limited | ⚠️ Limited |
-| Works offline (paste mode) | ✅ Yes | ❌ No | ❌ No |
-| Ad-free | ✅ Yes | ⚠️ Meta ecosystem | ⚠️ X ecosystem |
+| Feature                    | MetaPeek            | Facebook Debugger | X/Twitter Validator |
+| -------------------------- | ------------------- | ----------------- | ------------------- |
+| Multi-platform preview     | ✅ All 7 platforms  | ❌ Facebook only  | ❌ X only           |
+| Live URL fetching          | ✅ Yes              | ✅ Yes            | ✅ Yes              |
+| Image dimension analysis   | ✅ All 7 platforms  | ✅ Yes            | ❌ No               |
+| Actionable code fixes      | ✅ Copy-paste ready  | ❌ Preview only   | ❌ Preview only     |
+| No account required        | ✅ Yes               | ❌ Requires login | ❌ Requires login   |
+| No rate limits             | ✅ Generous (30/min) | ⚠️ Limited        | ⚠️ Limited          |
+| Works offline (paste mode) | ✅ Yes               | ❌ No             | ❌ No               |
+| SPA detection              | ✅ Yes               | ❌ No             | ❌ No               |
+| Ad-free                    | ✅ Yes               | ⚠️ Meta ecosystem | ⚠️ X ecosystem      |
+
+### Platform Previews
+
+MetaPeek shows how your link will appear across **7 major platforms simultaneously:**
+
+**Social Media:**
+- 📘 **Facebook** — Feed posts with 1.91:1 images
+- 💼 **LinkedIn** — Professional network shares
+- 🐦 **X (Twitter)** — Summary cards with large images
+
+**Messaging:**
+- 📱 **WhatsApp** — World's most popular messaging app
+- 💬 **Slack** — Business communication link unfurls
+- 💭 **iMessage** — Apple ecosystem previews
+
+**Search:**
+- 🔍 **Google** — Search results and Discover cards
+
+Each preview component accurately mimics the platform's actual appearance, helping you **fix issues before sharing**.
 
 ### Why "MetaPeek"?
 
-You're *peeking* at your *meta* tags — the hidden HTML that controls how your content appears when shared across the web.
+You're _peeking_ at your _meta_ tags — the hidden HTML that controls how your content appears when shared across the web.
 
 ### Who Uses MetaPeek?
 
@@ -94,27 +115,75 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 ## Features
 
 ### Phase 1 — Client-Side MVP ✅ Complete
+
 - ✅ Paste HTML and parse instantly (< 100ms)
 - ✅ Extract all meta tags, Open Graph, X/Twitter Cards, JSON-LD
-- ✅ Render accurate platform previews (Google, Facebook, LinkedIn, X/Twitter, Slack)
+- ✅ Render accurate platform previews (5 platforms)
 - ✅ Diagnostics panel with color-coded status
 - ✅ Code generator with editable output
 - ✅ WCAG 2.1 AA compliant from day one
 
-### Phase 2 — Live URL Fetching 🚧
-- [ ] Enter URL and fetch HTML automatically
-- [ ] Netlify serverless function proxy
-- [ ] SSRF protection and security validation
-- [ ] Rate limiting (30 requests/IP/minute)
-- [ ] SPA detection with scoring system
-- [ ] Redirect chain tracking
-- [ ] Shareable URLs (manual fetch, no auto-trigger)
+### Phase 2 — Live URL Fetching & Platform Expansion ✅ Complete
+
+**URL Fetching:**
+- ✅ Enter URL and fetch HTML automatically
+- ✅ Netlify serverless function proxy with Nitro
+- ✅ SSRF protection and DNS validation
+- ✅ Rate limiting (30 requests/IP/minute)
+- ✅ SPA detection with scoring system (5+ heuristics)
+- ✅ Redirect chain tracking (up to 5 redirects)
+- ✅ Shareable URLs (manual fetch, no auto-trigger)
+- ✅ Progressive status feedback (neutral → amber → red)
+- ✅ User-friendly error messages with suggestions
+
+**Platform Previews (7 Total):**
+- ✅ Google Search Results
+- ✅ Facebook Feed
+- ✅ LinkedIn Posts
+- ✅ X (Twitter) Cards
+- ✅ WhatsApp Messages (NEW)
+- ✅ Slack Unfurls
+- ✅ iMessage (NEW)
+
+**Image Analysis:**
+- ✅ Cross-platform compatibility check (all 7 platforms)
+- ✅ Dimension requirements per platform
+- ✅ Visual status indicators (optimal/acceptable/fail)
+- ✅ Integrated into scoring system (impacts overall score)
+
+**Quality Scoring System (NEW):**
+- ✅ Overall meta tag score (0-100 with letter grades A-F)
+- ✅ Weighted category scoring (7 categories with custom weights)
+- ✅ Brutal honesty: missing tags = 0 points, issues = 60 points, perfect = 100 points
+- ✅ Image dimension validation integrated into scoring
+- ✅ Trailing slash consistency validation (canonical vs og:url)
+- ✅ Detailed category breakdown with progress bars
+- ✅ Specific action items for each issue
+- ✅ Educational explanations (Lighthouse-style scoring methodology)
+- ✅ Scores included in all export formats
+
+**What Makes Phase 2 Special:**
+
+1. **Quality Scoring System** — Get an overall meta tag quality score (0-100) with letter grades (A-F). Uses weighted categories (Open Graph 25%, OG Image 20%, etc.) with brutal honesty: missing tags = 0 points. Image dimensions are validated and integrated into scoring. Includes Lighthouse-style methodology explanations and specific action items.
+
+2. **SPA Detection** — Warns if your single-page app (React/Vue/Angular) won't work with social platforms because meta tags aren't in server-rendered HTML. Balanced detection distinguishes true SPAs from static sites with hydration (SSG/SSR). Includes confidence scoring and specific signals.
+
+3. **Security-First** — Enterprise-grade SSRF protection prevents abuse while maintaining usability. DNS validation, private IP blocking, and rate limiting at the edge.
+
+4. **No Account Required** — Unlike platform-specific debuggers (Facebook, Twitter), MetaPeek works without login. Enter any URL and analyze instantly.
+
+5. **Dual Mode** — Switch between URL fetching and HTML pasting. Great for testing before deployment or analyzing sites behind authentication.
+
+6. **Progressive Feedback** — Real-time status updates during fetch with color-coded urgency (neutral → amber → red as time elapses).
+
+7. **Trailing Slash Validation** — Catches SEO-harming inconsistencies between canonical and og:url (e.g., `/page` vs `/page/`). Includes educational explanations about why this matters for search engine ranking.
 
 ### Phase 3 — Polish & Power Features 📋
+
+- ✅ Export as JSON/Markdown/HTML with complete analysis and scores
 - [ ] OG image analysis with crop overlays
 - [ ] Structured data viewer with schema.org validation
 - [ ] Diff/compare mode (before/after verification)
-- [ ] Export as HTML file or JSON
 - [ ] Raw HTML debug view
 
 ---
@@ -122,35 +191,42 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 ## Tech Stack
 
 ### Core Framework
+
 - **[Nuxt 4](https://nuxt.com/)** (v4.3.0) — Full-stack Vue framework with SSR
 - **[Vue 3](https://vuejs.org/)** (v3.5.27) — Progressive JavaScript framework
 - **[TypeScript](https://www.typescriptlang.org/)** (v5.7) — Type safety throughout
 - **[VueUse](https://vueuse.org/)** (v14.2) — Essential Vue Composition Utilities
 
 ### UI & Components
+
 - **[Nuxt UI](https://ui.nuxt.com/)** (v4.4.0) — Fully styled component library
 - **[Tailwind CSS 4](https://tailwindcss.com/)** — Utility-first CSS (via Nuxt UI)
 - **[Heroicons](https://heroicons.com/)** — Beautiful hand-crafted SVG icons
 
 ### SEO & Meta
+
 - **[@nuxtjs/seo](https://nuxtseo.com/)** (v3.4.0) — Technical SEO: sitemap, robots.txt, schema.org, Open Graph meta tags
 - **Static OG image** — `public/og-image-v2.png` (1200×630) for social sharing previews
 
 ### Server & Deployment
+
 - **[Nitro](https://nitro.unjs.io/)** — Nuxt's server engine for API routes
 - **[Netlify](https://www.netlify.com/)** — Serverless functions + edge deployment
 - **[ofetch](https://github.com/unjs/ofetch)** — HTTP client for proxy requests
 
 ### Parsing & Data
+
 - **[DOMParser](https://developer.mozilla.org/en-US/docs/Web/API/DOMParser)** (native) — Client-side HTML parsing
 - **[cheerio](https://cheerio.js.org/)** — Server-side HTML parsing for proxy
 
 ### Testing & Quality
+
 - **[Vitest](https://vitest.dev/)** — Modern, fast unit testing
 - **[Playwright](https://playwright.dev/)** — E2E and accessibility testing
 - **[@axe-core/playwright](https://www.npmjs.com/package/@axe-core/playwright)** — Automated accessibility audits
 
 ### Accessibility
+
 - **WCAG 2.1 Level AA** compliance mandatory
 - Keyboard navigation for all interactions
 - Screen reader tested (NVDA, JAWS, VoiceOver)
@@ -170,6 +246,7 @@ A custom, accessible tooltip component built from scratch (no external dependenc
 ```
 
 **Features:**
+
 - **Teleport to body** — Escapes parent `overflow: hidden` containers
 - **Fixed positioning** — Calculates position based on viewport space
 - **Auto-positioning** — Prefers left/right on desktop, top/bottom on mobile
@@ -197,19 +274,23 @@ icjia-metapeek/
 │   │       └── main.css     # Tailwind CSS entry point
 │   ├── components/          # Vue components
 │   │   ├── AppTooltip.vue       # Custom accessible tooltip
+│   │   ├── ImageAnalysis.vue    # Image size compatibility checker
 │   │   ├── PreviewGoogle.vue
 │   │   ├── PreviewFacebook.vue
 │   │   ├── PreviewLinkedIn.vue
 │   │   ├── PreviewTwitter.vue
+│   │   ├── PreviewWhatsApp.vue  # Phase 2
 │   │   ├── PreviewSlack.vue
+│   │   ├── PreviewiMessage.vue  # Phase 2
 │   │   ├── DiagnosticsPanel.vue
 │   │   └── CodeGenerator.vue
 │   ├── composables/         # Reusable composition functions
 │   │   ├── useMetaParser.ts
 │   │   ├── useDiagnostics.ts
-│   │   ├── useFetchProxy.ts (Phase 2)
-│   │   ├── useFetchStatus.ts (Phase 2)
-│   │   └── useSpaDetection.ts (Phase 2)
+│   │   ├── useMetaScore.ts      # Phase 2 ✅ - Quality scoring system
+│   │   ├── useFetchProxy.ts     # Phase 2 ✅
+│   │   ├── useFetchStatus.ts    # Phase 2 ✅
+│   │   └── useSpaDetection.ts   # Phase 2 ✅
 │   ├── pages/
 │   │   └── index.vue        # Single-page application
 │   ├── types/
@@ -219,9 +300,10 @@ icjia-metapeek/
 │       └── tagDefaults.ts
 ├── server/
 │   ├── api/
-│   │   └── fetch.post.ts    # Proxy endpoint (Phase 2)
+│   │   └── fetch.post.ts    # Secure proxy endpoint with SSRF protection ✅
 │   └── utils/
-│       └── proxy.ts         # Security utilities (Phase 2)
+│       ├── proxy.ts         # URL validation & security utilities ✅
+│       └── logger.ts        # Structured logging for production ✅
 ├── documentation/           # Complete design & implementation docs
 │   ├── README.md
 │   ├── metapeek-design-doc-final.md
@@ -229,6 +311,10 @@ icjia-metapeek/
 │   ├── testing-strategy.md
 │   ├── accessibility-guidelines.md
 │   ├── phase-1-implementation-guide.md
+│   ├── phase-2-security-checklist.md      # Phase 2 ✅
+│   ├── phase-2-implementation-status.md   # Phase 2 ✅
+│   ├── security-testing-guide.md          # Phase 2 ✅
+│   ├── logging-and-monitoring.md          # Phase 2 ✅
 │   └── initial-package-json.md
 ├── tests/                   # Test suites
 │   ├── unit/                # Vitest unit tests
@@ -277,6 +363,30 @@ yarn dev
 
 The app will be available at `http://localhost:3000`
 
+### Using MetaPeek
+
+**Two modes available:**
+
+1. **Paste HTML Mode** (default)
+   - Click "Load Example" to see GitHub's meta tags
+   - Paste your page's `<head>` section
+   - Analysis happens instantly (< 100ms)
+   - No network requests, works offline
+
+2. **Fetch URL Mode**
+   - Click "🌐 Fetch URL" toggle
+   - Enter any URL (e.g., `https://github.com`)
+   - Click "Fetch" to analyze live
+   - Rate limited: 30 requests per minute per IP
+
+**Features:**
+- 11 platform previews update in real-time
+- Color-coded diagnostics show issues
+- Copy corrected HTML with one click
+- Export analysis as JSON/Markdown/HTML
+- Image compatibility check across all platforms
+- SPA detection warns if meta tags won't work
+
 ### Available Scripts
 
 ```bash
@@ -303,6 +413,7 @@ yarn typecheck       # Check TypeScript types
 Running `yarn test:all` produces verbose output showing each test:
 
 **Unit Tests (88 tests)** — Vitest with verbose reporter
+
 ```
 ✓ tagDefaults > generateDefaultTags > title generation > uses og:title when available
 ✓ useDiagnostics > title diagnostics > returns red status when title is missing
@@ -311,6 +422,7 @@ Running `yarn test:all` produces verbose output showing each test:
 ```
 
 **Accessibility Tests (5 tests)** — Playwright with axe-core
+
 ```
 → Navigating to homepage...
 → Page loaded, running axe-core scan...
@@ -321,6 +433,7 @@ Running `yarn test:all` produces verbose output showing each test:
 ```
 
 The accessibility tests verify:
+
 - **WCAG 2.1 AA compliance** across all page states (initial load, analyzed content, edit mode)
 - **Keyboard navigation** including skip links and tab order
 - **Focus management** for all interactive elements
@@ -341,6 +454,7 @@ Error: Cannot find module '@rollup/rollup-darwin-arm64'
 ```
 
 **Cause:** This typically happens when:
+
 1. A `.yarnrc` file contains `--ignore-optional true`, which prevents native bindings from being installed
 2. The `node_modules` folder was installed with a different Node.js version or package manager
 
@@ -362,6 +476,7 @@ yarn dev
 ```
 
 **Prevention:** Never add `--ignore-optional true` to `.yarnrc` when working with Nuxt 4, as it relies on native bindings for:
+
 - `oxc-parser`, `oxc-transform`, `oxc-minify` (TypeScript/JavaScript parsing)
 - `lightningcss` (CSS processing)
 - `rollup` (bundling)
@@ -379,9 +494,9 @@ yarn add @vueuse/core @vueuse/nuxt
 ```typescript
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@vueuse/nuxt', '@nuxtjs/seo'],
+  modules: ["@nuxt/ui", "@vueuse/nuxt", "@nuxtjs/seo"],
   // ...
-})
+});
 ```
 
 ---
@@ -442,31 +557,49 @@ The OG image (`public/og-image-v2.png`) is referenced via `defineOgImage()` in `
 
 ### MetaPeek Config
 
-All non-secret configuration lives in `metapeek.config.ts`:
+All non-secret configuration lives in `metapeek.config.ts` (single source of truth):
 
 ```typescript
 // metapeek.config.ts
 const metapeekConfig = {
   site: {
-    name: 'MetaPeek',
-    url: 'https://metapeek.icjia.app',
+    name: "MetaPeek",
+    url: "https://metapeek.icjia.app",
+    description: "Inspect, preview, and fix HTML meta tags...",
   },
   proxy: {
-    externalUrl: null,  // Set to DigitalOcean URL to switch proxies
-    fetchTimeoutMs: 10_000,
-    maxResponseBytes: 1_048_576,
+    externalUrl: null, // Set to external URL to use different proxy
+    userAgent: "MetaPeek/1.0 (+https://metapeek.icjia.app)",
+    fetchTimeoutMs: 10_000,        // 10 seconds
+    maxResponseBytes: 1_048_576,   // 1MB
+    maxRedirects: 5,
+    maxUrlLength: 2048,
+    allowHttpInDev: true,          // Allow HTTP in development
   },
   rateLimit: {
-    windowLimit: 30,  // 30 requests per minute per IP
-    windowSize: 60,
+    windowLimit: 30,               // 30 requests per window
+    windowSize: 60,                // 60 seconds = 1 minute
+    aggregateBy: ['ip', 'domain'], // Netlify aggregation
   },
-  // ... more config
-}
+  cors: {
+    allowedOrigins: [
+      'https://metapeek.icjia.app',
+      'http://localhost:3000',
+    ],
+    allowedMethods: ['POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  },
+  diagnostics: {
+    flagNoindex: true,             // Warn if noindex present
+    flagNoFollow: true,            // Warn if nofollow present
+  },
+};
 ```
 
 **Environment Variables** (`.env` - secrets only):
-- `METAPEEK_API_KEY` — Bearer token for proxy auth (dormant at launch)
-- `NODE_ENV` — Set automatically by Netlify
+
+- `METAPEEK_API_KEY` — Optional Bearer token for proxy auth (dormant at launch)
+- `NODE_ENV` — Set automatically by Netlify (development/production)
 
 ---
 
@@ -483,6 +616,7 @@ git push origin main
 ```
 
 **Pre-Deploy Checklist:**
+
 - [ ] All tests passing
 - [ ] Lighthouse accessibility score 100
 - [ ] axe DevTools reports zero violations
@@ -490,36 +624,85 @@ git push origin main
 - [ ] Screen reader tested
 - [ ] Security tests passing (Phase 2)
 
-**Post-Deploy:**
-- Monitor Netlify function invocation count (Phase 2)
-- Check for rate limit effectiveness
-- Verify CORS headers in production
-- Test with real URLs from different geolocations
+**Post-Deploy (Phase 2):**
+
+1. **Test live URL fetching:**
+   ```bash
+   curl -X POST https://metapeek.icjia.app/api/fetch \
+     -H "Content-Type: application/json" \
+     -d '{"url":"https://github.com"}'
+   ```
+
+2. **Verify rate limiting:**
+   - Test 31 requests rapidly (should return 429 on last request)
+   - Confirm rate-limited requests don't count as invocations
+
+3. **Test SSRF protection:**
+   - Try internal IPs: `http://127.0.0.1`, `http://169.254.169.254`
+   - Try private networks: `http://192.168.1.1`
+   - All should return 400 with security message
+
+4. **Monitor Netlify function logs:**
+   - Watch for unusual patterns or errors
+   - Check function invocation count vs rate limit triggers
+   - Verify structured logging in production
+
+5. **Test from different locations:**
+   - Use VPN or proxy to test from different geolocations
+   - Verify CORS headers work correctly
+   - Test with various real-world URLs
+
+6. **SPA detection:**
+   - Test with React/Vue SPAs to verify warning appears
+   - Verify scoring system works correctly
 
 ---
 
 ## Security
 
-### SSRF Protection (Phase 2)
-- DNS resolution with private IP blocking
-- Protocol whitelist (HTTPS only in production)
+### SSRF Protection ✅
+
+**Defense in depth approach:**
+- DNS resolution before fetch (blocks private IPs)
+- Private IP range blocking (RFC 1918, loopback, link-local)
+- Cloud metadata endpoint blocking (169.254.169.254)
+- Protocol whitelist (HTTPS only in production, HTTP allowed in dev)
 - URL length limits (2048 chars max)
 - Response size limits (1MB max)
 - Timeout enforcement (10 seconds)
+- Redirect validation (each redirect target is validated)
 
-### Rate Limiting (Phase 2)
-- Netlify edge-level rate limiting
-- 30 requests per IP per minute (configurable)
-- Rate-limited requests don't count as invocations
+**Blocked ranges:**
+- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (private networks)
+- `127.0.0.0/8` (loopback)
+- `169.254.0.0/16` (link-local / cloud metadata)
+- `0.0.0.0/8`, `224.0.0.0/4`, `240.0.0.0/4` (reserved/multicast)
+
+### Rate Limiting ✅
+
+- **Netlify edge-level** rate limiting (enforced before function invocation)
+- **30 requests per minute per IP** (configurable in `metapeek.config.ts`)
+- Rate-limited requests return 429 and don't count as invocations
 - Paste-HTML mode always available (no rate limit)
+- Aggregation by IP and domain
 
-### Input Validation
-- Request body validation (reject unexpected fields)
-- URL validation before fetch
-- HTML sanitization (strip script tags from responses)
+### Input Validation ✅
+
+- Request body validation (strict schema, reject unexpected fields)
+- URL validation before fetch (format, protocol, length)
+- HTML sanitization (strip dangerous script tags, keep JSON-LD)
 - No execution of fetched JavaScript
+- Error message sanitization (no internal info leakage)
 
-See `documentation/testing-strategy.md` security section for test cases.
+### Logging & Monitoring ✅
+
+- Structured JSON logs in production
+- Request correlation with unique IDs
+- Security event tracking (blocked requests)
+- Sensitive data redaction (tokens, keys in URLs)
+- Netlify function logs for debugging
+
+See `documentation/security-testing-guide.md` for comprehensive test cases.
 
 ---
 
@@ -527,11 +710,20 @@ See `documentation/testing-strategy.md` security section for test cases.
 
 Complete documentation is in the `documentation/` folder:
 
-- **[Design Document](documentation/metapeek-design-doc-final.md)** — Complete technical specification
+**Core Documentation:**
+- **[Design Document](documentation/metapeek-design-doc-final.md)** — Complete technical specification for all phases
 - **[Pre-Launch Checklist](documentation/pre-launch-checklist.md)** — Required items for each phase
-- **[Testing Strategy](documentation/testing-strategy.md)** — Unit, integration, and accessibility tests
+- **[Testing Strategy](documentation/testing-strategy.md)** — Unit, integration, accessibility, and security tests
 - **[Accessibility Guidelines](documentation/accessibility-guidelines.md)** — WCAG 2.1 AA implementation
-- **[Phase 1 Guide](documentation/phase-1-implementation-guide.md)** — Step-by-step implementation
+
+**Phase-Specific Guides:**
+- **[Phase 1 Implementation Guide](documentation/phase-1-implementation-guide.md)** — Client-side MVP
+- **[Phase 2 Implementation Status](documentation/phase-2-implementation-status.md)** — Live URL fetching completion
+- **[Phase 2 Security Checklist](documentation/phase-2-security-checklist.md)** — SSRF protection & security layers
+- **[Security Testing Guide](documentation/security-testing-guide.md)** — Comprehensive security test cases
+- **[Logging & Monitoring](documentation/logging-and-monitoring.md)** — Production logging strategy
+
+**Reference:**
 - **[Initial Dependencies](documentation/initial-package-json.md)** — Locked dependency versions
 
 Start with `documentation/README.md` for the full documentation index.
@@ -568,6 +760,7 @@ MetaPeek: [https://metapeek.icjia.app](https://metapeek.icjia.app)
 Built with modern web standards and accessibility as core principles.
 
 **Key Technologies:**
+
 - Nuxt team for the excellent full-stack framework
 - Nuxt UI for accessible, beautiful components
 - The accessibility community for WCAG guidelines
