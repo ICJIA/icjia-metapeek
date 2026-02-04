@@ -422,6 +422,7 @@ curl -X POST http://localhost:3000/api/fetch \
 ```
 
 **Verify:** Error messages should be generic and user-friendly. They should NOT include:
+
 - Stack traces
 - File paths
 - Internal IP addresses
@@ -475,20 +476,43 @@ NODE_ENV=production curl -X POST http://localhost:3000/api/fetch \
 
 ---
 
-### Test 10.2: Netlify Rate Limit Config
+### Test 10.2: Rate Limit Configuration (Unit Test)
+
+**Verify:** Run the automated unit test:
+
+```bash
+yarn test tests/unit/rateLimit.test.ts
+```
+
+**Expected:** All tests pass, confirming:
+
+- Rate limit values are defined in `metapeek.config.ts`
+- `export const config` exists in `server/api/fetch.post.ts`
+- Values match between config and export (30 req/min, 60 sec window)
+
+**Cost:** Free - runs locally, no network requests
+
+---
+
+### Test 10.3: Netlify Rate Limit Detection (Deploy Logs)
 
 **Verify:** After deploying to Netlify, check the deploy log.
 
 **Expected:** Deploy log should mention:
+
 ```
-Rate limiting enabled for /api/fetch
+◈ Rate limiting enabled for /api/fetch
 ```
 
 If not present, the `export const config` may not be formatted correctly.
 
+**Cost:** Free - just reading logs
+
+**Security Note:** We do NOT provide executable scripts that hit production to test rate limiting. The combination of unit tests + deploy log confirmation is sufficient verification.
+
 ---
 
-### Test 10.3: Function Timeout
+### Test 10.4: Function Timeout
 
 **Verify:** In Netlify dashboard, check function settings.
 
@@ -524,98 +548,98 @@ Before deploying Phase 2 to production:
 Create a test file `tests/security/ssrf.test.ts`:
 
 ```typescript
-import { describe, it, expect } from 'vitest'
-import { validateUrl, isPrivateIp } from '~/server/utils/proxy'
+import { describe, it, expect } from "vitest";
+import { validateUrl, isPrivateIp } from "~/server/utils/proxy";
 
-describe('SSRF Protection', () => {
-  describe('isPrivateIp', () => {
-    it('blocks 10.0.0.0/8', async () => {
-      expect(isPrivateIp('10.0.0.1')).toBe(true)
-      expect(isPrivateIp('10.255.255.255')).toBe(true)
-    })
+describe("SSRF Protection", () => {
+  describe("isPrivateIp", () => {
+    it("blocks 10.0.0.0/8", async () => {
+      expect(isPrivateIp("10.0.0.1")).toBe(true);
+      expect(isPrivateIp("10.255.255.255")).toBe(true);
+    });
 
-    it('blocks 172.16.0.0/12', async () => {
-      expect(isPrivateIp('172.16.0.1')).toBe(true)
-      expect(isPrivateIp('172.31.255.255')).toBe(true)
-    })
+    it("blocks 172.16.0.0/12", async () => {
+      expect(isPrivateIp("172.16.0.1")).toBe(true);
+      expect(isPrivateIp("172.31.255.255")).toBe(true);
+    });
 
-    it('blocks 192.168.0.0/16', async () => {
-      expect(isPrivateIp('192.168.0.1')).toBe(true)
-      expect(isPrivateIp('192.168.255.255')).toBe(true)
-    })
+    it("blocks 192.168.0.0/16", async () => {
+      expect(isPrivateIp("192.168.0.1")).toBe(true);
+      expect(isPrivateIp("192.168.255.255")).toBe(true);
+    });
 
-    it('blocks 127.0.0.0/8 (loopback)', async () => {
-      expect(isPrivateIp('127.0.0.1')).toBe(true)
-      expect(isPrivateIp('127.255.255.255')).toBe(true)
-    })
+    it("blocks 127.0.0.0/8 (loopback)", async () => {
+      expect(isPrivateIp("127.0.0.1")).toBe(true);
+      expect(isPrivateIp("127.255.255.255")).toBe(true);
+    });
 
-    it('blocks 169.254.0.0/16 (link-local)', async () => {
-      expect(isPrivateIp('169.254.169.254')).toBe(true)
-      expect(isPrivateIp('169.254.0.1')).toBe(true)
-    })
+    it("blocks 169.254.0.0/16 (link-local)", async () => {
+      expect(isPrivateIp("169.254.169.254")).toBe(true);
+      expect(isPrivateIp("169.254.0.1")).toBe(true);
+    });
 
-    it('blocks 0.0.0.0/8', async () => {
-      expect(isPrivateIp('0.0.0.0')).toBe(true)
-    })
+    it("blocks 0.0.0.0/8", async () => {
+      expect(isPrivateIp("0.0.0.0")).toBe(true);
+    });
 
-    it('blocks multicast (224.0.0.0/4)', async () => {
-      expect(isPrivateIp('224.0.0.1')).toBe(true)
-      expect(isPrivateIp('239.255.255.255')).toBe(true)
-    })
+    it("blocks multicast (224.0.0.0/4)", async () => {
+      expect(isPrivateIp("224.0.0.1")).toBe(true);
+      expect(isPrivateIp("239.255.255.255")).toBe(true);
+    });
 
-    it('blocks reserved (240.0.0.0/4)', async () => {
-      expect(isPrivateIp('240.0.0.1')).toBe(true)
-      expect(isPrivateIp('255.255.255.255')).toBe(true)
-    })
+    it("blocks reserved (240.0.0.0/4)", async () => {
+      expect(isPrivateIp("240.0.0.1")).toBe(true);
+      expect(isPrivateIp("255.255.255.255")).toBe(true);
+    });
 
-    it('allows public IPs', async () => {
-      expect(isPrivateIp('8.8.8.8')).toBe(false) // Google DNS
-      expect(isPrivateIp('1.1.1.1')).toBe(false) // Cloudflare DNS
-      expect(isPrivateIp('93.184.216.34')).toBe(false) // example.com
-    })
-  })
+    it("allows public IPs", async () => {
+      expect(isPrivateIp("8.8.8.8")).toBe(false); // Google DNS
+      expect(isPrivateIp("1.1.1.1")).toBe(false); // Cloudflare DNS
+      expect(isPrivateIp("93.184.216.34")).toBe(false); // example.com
+    });
+  });
 
-  describe('validateUrl', () => {
-    it('rejects localhost', async () => {
-      const result = await validateUrl('http://localhost/')
-      expect(result.ok).toBe(false)
-      expect(result.reason).toContain('Internal')
-    })
+  describe("validateUrl", () => {
+    it("rejects localhost", async () => {
+      const result = await validateUrl("http://localhost/");
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("Internal");
+    });
 
-    it('rejects 127.0.0.1', async () => {
-      const result = await validateUrl('http://127.0.0.1/')
-      expect(result.ok).toBe(false)
-    })
+    it("rejects 127.0.0.1", async () => {
+      const result = await validateUrl("http://127.0.0.1/");
+      expect(result.ok).toBe(false);
+    });
 
-    it('rejects metadata endpoint', async () => {
-      const result = await validateUrl('http://169.254.169.254/')
-      expect(result.ok).toBe(false)
-    })
+    it("rejects metadata endpoint", async () => {
+      const result = await validateUrl("http://169.254.169.254/");
+      expect(result.ok).toBe(false);
+    });
 
-    it('rejects file:// protocol', async () => {
-      const result = await validateUrl('file:///etc/passwd')
-      expect(result.ok).toBe(false)
-      expect(result.reason).toContain('Protocol')
-    })
+    it("rejects file:// protocol", async () => {
+      const result = await validateUrl("file:///etc/passwd");
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("Protocol");
+    });
 
-    it('rejects empty URL', async () => {
-      const result = await validateUrl('')
-      expect(result.ok).toBe(false)
-      expect(result.reason).toContain('required')
-    })
+    it("rejects empty URL", async () => {
+      const result = await validateUrl("");
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("required");
+    });
 
-    it('rejects invalid URL format', async () => {
-      const result = await validateUrl('not-a-url')
-      expect(result.ok).toBe(false)
-      expect(result.reason).toContain('Invalid URL')
-    })
+    it("rejects invalid URL format", async () => {
+      const result = await validateUrl("not-a-url");
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("Invalid URL");
+    });
 
-    it('accepts valid public HTTPS URL', async () => {
-      const result = await validateUrl('https://example.com')
-      expect(result.ok).toBe(true)
-    })
-  })
-})
+    it("accepts valid public HTTPS URL", async () => {
+      const result = await validateUrl("https://example.com");
+      expect(result.ok).toBe(true);
+    });
+  });
+});
 ```
 
 Run with: `yarn test tests/security/`
@@ -651,6 +675,7 @@ After deployment, monitor:
 ## Summary
 
 **Critical Security Controls:**
+
 1. ✅ SSRF protection via DNS resolution + private IP checks
 2. ✅ Protocol whitelist (HTTPS only in production)
 3. ✅ Response size limits (1MB max)

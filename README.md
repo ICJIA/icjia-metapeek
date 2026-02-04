@@ -46,11 +46,11 @@ MetaPeek helps you **find and fix these issues** before they hurt your reach:
 3. **Fix** — Copy ready-to-use HTML code to give to your developer
 4. **Fetch** — Enter any URL to analyze live websites, or paste HTML for offline analysis
 
-| Feature                    | MetaPeek            | Facebook Debugger | X/Twitter Validator |
-| -------------------------- | ------------------- | ----------------- | ------------------- |
-| Multi-platform preview     | ✅ All 7 platforms  | ❌ Facebook only  | ❌ X only           |
-| Live URL fetching          | ✅ Yes              | ✅ Yes            | ✅ Yes              |
-| Image dimension analysis   | ✅ All 7 platforms  | ✅ Yes            | ❌ No               |
+| Feature                    | MetaPeek             | Facebook Debugger | X/Twitter Validator |
+| -------------------------- | -------------------- | ----------------- | ------------------- |
+| Multi-platform preview     | ✅ All 7 platforms   | ❌ Facebook only  | ❌ X only           |
+| Live URL fetching          | ✅ Yes               | ✅ Yes            | ✅ Yes              |
+| Image dimension analysis   | ✅ All 7 platforms   | ✅ Yes            | ❌ No               |
 | Actionable code fixes      | ✅ Copy-paste ready  | ❌ Preview only   | ❌ Preview only     |
 | No account required        | ✅ Yes               | ❌ Requires login | ❌ Requires login   |
 | No rate limits             | ✅ Generous (30/min) | ⚠️ Limited        | ⚠️ Limited          |
@@ -63,16 +63,19 @@ MetaPeek helps you **find and fix these issues** before they hurt your reach:
 MetaPeek shows how your link will appear across **7 major platforms simultaneously:**
 
 **Social Media:**
+
 - 📘 **Facebook** — Feed posts with 1.91:1 images
 - 💼 **LinkedIn** — Professional network shares
 - 🐦 **X (Twitter)** — Summary cards with large images
 
 **Messaging:**
+
 - 📱 **WhatsApp** — World's most popular messaging app
 - 💬 **Slack** — Business communication link unfurls
 - 💭 **iMessage** — Apple ecosystem previews
 
 **Search:**
+
 - 🔍 **Google** — Search results and Discover cards
 
 Each preview component accurately mimics the platform's actual appearance, helping you **fix issues before sharing**.
@@ -126,10 +129,11 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 ### Phase 2 — Live URL Fetching & Platform Expansion ✅ Complete
 
 **URL Fetching:**
+
 - ✅ Enter URL and fetch HTML automatically
 - ✅ Netlify serverless function proxy with Nitro
 - ✅ SSRF protection and DNS validation
-- ✅ Rate limiting (30 requests/IP/minute)
+- ✅ Rate limiting (10 requests/IP/minute)
 - ✅ SPA detection with scoring system (5+ heuristics)
 - ✅ Redirect chain tracking (up to 5 redirects)
 - ✅ Shareable URLs (manual fetch, no auto-trigger)
@@ -137,6 +141,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - ✅ User-friendly error messages with suggestions
 
 **Platform Previews (7 Total):**
+
 - ✅ Google Search Results
 - ✅ Facebook Feed
 - ✅ LinkedIn Posts
@@ -146,12 +151,14 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - ✅ iMessage (NEW)
 
 **Image Analysis:**
+
 - ✅ Cross-platform compatibility check (all 7 platforms)
 - ✅ Dimension requirements per platform
 - ✅ Visual status indicators (optimal/acceptable/fail)
 - ✅ Integrated into scoring system (impacts overall score)
 
 **Quality Scoring System (NEW):**
+
 - ✅ Overall meta tag score (0-100 with letter grades A-F)
 - ✅ Weighted category scoring (7 categories with custom weights)
 - ✅ Brutal honesty: missing tags = 0 points, issues = 60 points, perfect = 100 points
@@ -321,6 +328,9 @@ icjia-metapeek/
 │   │   ├── useMetaParser.test.ts
 │   │   ├── useDiagnostics.test.ts
 │   │   └── tagDefaults.test.ts
+│   ├── security/            # Security tests (Phase 2) ✅
+│   │   ├── ssrf.test.ts         # SSRF protection tests (30 tests)
+│   │   └── proxy.test.ts        # Proxy utility tests (16 tests)
 │   └── e2e/                 # Playwright E2E tests
 │       └── accessibility.spec.ts
 ├── public/                  # Static assets
@@ -377,9 +387,10 @@ The app will be available at `http://localhost:3000`
    - Click "🌐 Fetch URL" toggle
    - Enter any URL (e.g., `https://github.com`)
    - Click "Fetch" to analyze live
-   - Rate limited: 30 requests per minute per IP
+   - Rate limited: 10 requests per minute per IP
 
 **Features:**
+
 - 11 platform previews update in real-time
 - Color-coded diagnostics show issues
 - Copy corrected HTML with one click
@@ -397,9 +408,10 @@ yarn generate        # Generate static site
 yarn preview         # Preview production build
 
 # Testing
-yarn test            # Run unit tests (verbose output)
-yarn test:all        # Run ALL tests (unit + accessibility)
+yarn test            # Run all unit + security tests (verbose output)
+yarn test:all        # Run ALL tests (unit + security + accessibility)
 yarn test:unit       # Run unit tests only
+yarn test:security   # Run security tests only (SSRF, proxy utilities)
 yarn test:watch      # Run tests in watch mode
 yarn test:coverage   # Generate coverage report
 yarn test:accessibility  # Run Playwright accessibility tests
@@ -570,28 +582,25 @@ const metapeekConfig = {
   proxy: {
     externalUrl: null, // Set to external URL to use different proxy
     userAgent: "MetaPeek/1.0 (+https://metapeek.icjia.app)",
-    fetchTimeoutMs: 10_000,        // 10 seconds
-    maxResponseBytes: 1_048_576,   // 1MB
+    fetchTimeoutMs: 10_000, // 10 seconds
+    maxResponseBytes: 1_048_576, // 1MB
     maxRedirects: 5,
     maxUrlLength: 2048,
-    allowHttpInDev: true,          // Allow HTTP in development
+    allowHttpInDev: true, // Allow HTTP in development
   },
   rateLimit: {
-    windowLimit: 30,               // 30 requests per window
-    windowSize: 60,                // 60 seconds = 1 minute
-    aggregateBy: ['ip', 'domain'], // Netlify aggregation
+    windowLimit: 10, // 10 requests per window (reduced for security)
+    windowSize: 60, // 60 seconds = 1 minute
+    aggregateBy: ["ip", "domain"], // Netlify aggregation
   },
   cors: {
-    allowedOrigins: [
-      'https://metapeek.icjia.app',
-      'http://localhost:3000',
-    ],
-    allowedMethods: ['POST'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedOrigins: ["https://metapeek.icjia.app", "http://localhost:3000"],
+    allowedMethods: ["POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   },
   diagnostics: {
-    flagNoindex: true,             // Warn if noindex present
-    flagNoFollow: true,            // Warn if nofollow present
+    flagNoindex: true, // Warn if noindex present
+    flagNoFollow: true, // Warn if nofollow present
   },
 };
 ```
@@ -627,6 +636,7 @@ git push origin main
 **Post-Deploy (Phase 2):**
 
 1. **Test live URL fetching:**
+
    ```bash
    curl -X POST https://metapeek.icjia.app/api/fetch \
      -H "Content-Type: application/json" \
@@ -663,6 +673,7 @@ git push origin main
 ### SSRF Protection ✅
 
 **Defense in depth approach:**
+
 - DNS resolution before fetch (blocks private IPs)
 - Private IP range blocking (RFC 1918, loopback, link-local)
 - Cloud metadata endpoint blocking (169.254.169.254)
@@ -673,6 +684,7 @@ git push origin main
 - Redirect validation (each redirect target is validated)
 
 **Blocked ranges:**
+
 - `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (private networks)
 - `127.0.0.0/8` (loopback)
 - `169.254.0.0/16` (link-local / cloud metadata)
@@ -681,7 +693,7 @@ git push origin main
 ### Rate Limiting ✅
 
 - **Netlify edge-level** rate limiting (enforced before function invocation)
-- **30 requests per minute per IP** (configurable in `metapeek.config.ts`)
+- **10 requests per minute per IP** (configurable in `metapeek.config.ts`)
 - Rate-limited requests return 429 and don't count as invocations
 - Paste-HTML mode always available (no rate limit)
 - Aggregation by IP and domain
@@ -711,12 +723,14 @@ See `documentation/security-testing-guide.md` for comprehensive test cases.
 Complete documentation is in the `documentation/` folder:
 
 **Core Documentation:**
+
 - **[Design Document](documentation/metapeek-design-doc-final.md)** — Complete technical specification for all phases
 - **[Pre-Launch Checklist](documentation/pre-launch-checklist.md)** — Required items for each phase
 - **[Testing Strategy](documentation/testing-strategy.md)** — Unit, integration, accessibility, and security tests
 - **[Accessibility Guidelines](documentation/accessibility-guidelines.md)** — WCAG 2.1 AA implementation
 
 **Phase-Specific Guides:**
+
 - **[Phase 1 Implementation Guide](documentation/phase-1-implementation-guide.md)** — Client-side MVP
 - **[Phase 2 Implementation Status](documentation/phase-2-implementation-status.md)** — Live URL fetching completion
 - **[Phase 2 Security Checklist](documentation/phase-2-security-checklist.md)** — SSRF protection & security layers
@@ -724,6 +738,7 @@ Complete documentation is in the `documentation/` folder:
 - **[Logging & Monitoring](documentation/logging-and-monitoring.md)** — Production logging strategy
 
 **Reference:**
+
 - **[Initial Dependencies](documentation/initial-package-json.md)** — Locked dependency versions
 
 Start with `documentation/README.md` for the full documentation index.

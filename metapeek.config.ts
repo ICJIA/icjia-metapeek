@@ -3,9 +3,10 @@
 const metapeekConfig = {
   // ── Identity ──────────────────────────────────────────────
   site: {
-    name: 'MetaPeek',
-    url: 'https://metapeek.icjia.app',         // canonical URL — used in CORS, User-Agent, og:url
-    description: 'Inspect, preview, and fix HTML meta tags and Open Graph markup.',
+    name: "MetaPeek",
+    url: "https://metapeek.icjia.app", // canonical URL — used in CORS, User-Agent, og:url
+    description:
+      "Inspect, preview, and fix HTML meta tags and Open Graph markup.",
   },
 
   // ── Proxy ─────────────────────────────────────────────────
@@ -15,31 +16,28 @@ const metapeekConfig = {
     // Set to a DigitalOcean URL (e.g. 'https://proxy.example.com/api/fetch') to use the DO proxy.
     externalUrl: null as string | null,
 
-    userAgent: 'MetaPeek/1.0 (+https://metapeek.icjia.app)',
-    fetchTimeoutMs: 10_000,                     // abort fetch after this long
-    maxResponseBytes: 1_048_576,                // 1MB — abort if response exceeds this
-    maxRedirects: 5,                            // follow up to N redirects
-    maxUrlLength: 2048,                         // reject URLs longer than this
-    allowHttpInDev: true,                       // allow http:// URLs in development mode
+    userAgent: "MetaPeek/1.0 (+https://metapeek.icjia.app)",
+    fetchTimeoutMs: 10_000, // abort fetch after this long
+    maxResponseBytes: 1_048_576, // 1MB — abort if response exceeds this
+    maxRedirects: 5, // follow up to N redirects
+    maxUrlLength: 2048, // reject URLs longer than this
+    allowHttpInDev: true, // allow http:// URLs in development mode
   },
 
   // ── Rate Limiting ─────────────────────────────────────────
   rateLimit: {
-    windowLimit: 30,                            // max requests per window per IP
-    windowSize: 60,                             // window duration in seconds
-    aggregateBy: ['ip', 'domain'] as const,     // Netlify rate limit aggregation
+    windowLimit: 10, // max requests per window per IP (reduced from 30 for security)
+    windowSize: 60, // window duration in seconds
+    aggregateBy: ["ip", "domain"] as const, // Netlify rate limit aggregation
   },
 
   // ── CORS ──────────────────────────────────────────────────
   cors: {
     // Origins allowed to call /api/fetch. The site URL is always included.
     // Add localhost origins for development.
-    allowedOrigins: [
-      'https://metapeek.icjia.app',
-      'http://localhost:3000',
-    ],
-    allowedMethods: ['POST'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedOrigins: ["https://metapeek.icjia.app", "http://localhost:3000"],
+    allowedMethods: ["POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   },
 
   // ── Favicon ───────────────────────────────────────────────
@@ -52,10 +50,10 @@ const metapeekConfig = {
 
   // ── Diagnostics ───────────────────────────────────────────
   diagnostics: {
-    flagNoindex: true,                          // warn if <meta name="robots" content="noindex"> is present
-    flagNoFollow: true,                         // warn if nofollow is present
+    flagNoindex: true, // warn if <meta name="robots" content="noindex"> is present
+    flagNoFollow: true, // warn if nofollow is present
   },
-} as const
+} as const;
 
-export default metapeekConfig
-export type MetaPeekConfig = typeof metapeekConfig
+export default metapeekConfig;
+export type MetaPeekConfig = typeof metapeekConfig;
