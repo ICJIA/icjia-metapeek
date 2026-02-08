@@ -756,6 +756,63 @@ const copyJsonToClipboard = () => {
   copyToClipboard(json, "json");
 };
 
+// Generate LLM-ready content for issues (Step 5): AI assessment + specific issues
+const generateLlmIssuesContent = (): string => {
+  if (!metaScore.value || !diagnostics.value) return "";
+
+  const score = metaScore.value;
+  const diag = diagnostics.value;
+
+  // AI assessment (preface)
+  let assessment = "";
+  if (score.totalIssues === 0) {
+    assessment = `## AI Assessment
+
+Your meta tag configuration received a score of ${score.overall}/100 (Grade: ${score.grade}). All meta tags are properly configured. Your links will display correctly when shared on social media platforms. No changes are required.
+
+## Specific Issues to Fix
+
+None. All checks passed.`;
+  } else {
+    const severity =
+      score.overall >= 90
+        ? "mostly minor"
+        : score.overall >= 70
+          ? "moderate"
+          : score.overall >= 50
+            ? "significant"
+            : "critical";
+    assessment = `## AI Assessment
+
+Based on the MetaPeek analysis, your meta tag configuration received a score of ${score.overall}/100 (Grade: ${score.grade}). There are ${score.totalIssues} ${score.totalIssues === 1 ? "issue" : "issues"} that ${severity === "critical" ? "require" : "would benefit from"} attention. These affect how your links appear when shared on Facebook, LinkedIn, X (Twitter), WhatsApp, Slack, iMessage, and in Google search results.
+
+Address each item below to improve your social sharing previews and SEO. The issues are ordered by impact (Open Graph and image tags have the highest weight).
+
+## Specific Issues to Fix
+
+`;
+  }
+
+  // Specific issues (from categories with issues)
+  const issuesList: string[] = [];
+  for (const [_key, category] of Object.entries(score.categories)) {
+    for (const issue of category.issues) {
+      issuesList.push(`- **${category.name}:** ${issue}`);
+    }
+  }
+
+  return (
+    assessment +
+    (issuesList.length > 0 ? issuesList.join("\n") + "\n" : "")
+  );
+};
+
+const copyLlmIssuesToClipboard = () => {
+  const content = generateLlmIssuesContent();
+  if (!content) return;
+  copyToClipboard(content, "llm-issues");
+};
+
 const exportAsHtml = () => {
   const data = generateExportData();
   if (!data) return;
@@ -1854,6 +1911,46 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                   Your pages will look great when shared on social media.
                 </p>
               </div>
+
+              <!-- LLM-ready copy block (Step 5) -->
+              <div class="mt-6 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Copy for AI assistant
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Paste this into ChatGPT, Claude, or another LLM to get help implementing fixes.
+                </p>
+                <pre
+                  class="p-4 rounded-lg bg-gray-900 dark:bg-gray-950 text-gray-100 text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-words mb-3"
+                >{{ generateLlmIssuesContent() }}</pre>
+                <div class="flex items-center gap-3">
+                  <UButton
+                    size="sm"
+                    variant="solid"
+                    color="primary"
+                    icon="i-heroicons-clipboard-document"
+                    @click="copyLlmIssuesToClipboard"
+                  >
+                    Copy to clipboard
+                  </UButton>
+                  <Transition
+                    enter-active-class="transition-all duration-200 ease-out"
+                    enter-from-class="opacity-0 translate-x-2"
+                    enter-to-class="opacity-100 translate-x-0"
+                    leave-active-class="transition-all duration-150 ease-in"
+                    leave-from-class="opacity-100 translate-x-0"
+                    leave-to-class="opacity-0 translate-x-2"
+                  >
+                    <span
+                      v-if="copiedState === 'llm-issues'"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-sm font-medium"
+                    >
+                      <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+                      Copied!
+                    </span>
+                  </Transition>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2237,7 +2334,13 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-sm font-medium"
                 >
                   <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
-                  {{ copiedState === "markdown" ? "Markdown" : "JSON" }} copied!
+                  {{
+                    copiedState === "llm-issues"
+                      ? "Issues copied!"
+                      : copiedState === "markdown"
+                        ? "Markdown copied!"
+                        : "JSON copied!"
+                  }}
                 </span>
               </Transition>
             </div>
