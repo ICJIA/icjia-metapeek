@@ -10,6 +10,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-green?style=flat)](https://www.w3.org/WAI/WCAG21/quickref/)
 
+![MetaPeek by ICJIA — Open Graph & Social Sharing Meta Tag Analyzer](public/og-image-v2.png)
+
 ---
 
 ## The Problem
