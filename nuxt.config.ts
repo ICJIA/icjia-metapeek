@@ -8,6 +8,12 @@ export default defineNuxtConfig({
 
   devtools: { enabled: false },
 
+  // Suppress @tailwindcss/vite sourcemap warnings during generate
+  sourcemap: {
+    server: false,
+    client: false,
+  },
+
   ssr: true, // MetaPeek practices what it preaches
 
   compatibilityDate: "2026-02-01",

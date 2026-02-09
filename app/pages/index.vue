@@ -156,6 +156,20 @@ const clearInput = () => {
   imageAnalysisResult.value = undefined;
 };
 
+// Full reset: clear everything, scroll to top
+const resetAll = () => {
+  inputHtml.value = "";
+  inputUrl.value = "";
+  parsedTags.value = null;
+  diagnostics.value = null;
+  hasAnalyzed.value = false;
+  spaDetectionResult.value = null;
+  imageAnalysisResult.value = undefined;
+  fetchStatus.reset();
+  activeTab.value = "diagnostics";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
 // URL Fetching (Phase 2)
 const handleFetchUrl = async () => {
   if (!inputUrl.value.trim()) return;
@@ -1703,11 +1717,21 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
       <!-- Step 4: Diagnostics & Code -->
       <div
         v-if="parsedTags && diagnostics"
-        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 bg-amber-50 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800"
+        :class="[
+          '-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 border-y',
+          diagnostics.overall.status === 'red'
+            ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800'
+            : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800',
+        ]"
       >
         <div class="flex items-center gap-4 mb-6">
           <div
-            class="flex items-center justify-center w-24 h-24 rounded-full bg-amber-600 text-white font-extrabold text-5xl shadow-xl ring-4 ring-amber-200 dark:ring-amber-800"
+            :class="[
+              'flex items-center justify-center w-24 h-24 rounded-full text-white font-extrabold text-5xl shadow-xl ring-4',
+              diagnostics.overall.status === 'red'
+                ? 'bg-red-600 ring-red-200 dark:ring-red-800'
+                : 'bg-emerald-600 ring-emerald-200 dark:ring-emerald-800',
+            ]"
           >
             4
           </div>
@@ -1722,7 +1746,14 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
         </div>
 
         <!-- Tab Navigation -->
-        <div class="border-b border-amber-200 dark:border-amber-800 mb-6">
+        <div
+          :class="[
+            'border-b mb-6',
+            diagnostics.overall.status === 'red'
+              ? 'border-red-200 dark:border-red-800'
+              : 'border-emerald-200 dark:border-emerald-800',
+          ]"
+        >
           <nav class="flex gap-6" aria-label="Results tabs">
             <button
               v-for="tab in tabs.filter((t) => t.value !== 'previews')"
@@ -2354,6 +2385,25 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             issues, and the original HTML source in a structured format that AI
             assistants can easily understand and act on.
           </p>
+
+          <!-- Reset button -->
+          <div
+            class="mt-8 pt-6 -mx-6 px-6 pb-6 border-t-2 border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-950/40 rounded-b-lg flex flex-col items-center text-center"
+          >
+            <UButton
+              size="xl"
+              variant="solid"
+              icon="i-heroicons-arrow-path"
+              aria-label="Reset and start over"
+              class="font-semibold shadow-lg bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
+              @click="resetAll"
+            >
+              Reset & Start Over
+            </UButton>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Clear everything and return to the top to start a new analysis
+            </p>
+          </div>
         </div>
       </div>
 
