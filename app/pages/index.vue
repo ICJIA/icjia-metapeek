@@ -19,7 +19,6 @@ const { generateDiagnostics } = useDiagnostics();
 const { computeScore } = useMetaScore();
 const { fetchUrl } = useFetchProxy();
 const fetchStatus = useFetchStatus();
-const { detectSpa } = useSpaDetection();
 
 // Fix orphaned ARIA live regions by moving them into a landmark
 onMounted(() => {
@@ -44,7 +43,6 @@ const parsedTags = ref<MetaTags | null>(null);
 const diagnostics = ref<Diagnostics | null>(null);
 const hasAnalyzed = ref(false);
 const activeTab = ref("diagnostics");
-const spaDetectionResult = ref<ReturnType<typeof detectSpa> | null>(null);
 const imageAnalysisResult = ref<ImageAnalysisResult | undefined>(undefined);
 
 // Compute meta tag score when diagnostics are available
@@ -87,12 +85,10 @@ watch(inputHtml, () => {
       // Clear old image analysis when HTML changes
       imageAnalysisResult.value = undefined;
       debouncedAnalyze();
-      spaDetectionResult.value = null; // Clear SPA detection for HTML mode
     } else {
       parsedTags.value = null;
       diagnostics.value = null;
       hasAnalyzed.value = false;
-      spaDetectionResult.value = null;
       imageAnalysisResult.value = undefined;
     }
   }
@@ -103,7 +99,6 @@ watch(inputMode, () => {
   parsedTags.value = null;
   diagnostics.value = null;
   hasAnalyzed.value = false;
-  spaDetectionResult.value = null;
   imageAnalysisResult.value = undefined;
   fetchStatus.reset();
 });
@@ -148,14 +143,6 @@ const loadSample = () => {
   }
 };
 
-const clearInput = () => {
-  inputHtml.value = "";
-  inputUrl.value = "";
-  fetchStatus.reset();
-  spaDetectionResult.value = null;
-  imageAnalysisResult.value = undefined;
-};
-
 // Full reset: clear everything, scroll to top
 const resetAll = () => {
   inputHtml.value = "";
@@ -163,7 +150,6 @@ const resetAll = () => {
   parsedTags.value = null;
   diagnostics.value = null;
   hasAnalyzed.value = false;
-  spaDetectionResult.value = null;
   imageAnalysisResult.value = undefined;
   fetchStatus.reset();
   activeTab.value = "diagnostics";
@@ -191,9 +177,6 @@ const handleFetchUrl = async () => {
     diagnostics.value = generateDiagnostics(tags, imageAnalysisResult.value);
     hasAnalyzed.value = true;
 
-    // Detect SPA
-    spaDetectionResult.value = detectSpa(response.bodySnippet, tags);
-
     // Complete
     fetchStatus.setComplete(response.timing);
   } catch (error: unknown) {
@@ -208,7 +191,6 @@ const handleFetchUrl = async () => {
     parsedTags.value = null;
     diagnostics.value = null;
     hasAnalyzed.value = false;
-    spaDetectionResult.value = null;
     imageAnalysisResult.value = undefined;
   }
 };
@@ -827,6 +809,20 @@ const copyLlmIssuesToClipboard = () => {
   copyToClipboard(content, "llm-issues");
 };
 
+const downloadLlmIssuesAs = (format: "md" | "txt") => {
+  const content = generateLlmIssuesContent();
+  if (!content) return;
+  const ext = format === "md" ? ".md" : ".txt";
+  const mime = format === "md" ? "text/markdown" : "text/plain";
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `metapeek-ai-assist${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 const exportAsHtml = () => {
   const data = generateExportData();
   if (!data) return;
@@ -1405,7 +1401,7 @@ const exportAsHtml = () => {
               variant="ghost"
               color="neutral"
               icon="i-heroicons-x-mark"
-              @click="clearInput"
+              @click="resetAll"
             >
               Clear
             </UButton>
@@ -1560,63 +1556,6 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
           >
             <UIcon name="i-heroicons-check-circle" class="w-5 h-5" />
             <span>Fetched in {{ fetchStatus.state.value.timing }}ms</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- SPA Warning Banner -->
-      <div
-        v-if="
-          spaDetectionResult?.isSPA && spaDetectionResult.confidence !== 'low'
-        "
-        role="alert"
-        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 bg-amber-50 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800"
-      >
-        <div class="flex gap-4">
-          <div class="flex-shrink-0">
-            <UIcon
-              name="i-heroicons-exclamation-triangle"
-              class="w-8 h-8 text-amber-600 dark:text-amber-400"
-            />
-          </div>
-          <div class="flex-1">
-            <h3
-              class="text-lg font-bold text-amber-900 dark:text-amber-100 mb-2"
-            >
-              ⚠️ Single-Page Application Detected
-              <span
-                class="text-sm font-normal text-amber-700 dark:text-amber-300"
-              >
-                ({{ spaDetectionResult.confidence }} confidence)
-              </span>
-            </h3>
-            <p class="text-amber-800 dark:text-amber-200 mb-3">
-              This page appears to be a single-page application. The HTML
-              returned by the server contains no meaningful content or meta
-              tags.
-              <strong
-                >Social platforms and search engines fetch HTML without
-                executing JavaScript</strong
-              >
-              — they will see an empty page.
-            </p>
-            <p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
-              <strong>Solutions:</strong> Consider server-side rendering (SSR),
-              static site generation (SSG), or injecting meta tags via server
-              middleware.
-            </p>
-            <details class="text-sm text-amber-700 dark:text-amber-300">
-              <summary
-                class="cursor-pointer font-medium hover:text-amber-900 dark:hover:text-amber-100"
-              >
-                Detection signals ({{ spaDetectionResult.score }} points)
-              </summary>
-              <ul class="mt-2 space-y-1 list-disc list-inside">
-                <li v-for="signal in spaDetectionResult.signals" :key="signal">
-                  {{ signal }}
-                </li>
-              </ul>
-            </details>
           </div>
         </div>
       </div>
@@ -1885,6 +1824,14 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                   Significant improvements needed for proper social sharing.
                 </template>
               </p>
+              <!-- Low-grade SPA hint: when grade is especially low, suggest it might be an SPA -->
+              <p
+                v-if="metaScore && (metaScore.grade === 'D' || metaScore.grade === 'F')"
+                class="mt-3 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 border border-amber-200 dark:border-amber-800"
+              >
+                <UIcon name="i-heroicons-light-bulb" class="inline-block w-4 h-4 mr-1 align-middle" />
+                If this grade is surprisingly low, your site might be a Single-Page Application (SPA). Social platforms fetch HTML without executing JavaScript—they may see an empty page. Try pasting the HTML from your app (View Page Source in the browser after the page loads) to see what meta tags are actually available.
+              </p>
             </div>
 
             <!-- Issues Summary -->
@@ -1954,7 +1901,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 <pre
                   class="p-4 rounded-lg bg-gray-900 dark:bg-gray-950 text-gray-100 text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-words mb-3"
                 >{{ generateLlmIssuesContent() }}</pre>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                   <UButton
                     size="sm"
                     variant="solid"
@@ -1963,6 +1910,24 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                     @click="copyLlmIssuesToClipboard"
                   >
                     Copy to clipboard
+                  </UButton>
+                  <UButton
+                    size="sm"
+                    variant="soft"
+                    color="neutral"
+                    icon="i-heroicons-arrow-down-tray"
+                    @click="downloadLlmIssuesAs('md')"
+                  >
+                    Download .md
+                  </UButton>
+                  <UButton
+                    size="sm"
+                    variant="soft"
+                    color="neutral"
+                    icon="i-heroicons-arrow-down-tray"
+                    @click="downloadLlmIssuesAs('txt')"
+                  >
+                    Download .txt
                   </UButton>
                   <Transition
                     enter-active-class="transition-all duration-200 ease-out"
