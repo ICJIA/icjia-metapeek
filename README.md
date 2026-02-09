@@ -2,7 +2,7 @@
 
 > Preview how your website appears when shared on social media — and fix any problems.
 
-**Live app:** [https://metapeek.icjia.pp](https://metapeek.icjia.pp)
+**Live app:** [https://metapeek.icjia.app](https://metapeek.icjia.app)
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/e2999615-35c5-44fa-8486-fc7c555c9916/deploy-status)](https://app.netlify.com/projects/clinquant-lily-1beabe/deploys)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
