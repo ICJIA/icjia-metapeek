@@ -51,6 +51,8 @@ const diagnostics = ref<Diagnostics | null>(null);
 const hasAnalyzed = ref(false);
 const activeTab = ref("diagnostics");
 const imageAnalysisResult = ref<ImageAnalysisResult | undefined>(undefined);
+/** Raw HTML that was parsed (from proxy head or pasted HTML) — for debug view */
+const rawHeadHtml = ref<string>("");
 
 // Compute meta tag score when diagnostics are available
 const metaScore = computed(() =>
@@ -75,6 +77,7 @@ const analyze = () => {
     imageAnalysisResult.value,
   );
   hasAnalyzed.value = true;
+  rawHeadHtml.value = extractHeadSection();
 };
 
 /**
@@ -103,6 +106,7 @@ watch(inputHtml, () => {
       diagnostics.value = null;
       hasAnalyzed.value = false;
       imageAnalysisResult.value = undefined;
+      rawHeadHtml.value = "";
     }
   }
 });
@@ -165,6 +169,7 @@ const resetAll = () => {
   diagnostics.value = null;
   hasAnalyzed.value = false;
   imageAnalysisResult.value = undefined;
+  rawHeadHtml.value = "";
   fetchStatus.reset();
   activeTab.value = "diagnostics";
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -193,6 +198,7 @@ const handleFetchUrl = async () => {
     parsedTags.value = tags;
     diagnostics.value = generateDiagnostics(tags, imageAnalysisResult.value);
     hasAnalyzed.value = true;
+    rawHeadHtml.value = response.head;
 
     // Complete
     fetchStatus.setComplete(response.timing);
@@ -209,6 +215,7 @@ const handleFetchUrl = async () => {
     diagnostics.value = null;
     hasAnalyzed.value = false;
     imageAnalysisResult.value = undefined;
+    rawHeadHtml.value = "";
   }
 };
 
@@ -1612,6 +1619,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             <span>Fetched in {{ fetchStatus.state.value.timing }}ms</span>
           </div>
         </div>
+
       </div>
 
       <!-- Step 2: Image Analysis - Right after Step 1 -->
@@ -2404,6 +2412,30 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             issues, and the original HTML source in a structured format that AI
             assistants can easily understand and act on.
           </p>
+
+          <!-- Raw HTML Debug (collapsible) -->
+          <details class="mt-6 group">
+            <summary
+              class="cursor-pointer list-none flex items-center justify-between font-medium text-gray-700 dark:text-gray-300 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <span class="flex items-center gap-2">
+                <UIcon name="i-heroicons-bug-ant" class="w-4 h-4" />
+                Raw HTML debug
+              </span>
+              <UIcon
+                name="i-heroicons-chevron-down"
+                class="w-5 h-5 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div class="mt-2 p-3 rounded-lg bg-gray-900 dark:bg-gray-950 border border-gray-700">
+              <p class="text-xs text-gray-400 mb-2">
+                The actual <code>&lt;head&gt;</code> content that was parsed. Useful for debugging when results seem wrong.
+              </p>
+              <pre
+                class="text-xs font-mono text-gray-300 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all"
+              >{{ rawHeadHtml }}</pre>
+            </div>
+          </details>
 
           <!-- Reset button -->
           <div

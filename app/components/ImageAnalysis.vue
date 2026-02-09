@@ -208,6 +208,13 @@ const overallStatus = computed(() => {
   if (statuses.every((s) => s !== "fail")) return "acceptable";
   return "issues";
 });
+
+// Crop preview specs: aspect ratio for each platform
+const cropSpecs = [
+  { label: "Facebook (1.91:1)", aspect: "1.91/1" },
+  { label: "Twitter large (2:1)", aspect: "2/1" },
+  { label: "Twitter summary (1:1)", aspect: "1" },
+];
 </script>
 
 <template>
@@ -386,6 +393,46 @@ const overallStatus = computed(() => {
               </p>
             </div>
           </div>
+
+          <!-- Crop overlays (collapsible) -->
+          <details
+            v-if="imageInfo.width && imageInfo.height"
+            class="border-t border-gray-100 dark:border-gray-800 pt-5 mt-5 group"
+          >
+            <summary
+              class="cursor-pointer list-none flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3"
+            >
+              <span>Show crop previews</span>
+              <UIcon
+                name="i-heroicons-chevron-down"
+                class="w-4 h-4 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              How each platform would crop your image:
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div
+                v-for="crop in cropSpecs"
+                :key="crop.label"
+                class="text-center"
+              >
+                <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {{ crop.label }}
+                </p>
+                <div
+                  class="rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                  :style="{ aspectRatio: crop.aspect }"
+                >
+                  <img
+                    :src="imageUrl"
+                    :alt="`Crop preview: ${crop.label}`"
+                    class="w-full h-full object-cover object-center"
+                  >
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </div>

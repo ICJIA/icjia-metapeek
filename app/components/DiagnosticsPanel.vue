@@ -192,6 +192,20 @@ const hasStructuredData = computed(
 const formatJsonLd = (data: Record<string, unknown>) => {
   return JSON.stringify(data, null, 2);
 };
+
+// Basic schema.org validation: @context, @type, and minimum structure
+const validateStructuredData = (schema: Record<string, unknown>) => {
+  const issues: string[] = [];
+  if (!schema["@context"]) issues.push("Missing @context");
+  if (!schema["@type"]) issues.push("Missing @type");
+  if (typeof schema["@type"] !== "string" && !Array.isArray(schema["@type"])) {
+    issues.push("@type should be a string or array");
+  }
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+};
 </script>
 
 <template>
@@ -785,41 +799,64 @@ const formatJsonLd = (data: Record<string, unknown>) => {
           </div>
         </div>
 
-        <!-- Structured Data (JSON-LD) -->
+        <!-- Structured Data (JSON-LD) - collapsible -->
         <div
           v-if="hasStructuredData"
           class="px-4 py-4 bg-white dark:bg-gray-900"
         >
-          <div class="flex items-center gap-2 mb-3">
-            <UIcon
-              name="i-heroicons-code-bracket"
-              class="w-5 h-5 text-purple-600"
-            />
-            <span class="font-medium text-gray-900 dark:text-gray-100"
-              >Structured Data (JSON-LD)</span
+          <details class="group">
+            <summary
+              class="cursor-pointer list-none flex items-center justify-between gap-2"
             >
-            <UBadge size="xs" variant="subtle" color="primary">
-              {{ tags?.structuredData?.length }}
-              {{ tags?.structuredData?.length === 1 ? "schema" : "schemas" }}
-            </UBadge>
-          </div>
-          <div class="space-y-2">
-            <div
-              v-for="(schema, index) in tags?.structuredData"
-              :key="index"
-              class="p-3 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-            >
-              <div class="flex items-center gap-2 mb-2">
-                <UBadge size="xs" variant="outline" color="neutral">
-                  {{ schema["@type"] || "Unknown Type" }}
+              <div class="flex items-center gap-2">
+                <UIcon
+                  name="i-heroicons-code-bracket"
+                  class="w-5 h-5 text-purple-600"
+                />
+                <span class="font-medium text-gray-900 dark:text-gray-100">
+                  Structured Data (JSON-LD)
+                </span>
+                <UBadge size="xs" variant="subtle" color="primary">
+                  {{ tags?.structuredData?.length }}
+                  {{ tags?.structuredData?.length === 1 ? "schema" : "schemas" }}
                 </UBadge>
               </div>
-              <pre
-                class="text-xs font-mono text-gray-700 dark:text-gray-300 overflow-x-auto max-h-40 whitespace-pre-wrap break-all"
-                >{{ formatJsonLd(schema) }}</pre
+              <UIcon
+                name="i-heroicons-chevron-down"
+                class="w-5 h-5 text-gray-400 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="(schema, index) in tags?.structuredData"
+                :key="index"
+                class="p-3 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
               >
+                <div class="flex items-center justify-between gap-2 mb-2">
+                  <UBadge size="xs" variant="outline" color="neutral">
+                    {{ schema["@type"] || "Unknown Type" }}
+                  </UBadge>
+                  <span
+                    v-if="validateStructuredData(schema).valid"
+                    class="text-xs text-emerald-600 dark:text-emerald-400"
+                  >
+                    ✓ Valid
+                  </span>
+                  <span
+                    v-else
+                    class="text-xs text-amber-600 dark:text-amber-400"
+                    :title="validateStructuredData(schema).issues.join(', ')"
+                  >
+                    ⚠ {{ validateStructuredData(schema).issues[0] }}
+                  </span>
+                </div>
+                <pre
+                  class="text-xs font-mono text-gray-700 dark:text-gray-300 overflow-x-auto max-h-40 whitespace-pre-wrap break-all"
+                >{{ formatJsonLd(schema) }}</pre
+                >
+              </div>
             </div>
-          </div>
+          </details>
         </div>
       </div>
     </div>

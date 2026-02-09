@@ -124,7 +124,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 - ✅ Paste HTML and parse instantly (< 100ms)
 - ✅ Extract all meta tags, Open Graph, X/Twitter Cards, JSON-LD
-- ✅ Render accurate platform previews (5 platforms)
+- ✅ Render accurate platform previews (7 platforms)
 - ✅ Diagnostics panel with color-coded status
 - ✅ Code generator with editable output
 - ✅ WCAG 2.1 AA compliant from day one
@@ -185,13 +185,12 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 6. **Trailing Slash Validation** — Catches SEO-harming inconsistencies between canonical and og:url (e.g., `/page` vs `/page/`). Includes educational explanations about why this matters for search engine ranking.
 
-### Phase 3 — Polish & Power Features 📋
+### Phase 3 — Polish & Power Features ✅ Complete
 
 - ✅ Export as JSON/Markdown/HTML with complete analysis and scores
-- [ ] OG image analysis with crop overlays
-- [ ] Structured data viewer with schema.org validation
-- [ ] Diff/compare mode (before/after verification)
-- [ ] Raw HTML debug view
+- ✅ OG image crop overlays (toggle in Image Analysis — show how platforms crop)
+- ✅ Structured data viewer (collapsible in Diagnostics — JSON-LD + schema.org basics)
+- ✅ Raw HTML debug view (collapsible in Export — actual parsed `<head>`)
 
 ---
 
@@ -318,10 +317,12 @@ icjia-metapeek/
 │   ├── testing-strategy.md
 │   ├── accessibility-guidelines.md
 │   ├── phase-1-implementation-guide.md
-│   ├── phase-2-security-checklist.md      # Phase 2 ✅
-│   ├── phase-2-implementation-status.md   # Phase 2 ✅
-│   ├── security-testing-guide.md          # Phase 2 ✅
-│   ├── logging-and-monitoring.md          # Phase 2 ✅
+│   ├── phase-2-implementation-status.md
+│   ├── phase-2-security-checklist.md
+│   ├── phase-2-security-implementation.md
+│   ├── phase-3-implementation-status.md
+│   ├── security-testing-guide.md
+│   ├── logging-and-monitoring.md
 │   └── initial-package-json.md
 ├── tests/                   # Test suites
 │   ├── unit/                # Vitest unit tests
@@ -389,6 +390,24 @@ The app will be available at `http://localhost:3000`
    - Enter any URL (e.g., `https://github.com`)
    - Click "Fetch" to analyze live
    - Rate limited: 10 requests per minute per IP
+
+---
+
+**Step-by-step workflow:**
+
+1. **Analyze Your Meta Tags** — Paste HTML or fetch a URL.
+
+2. **Image Size Check** — See if your og:image meets platform requirements. Expand "Show crop previews" to see how Facebook (1.91:1), Twitter large (2:1), and Twitter summary (1:1) would crop your image.
+
+3. **Platform Preview** — View how your link appears on Google, Facebook, LinkedIn, X, WhatsApp, Slack, and iMessage.
+
+4. **Meta Results and Suggestions** — Diagnostics tab with color-coded status; Code tab with copyable HTML. Expand "Structured Data (JSON-LD)" in the diagnostics to check JSON-LD and basic schema.org validation.
+
+5. **Overall Meta Tag Score** — 0–100 score with letter grade (A–F), category breakdown, and copy-ready issues for AI assistants.
+
+6. **Export Results** — Download JSON, Markdown, or HTML report. Expand "Raw HTML debug" to see the actual parsed `<head>` (useful when results seem wrong).
+
+---
 
 **Features:**
 
@@ -519,13 +538,14 @@ export default defineNuxtConfig({
 
 ## Development Workflow
 
-### Phase 1 (Current)
+### Current State
 
-1. Read `documentation/metapeek-design-doc-final.md` (sections 1-7)
-2. Follow `documentation/phase-1-implementation-guide.md`
-3. Reference `documentation/accessibility-guidelines.md` for every component
-4. Check off items in `documentation/pre-launch-checklist.md`
-5. Run accessibility audit before considering any component complete
+All three phases are complete. For ongoing development:
+
+1. Read `documentation/metapeek-design-doc-final.md` for design decisions
+2. Reference `documentation/accessibility-guidelines.md` for every component
+3. Check `documentation/phase-2-implementation-status.md` and `documentation/phase-3-implementation-status.md` for current feature status
+4. Run accessibility audit before considering any component complete
 
 ### Testing Requirements
 
@@ -739,6 +759,7 @@ Complete documentation is in the `documentation/` folder:
 - **[Phase 1 Implementation Guide](documentation/phase-1-implementation-guide.md)** — Client-side MVP
 - **[Phase 2 Implementation Status](documentation/phase-2-implementation-status.md)** — Live URL fetching completion
 - **[Phase 2 Security Checklist](documentation/phase-2-security-checklist.md)** — SSRF protection & security layers
+- **[Phase 3 Implementation Status](documentation/phase-3-implementation-status.md)** — Polish & power features
 - **[Security Testing Guide](documentation/security-testing-guide.md)** — Comprehensive security test cases
 - **[Logging & Monitoring](documentation/logging-and-monitoring.md)** — Production logging strategy
 
