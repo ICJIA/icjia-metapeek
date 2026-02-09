@@ -55,9 +55,8 @@ MetaPeek helps you **find and fix these issues** before they hurt your reach:
 | Image dimension analysis   | ✅ All 7 platforms   | ✅ Yes            | ❌ No               |
 | Actionable code fixes      | ✅ Copy-paste ready  | ❌ Preview only   | ❌ Preview only     |
 | No account required        | ✅ Yes               | ❌ Requires login | ❌ Requires login   |
-| No rate limits             | ✅ Generous (30/min) | ⚠️ Limited        | ⚠️ Limited          |
+| No rate limits             | ✅ Generous (10/min) | ⚠️ Limited        | ⚠️ Limited          |
 | Works offline (paste mode) | ✅ Yes               | ❌ No             | ❌ No               |
-| SPA detection              | ✅ Yes               | ❌ No             | ❌ No               |
 | Ad-free                    | ✅ Yes               | ⚠️ Meta ecosystem | ⚠️ X ecosystem      |
 
 ### Platform Previews
@@ -136,7 +135,6 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - ✅ Netlify serverless function proxy with Nitro
 - ✅ SSRF protection and DNS validation
 - ✅ Rate limiting (10 requests/IP/minute)
-- ✅ SPA detection with scoring system (5+ heuristics)
 - ✅ Redirect chain tracking (up to 5 redirects)
 - ✅ Shareable URLs (manual fetch, no auto-trigger)
 - ✅ Progressive status feedback (neutral → amber → red)
@@ -175,17 +173,15 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 1. **Quality Scoring System** — Get an overall meta tag quality score (0-100) with letter grades (A-F). Uses weighted categories (Open Graph 25%, OG Image 20%, etc.) with brutal honesty: missing tags = 0 points. Image dimensions are validated and integrated into scoring. Includes Lighthouse-style methodology explanations and specific action items.
 
-2. **SPA Detection** — Warns if your single-page app (React/Vue/Angular) won't work with social platforms because meta tags aren't in server-rendered HTML. Balanced detection distinguishes true SPAs from static sites with hydration (SSG/SSR). Includes confidence scoring and specific signals.
+2. **Security-First** — Enterprise-grade SSRF protection prevents abuse while maintaining usability. DNS validation, private IP blocking, and rate limiting at the edge.
 
-3. **Security-First** — Enterprise-grade SSRF protection prevents abuse while maintaining usability. DNS validation, private IP blocking, and rate limiting at the edge.
+3. **No Account Required** — Unlike platform-specific debuggers (Facebook, Twitter), MetaPeek works without login. Enter any URL and analyze instantly.
 
-4. **No Account Required** — Unlike platform-specific debuggers (Facebook, Twitter), MetaPeek works without login. Enter any URL and analyze instantly.
+4. **Dual Mode** — Switch between URL fetching and HTML pasting. Great for testing before deployment or analyzing sites behind authentication.
 
-5. **Dual Mode** — Switch between URL fetching and HTML pasting. Great for testing before deployment or analyzing sites behind authentication.
+5. **Progressive Feedback** — Real-time status updates during fetch with color-coded urgency (neutral → amber → red as time elapses).
 
-6. **Progressive Feedback** — Real-time status updates during fetch with color-coded urgency (neutral → amber → red as time elapses).
-
-7. **Trailing Slash Validation** — Catches SEO-harming inconsistencies between canonical and og:url (e.g., `/page` vs `/page/`). Includes educational explanations about why this matters for search engine ranking.
+6. **Trailing Slash Validation** — Catches SEO-harming inconsistencies between canonical and og:url (e.g., `/page` vs `/page/`). Includes educational explanations about why this matters for search engine ranking.
 
 ### Phase 3 — Polish & Power Features 📋
 
@@ -226,7 +222,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 ### Parsing & Data
 
 - **[DOMParser](https://developer.mozilla.org/en-US/docs/Web/API/DOMParser)** (native) — Client-side HTML parsing
-- **[cheerio](https://cheerio.js.org/)** — Server-side HTML parsing for proxy
+- **Regex extraction** — Server-side head/body extraction in `server/utils/proxy.ts` (no DOM parser)
 
 ### Testing & Quality
 
@@ -299,8 +295,7 @@ icjia-metapeek/
 │   │   ├── useDiagnostics.ts
 │   │   ├── useMetaScore.ts      # Phase 2 ✅ - Quality scoring system
 │   │   ├── useFetchProxy.ts     # Phase 2 ✅
-│   │   ├── useFetchStatus.ts    # Phase 2 ✅
-│   │   └── useSpaDetection.ts   # Phase 2 ✅
+│   │   └── useFetchStatus.ts    # Phase 2 ✅
 │   ├── pages/
 │   │   └── index.vue        # Single-page application
 │   ├── types/
@@ -395,12 +390,11 @@ The app will be available at `http://localhost:3000`
 
 **Features:**
 
-- 11 platform previews update in real-time
+- 7 platform previews update in real-time
 - Color-coded diagnostics show issues
 - Copy corrected HTML with one click
 - Export analysis as JSON/Markdown/HTML
 - Image compatibility check across all platforms
-- SPA detection warns if meta tags won't work
 
 ### Available Scripts
 
@@ -430,9 +424,9 @@ yarn lint:fix        # Auto-fix linting issues
 
 ### Test Output
 
-Running `yarn test:all` produces verbose output showing each test:
+ Running `yarn test:all` produces verbose output showing each test:
 
-**Unit Tests (88 tests)** — Vitest with verbose reporter
+**Unit & Security Tests (139 tests)** — Vitest with verbose reporter
 
 ```
 ✓ tagDefaults > generateDefaultTags > title generation > uses og:title when available
@@ -654,7 +648,7 @@ git push origin main
 
 2. **Verify rate limiting:**
 
-   - Test 31 requests rapidly (should return 429 on last request)
+   - Test 11 requests rapidly (11th should return 429; limit is 10/min)
    - Confirm rate-limited requests don't count as invocations
 
 3. **Test SSRF protection:**
@@ -674,10 +668,6 @@ git push origin main
    - Use VPN or proxy to test from different geolocations
    - Verify CORS headers work correctly
    - Test with various real-world URLs
-
-6. **SPA detection:**
-   - Test with React/Vue SPAs to verify warning appears
-   - Verify scoring system works correctly
 
 ---
 

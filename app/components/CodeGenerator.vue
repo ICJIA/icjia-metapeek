@@ -1,6 +1,14 @@
 <script setup lang="ts">
+/**
+ * @fileoverview Code generator with editable output. Generates HTML from meta tags,
+ * supports copy-paste and live editing. Uses tagDefaults for generated markup.
+ *
+ * @module components/CodeGenerator
+ */
+
 import type { MetaTags } from '~/types/meta'
 
+/** Props: parsed meta tags to generate HTML from */
 interface Props {
   tags: MetaTags
 }
@@ -157,6 +165,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (char) => map[char] || char)
 }
 
+/** Copies generated HTML to clipboard. Shows toast on success or failure. */
 const copyToClipboard = async () => {
   try {
     await navigator.clipboard.writeText(generatedHtml.value)
@@ -165,7 +174,7 @@ const copyToClipboard = async () => {
       title: 'Copied to clipboard',
       icon: 'i-heroicons-check-circle',
       color: 'success',
-      timeout: 2000
+      duration: 2000
     })
     setTimeout(() => { copied.value = false }, 2000)
   } catch {
@@ -173,7 +182,7 @@ const copyToClipboard = async () => {
       title: 'Failed to copy',
       icon: 'i-heroicons-x-circle',
       color: 'error',
-      timeout: 3000
+      duration: 3000
     })
   }
 }
@@ -182,13 +191,14 @@ const toggleEdit = () => {
   isEditing.value = !isEditing.value
 }
 
+/** Resets editable values to original parsed tags. */
 const resetToOriginal = () => {
   initializeValues()
   toast.add({
     title: 'Reset to original values',
     icon: 'i-heroicons-arrow-path',
     color: 'neutral',
-    timeout: 2000
+    duration: 2000
   })
 }
 

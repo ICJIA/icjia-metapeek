@@ -1,16 +1,28 @@
-// server/utils/proxy.ts
-// SSRF Protection and Security Utilities
+/**
+ * @fileoverview SSRF protection and security utilities for the MetaPeek proxy.
+ * Validates URLs before fetching, blocks private/internal addresses, and extracts
+ * safe HTML snippets from fetched responses.
+ *
+ * @module server/utils/proxy
+ */
 
 import { URL } from "node:url";
 import dns from "node:dns/promises";
 import metapeekConfig from "../../metapeek.config";
 
+/**
+ * Result of URL validation. Contains success flag and optional failure reason.
+ */
 export interface ValidationResult {
+  /** Whether the URL passed all security checks */
   ok: boolean;
+  /** Human-readable reason when validation fails */
   reason?: string;
 }
 
-// Blocked hostnames - prevent access to internal services
+/**
+ * Hostnames blocked for security. Prevents access to internal/cloud metadata services.
+ */
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "127.0.0.1",
@@ -21,12 +33,16 @@ const BLOCKED_HOSTNAMES = new Set([
 ]);
 
 /**
- * Validates a URL for security before fetching.
- * Protects against SSRF by checking:
- * 1. URL format and structure
- * 2. Protocol whitelist (HTTPS only in production)
- * 3. Blocked hostnames
- * 4. DNS resolution to detect private IPs
+ * Validates a URL for security before fetching. Protects against SSRF attacks.
+ *
+ * @param input - The URL string to validate
+ * @returns Promise resolving to ValidationResult with ok/reason
+ *
+ * Checks performed:
+ * 1. URL format and structure (must parse as valid URL)
+ * 2. Protocol whitelist (HTTPS only in production, HTTP allowed in dev)
+ * 3. Blocked hostnames (localhost, metadata endpoints, etc.)
+ * 4. DNS resolution to detect private IPs (RFC 1918, loopback, link-local)
  */
 export async function validateUrl(input: string): Promise<ValidationResult> {
   // Must be a non-empty string
@@ -122,12 +138,12 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
 }
 
 /**
- * Checks if an IP address is in a private/reserved range.
- * Blocks access to:
- * - RFC 1918 private networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
- * - Loopback (127.0.0.0/8)
- * - Link-local (169.254.0.0/16) - includes cloud metadata endpoints
- * - Invalid/reserved (0.0.0.0/8)
+ * Checks if an IPv4 address is in a private or reserved range.
+ *
+ * @param ip - IPv4 address string (e.g., "192.168.1.1")
+ * @returns true if the IP should be blocked (private/reserved/invalid)
+ *
+ * Blocks: RFC 1918 private, loopback, link-local (cloud metadata), multicast, reserved.
  */
 export function isPrivateIp(ip: string): boolean {
   const parts = ip.split(".").map(Number);
@@ -137,7 +153,8 @@ export function isPrivateIp(ip: string): boolean {
     return true; // Treat invalid IPs as private (block them)
   }
 
-  const [a, b] = parts;
+  const a = parts[0]!;
+  const b = parts[1]!;
 
   // 10.0.0.0/8 - Private network
   if (a === 10) return true;
@@ -167,13 +184,13 @@ export function isPrivateIp(ip: string): boolean {
 }
 
 /**
- * Checks if an IPv6 address is in a private/reserved range.
- * Blocks access to:
- * - Loopback (::1)
- * - Unique local addresses (fc00::/7) - IPv6 equivalent of RFC 1918
- * - Link-local (fe80::/10)
- * - Multicast (ff00::/8)
- * - IPv4-mapped IPv6 addresses that resolve to private IPv4
+ * Checks if an IPv6 address is in a private or reserved range.
+ *
+ * @param ip - IPv6 address string (e.g., "::1" or "fe80::1")
+ * @returns true if the IP should be blocked (private/reserved)
+ *
+ * Blocks: loopback (::1), ULA (fc00::/7), link-local (fe80::/10),
+ * multicast (ff00::/8), IPv4-mapped, and unspecified (::).
  */
 export function isPrivateIpv6(ip: string): boolean {
   const normalized = ip.toLowerCase().trim();
@@ -184,7 +201,7 @@ export function isPrivateIpv6(ip: string): boolean {
   }
 
   // Remove zone identifier if present (e.g., fe80::1%eth0 -> fe80::1)
-  const withoutZone = normalized.split("%")[0];
+  const withoutZone = normalized.split("%")[0] ?? normalized;
 
   // Expand IPv6 address for easier checking
   // This is a simplified check - we'll check prefixes
@@ -236,14 +253,19 @@ export function isPrivateIpv6(ip: string): boolean {
 }
 
 /**
- * Extracts the <head> section from HTML string.
- * Strips all <script> tags except JSON-LD for security.
+ * Extracts the &lt;head&gt; section from HTML and strips executable scripts.
+ *
+ * @param html - Full HTML document string
+ * @returns The head content with script tags removed (except JSON-LD)
+ *
+ * Preserves application/ld+json structured data. Removes all other script tags
+ * to prevent execution of any JavaScript from fetched pages.
  */
 export function extractHead(html: string): string {
   const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
   if (!headMatch) return "";
 
-  let head = headMatch[1];
+  let head = headMatch[1] ?? "";
 
   // Remove all script tags EXCEPT application/ld+json (structured data)
   // This prevents execution of any JavaScript from fetched pages
@@ -256,8 +278,14 @@ export function extractHead(html: string): string {
 }
 
 /**
- * Extracts the first ~1KB of <body> content for SPA detection.
- * Enough to detect single mount divs but not entire body.
+ * Extracts the first portion of &lt;body&gt; content from HTML.
+ *
+ * @param html - Full HTML document string
+ * @param maxLength - Maximum characters to return (default 1024)
+ * @returns Body content truncated to maxLength, or empty string if no body
+ *
+ * Used to return a compact body snippet to the client without transferring
+ * potentially large HTML payloads.
  */
 export function extractBodySnippet(
   html: string,
@@ -266,13 +294,18 @@ export function extractBodySnippet(
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
   if (!bodyMatch) return "";
 
-  const body = bodyMatch[1];
+  const body = bodyMatch[1] ?? "";
   return body.substring(0, maxLength);
 }
 
 /**
- * Sanitizes error messages before sending to client.
- * Prevents information leakage about internal infrastructure.
+ * Sanitizes error messages before sending to the client.
+ *
+ * @param error - Caught error (Error instance or unknown)
+ * @returns Safe, generic message suitable for client display
+ *
+ * Maps internal error codes (ENOTFOUND, ECONNREFUSED, etc.) to user-friendly
+ * messages. Prevents leakage of stack traces, file paths, or internal details.
  */
 export function sanitizeErrorMessage(error: unknown): string {
   if (error instanceof Error) {

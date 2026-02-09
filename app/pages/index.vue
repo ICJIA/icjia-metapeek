@@ -1,10 +1,16 @@
 <script setup lang="ts">
+/**
+ * @fileoverview MetaPeek main page. Handles input (paste HTML or fetch URL),
+ * analysis, previews, diagnostics, scoring, and export (JSON/MD/HTML).
+ *
+ * Two input modes: Paste HTML (client-side parse) or Fetch URL (server proxy).
+ */
+
 import type { MetaTags, Diagnostics } from "~/types/meta";
 
-// Import image analysis result type
 import type { ImageAnalysisResult } from "~/composables/useDiagnostics";
 
-// OG Image for social sharing (Nuxt SEO) — static image in public/
+/** OG Image for social sharing (Nuxt SEO) — static image in public/ */
 defineOgImage({
   url: "/og-image-v2.png",
   alt: "MetaPeek - Open Graph & Social Sharing Meta Tag Analyzer by ICJIA",
@@ -14,6 +20,7 @@ defineOgImage({
 
 const colorMode = useColorMode();
 const route = useRoute();
+const toast = useToast();
 const { parseMetaTags } = useMetaParser();
 const { generateDiagnostics } = useDiagnostics();
 const { computeScore } = useMetaScore();
@@ -50,6 +57,9 @@ const metaScore = computed(() =>
   diagnostics.value ? computeScore(diagnostics.value) : null,
 );
 
+/**
+ * Parses input HTML and generates diagnostics. Called on paste (debounced) or programmatically.
+ */
 const analyze = () => {
   if (!inputHtml.value.trim()) {
     parsedTags.value = null;
@@ -67,7 +77,10 @@ const analyze = () => {
   hasAnalyzed.value = true;
 };
 
-// Handle image analysis completion
+/**
+ * Called when ImageAnalysis completes. Updates diagnostics with dimension data.
+ * @param result - Width, height, and overall status from image fetch
+ */
 const handleImageAnalysisComplete = (result: ImageAnalysisResult) => {
   imageAnalysisResult.value = result;
 
@@ -135,6 +148,7 @@ const sampleHtml = `<!DOCTYPE html>
 </body>
 </html>`;
 
+/** Loads sample HTML (GitHub) or sample URL based on current input mode. */
 const loadSample = () => {
   if (inputMode.value === "html") {
     inputHtml.value = sampleHtml;
@@ -143,7 +157,7 @@ const loadSample = () => {
   }
 };
 
-// Full reset: clear everything, scroll to top
+/** Clears all input, results, and state; scrolls to top. */
 const resetAll = () => {
   inputHtml.value = "";
   inputUrl.value = "";
@@ -156,7 +170,10 @@ const resetAll = () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
-// URL Fetching (Phase 2)
+/**
+ * Fetches URL via proxy, parses meta tags, and updates diagnostics.
+ * Handles errors via fetchStatus.setError for user-friendly display.
+ */
 const handleFetchUrl = async () => {
   if (!inputUrl.value.trim()) return;
 
@@ -205,7 +222,12 @@ onMounted(() => {
   }
 });
 
-// Helper to resolve relative URLs to absolute using og:url or canonical as base
+/**
+ * Resolves relative URLs to absolute using a base URL (og:url or canonical).
+ * @param relativeUrl - Path or relative URL to resolve
+ * @param baseUrl - Base URL for resolution
+ * @returns Absolute URL or undefined if invalid
+ */
 const resolveUrl = (
   relativeUrl: string | undefined,
   baseUrl: string | undefined,
@@ -242,7 +264,12 @@ const tabs = [
   { label: "Code", value: "code", icon: "i-heroicons-code-bracket" },
 ];
 
-// Export functionality
+/**
+ * Triggers browser download of content as file.
+ * @param content - File content (string)
+ * @param filename - Suggested filename
+ * @param mimeType - MIME type for the Blob
+ */
 const downloadFile = (content: string, filename: string, mimeType: string) => {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -255,8 +282,14 @@ const downloadFile = (content: string, filename: string, mimeType: string) => {
   URL.revokeObjectURL(url);
 };
 
-// Clipboard copy with notification
+/** Tracks which content was last copied (for "Copied!" feedback). */
 const copiedState = ref<string | null>(null);
+
+/**
+ * Copies content to clipboard. Shows toast on failure (e.g. non-HTTPS).
+ * @param content - Text to copy
+ * @param type - Key for copiedState (e.g. "llm-issues", "json")
+ */
 const copyToClipboard = async (content: string, type: string) => {
   try {
     await navigator.clipboard.writeText(content);
@@ -264,12 +297,22 @@ const copyToClipboard = async (content: string, type: string) => {
     setTimeout(() => {
       copiedState.value = null;
     }, 2000);
-  } catch (err) {
-    console.error("Failed to copy:", err);
+  } catch {
+    toast.add({
+      title: "Failed to copy",
+      description:
+        "Clipboard access was denied. Try selecting the text and copying manually.",
+      icon: "i-heroicons-x-circle",
+      color: "error",
+      duration: 4000,
+    });
   }
 };
 
-// Extract head section from HTML for reference
+/**
+ * Extracts &lt;head&gt; section from input HTML for export reference.
+ * Falls back to full input if no head tag (e.g. meta-only paste).
+ */
 const extractHeadSection = () => {
   const html = inputHtml.value;
   const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
@@ -280,6 +323,10 @@ const extractHeadSection = () => {
   return html.trim();
 };
 
+/**
+ * Builds export payload for JSON/Markdown/HTML exports.
+ * @returns Export data object or null if no analysis
+ */
 const generateExportData = () => {
   if (!parsedTags.value || !diagnostics.value) return null;
 
@@ -294,7 +341,7 @@ const generateExportData = () => {
       tool: "MetaPeek by ICJIA",
       version: "1.0.0",
       exportedAt: timestamp,
-      toolUrl: "https://metapeek.icjia.dev",
+      toolUrl: "https://metapeek.icjia.app",
       sourceType: "html_paste", // Will be 'url_fetch' in Phase 2
       sourceUrl: null, // Will contain URL in Phase 2
     },
@@ -470,7 +517,7 @@ const generateMarkdownContent = () => {
   let md = `# MetaPeek Analysis Results
 
 **Exported:** ${new Date().toLocaleString()}
-**Tool:** MetaPeek by ICJIA (https://metapeek.icjia.dev)
+**Tool:** MetaPeek by ICJIA (https://metapeek.icjia.app)
 **Source:** HTML paste (URL fetch coming in Phase 2)
 
 ---
@@ -724,7 +771,7 @@ ${originalHtml}
 
 ---
 
-*Generated by [MetaPeek](https://metapeek.icjia.dev) - Open Graph & Social Sharing Meta Tag Analyzer*
+*Generated by [MetaPeek](https://metapeek.icjia.app) - Open Graph & Social Sharing Meta Tag Analyzer*
 `;
 
   return md;
@@ -752,12 +799,15 @@ const copyJsonToClipboard = () => {
   copyToClipboard(json, "json");
 };
 
-// Generate LLM-ready content for issues (Step 5): AI assessment + specific issues
+/**
+ * Generates markdown content for AI assistants (ChatGPT, Claude, etc.).
+ * Includes score summary and per-category issue list.
+ * @returns Markdown string or empty if no analysis
+ */
 const generateLlmIssuesContent = (): string => {
   if (!metaScore.value || !diagnostics.value) return "";
 
   const score = metaScore.value;
-  const diag = diagnostics.value;
 
   // AI assessment (preface)
   let assessment = "";
@@ -809,6 +859,10 @@ const copyLlmIssuesToClipboard = () => {
   copyToClipboard(content, "llm-issues");
 };
 
+/**
+ * Downloads LLM issues content as file.
+ * @param format - "md" for markdown, "txt" for plain text
+ */
 const downloadLlmIssuesAs = (format: "md" | "txt") => {
   const content = generateLlmIssuesContent();
   if (!content) return;
@@ -900,7 +954,7 @@ const exportAsHtml = () => {
   <div class="container">
     <div class="header">
       <h1>🔍 MetaPeek Analysis Report</h1>
-      <p>Generated: ${new Date().toLocaleString()} | Tool: metapeek.icjia.dev</p>
+      <p>Generated: ${new Date().toLocaleString()} | Tool: metapeek.icjia.app</p>
     </div>
     
     <div class="content">
@@ -1234,7 +1288,7 @@ const exportAsHtml = () => {
     
     <div class="footer">
       Generated by <strong>MetaPeek</strong> — Open Graph & Social Sharing Meta Tag Analyzer<br>
-      <a href="https://metapeek.icjia.dev" style="color: #3b82f6;">metapeek.icjia.dev</a> | 
+      <a href="https://metapeek.icjia.app" style="color: #3b82f6;">metapeek.icjia.app</a> | 
       Built by <a href="https://icjia.illinois.gov" style="color: #3b82f6;">ICJIA</a>
     </div>
   </div>

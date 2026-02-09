@@ -1,9 +1,16 @@
-// app/composables/useFetchProxy.ts
-// Client-side composable for fetching URLs via proxy
+/**
+ * @fileoverview Client-side composable for fetching URLs via the secure proxy endpoint.
+ * Handles request/response flow and maps proxy errors to user-friendly messages.
+ *
+ * @module composables/useFetchProxy
+ */
 
 import type { MetaTags } from "~/types/meta";
 import metapeekConfig from "../../metapeek.config";
 
+/**
+ * Successful response from the /api/fetch proxy endpoint.
+ */
 export interface ProxyResponse {
   ok: boolean;
   url: string;
@@ -17,31 +24,38 @@ export interface ProxyResponse {
   timing: number;
 }
 
+/**
+ * Error thrown when the proxy request fails (network, validation, or server error).
+ */
 export interface ProxyError {
   statusCode: number;
   message: string;
 }
 
 /**
- * Composable for fetching URLs via the proxy endpoint
+ * Composable for fetching URLs via the secure proxy endpoint.
+ *
+ * @returns Object with fetchUrl function
  */
 export function useFetchProxy() {
   const { parseMetaTags } = useMetaParser();
 
   /**
-   * Determine which proxy endpoint to use
-   * - If externalUrl is set in config, use that
-   * - Otherwise, use the built-in Nitro server route
+   * Resolves the proxy endpoint URL. Uses externalUrl from config if set,
+   * otherwise the built-in Nitro route /api/fetch.
+   *
+   * @returns The proxy endpoint URL to POST to
    */
   const getProxyEndpoint = (): string => {
     return metapeekConfig.proxy.externalUrl || "/api/fetch";
   };
 
   /**
-   * Fetch a URL via the proxy and parse the returned HTML
+   * Fetches a URL via the proxy and parses the returned HTML into meta tags.
    *
-   * @param url - The URL to fetch
-   * @returns Object containing parsed tags, response metadata, and body snippet for SPA detection
+   * @param url - The absolute URL to fetch (must be HTTPS in production)
+   * @returns Promise resolving to parsed MetaTags and full ProxyResponse
+   * @throws ProxyError when the request fails (SSRF blocked, timeout, etc.)
    */
   const fetchUrl = async (
     url: string,
@@ -78,27 +92,35 @@ export function useFetchProxy() {
     } catch (error: unknown) {
       // Handle fetch errors and map to user-friendly error codes
       // Note: $fetch (ofetch) errors have a different structure than axios
+      const err = error as {
+        data?: { message?: string };
+        status?: number;
+        statusCode?: number;
+        statusMessage?: string;
+        name?: string;
+        message?: string;
+      };
 
       // Check if it's a $fetch error with status and data
-      if (error.data && (error.status || error.statusCode)) {
+      if (err?.data && (err?.status ?? err?.statusCode)) {
         // Server returned an error response (400, 404, 500, etc.)
         throw {
-          statusCode: error.status || error.statusCode,
-          message: error.data?.message || error.statusMessage || error.message,
+          statusCode: err.status ?? err.statusCode ?? 0,
+          message:
+            err.data?.message ?? err.statusMessage ?? err.message ?? "Request failed",
         } as ProxyError;
-      } else if (error.name === "FetchError") {
+      } else if (err?.name === "FetchError") {
         // Network error or other fetch-specific error
         throw {
-          statusCode: error.statusCode || 0,
+          statusCode: err.statusCode ?? 0,
           message:
-            error.message ||
-            "Network request failed. Check your internet connection.",
+            err.message ?? "Network request failed. Check your internet connection.",
         } as ProxyError;
       } else {
         // Something else went wrong (validation error, etc.)
         throw {
           statusCode: 0,
-          message: error.message || "An unexpected error occurred",
+          message: err?.message ?? "An unexpected error occurred",
         } as ProxyError;
       }
     }

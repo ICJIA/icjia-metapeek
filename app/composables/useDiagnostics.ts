@@ -1,15 +1,35 @@
-// app/composables/useDiagnostics.ts
+/**
+ * @fileoverview Generates diagnostic results for meta tags. Evaluates title,
+ * description, OG tags, OG image, Twitter Card, canonical, and robots.
+ *
+ * @module composables/useDiagnostics
+ */
 
 import type { MetaTags, Diagnostics, DiagnosticResult } from '~/types/meta'
 import { LIMITS } from '~/utils/constants'
 
+/**
+ * Result of image dimension analysis from ImageAnalysis component.
+ */
 export interface ImageAnalysisResult {
   width: number
   height: number
   overallStatus: 'optimal' | 'acceptable' | 'issues' | null
 }
 
+/**
+ * Composable for generating meta tag diagnostics.
+ *
+ * @returns Object with generateDiagnostics function
+ */
 export const useDiagnostics = () => {
+  /**
+   * Generates diagnostics for all meta tag categories.
+   *
+   * @param tags - Parsed meta tags from useMetaParser
+   * @param imageAnalysis - Optional image dimension analysis for og:image validation
+   * @returns Diagnostics with status (green/yellow/red) and messages per category
+   */
   const generateDiagnostics = (tags: MetaTags, imageAnalysis?: ImageAnalysisResult): Diagnostics => {
     // Title checks
     const title = checkTitle(tags.title)

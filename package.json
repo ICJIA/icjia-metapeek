@@ -11,6 +11,7 @@
     "test": "vitest run --reporter=verbose",
     "test:all": "vitest run --reporter=verbose && playwright test --reporter=list",
     "test:unit": "vitest run",
+    "test:security": "vitest run tests/security",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:accessibility": "playwright test --reporter=list",

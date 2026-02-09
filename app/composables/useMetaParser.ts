@@ -1,8 +1,24 @@
-// app/composables/useMetaParser.ts
+/**
+ * @fileoverview Parses HTML and extracts meta tags, Open Graph, Twitter Card,
+ * and structured data. Uses DOMParser for client-side parsing.
+ *
+ * @module composables/useMetaParser
+ */
 
 import type { MetaTags } from "~/types/meta";
 
+/**
+ * Composable for parsing HTML and extracting meta tags.
+ *
+ * @returns Object with parseMetaTags function
+ */
 export const useMetaParser = () => {
+  /**
+   * Parses HTML string and extracts all meta tags into a structured object.
+   *
+   * @param html - HTML string (full document or head section)
+   * @returns MetaTags object with title, description, og, twitter, etc.
+   */
   const parseMetaTags = (html: string): MetaTags => {
     // Use DOMParser (available in all modern browsers)
     const parser = new DOMParser();

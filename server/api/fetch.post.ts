@@ -1,5 +1,12 @@
-// server/api/fetch.post.ts
-// Secure proxy endpoint for fetching live URLs
+/**
+ * @fileoverview Secure proxy endpoint for fetching live URLs. Validates requests,
+ * enforces SSRF protection, fetches target HTML, and returns sanitized head/body snippets.
+ *
+ * POST /api/fetch with body: { url: string }
+ * Rate limited via Netlify (see config export at bottom).
+ *
+ * @module server/api/fetch.post
+ */
 
 import { defineEventHandler, readBody, createError, getHeader } from "h3";
 import { ofetch } from "ofetch";
@@ -263,19 +270,21 @@ export default defineEventHandler(async (event) => {
     // ═══════════════════════════════════════════════════════════
 
     const timing = Date.now() - startTime;
+    const err = error instanceof Error ? error : new Error(String(error));
+    const errMessage = err.message ?? "Unknown error";
 
     // Log error for debugging
     logError({
       requestId,
       url: body.url,
-      error: error.message || "Unknown error",
+      error: errMessage,
       timing,
       ip: clientIp,
       userAgent,
     });
 
     // Handle fetch timeout
-    if (error.name === "AbortError" || error.message?.includes("timeout")) {
+    if (err.name === "AbortError" || errMessage.includes("timeout")) {
       throw createError({
         statusCode: 504,
         message: `Request timed out after ${metapeekConfig.proxy.fetchTimeoutMs / 1000} seconds. The target site did not respond in time.`,
@@ -283,10 +292,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Handle DNS failures
-    if (
-      error.message?.includes("ENOTFOUND") ||
-      error.message?.includes("resolve")
-    ) {
+    if (errMessage.includes("ENOTFOUND") || errMessage.includes("resolve")) {
       throw createError({
         statusCode: 400,
         message:
@@ -295,7 +301,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Handle connection refused
-    if (error.message?.includes("ECONNREFUSED")) {
+    if (errMessage.includes("ECONNREFUSED")) {
       throw createError({
         statusCode: 502,
         message:
@@ -304,13 +310,10 @@ export default defineEventHandler(async (event) => {
     }
 
     // Handle other network errors
-    if (
-      error.message?.includes("ECONNRESET") ||
-      error.message?.includes("ETIMEDOUT")
-    ) {
+    if (errMessage.includes("ECONNRESET") || errMessage.includes("ETIMEDOUT")) {
       throw createError({
         statusCode: 502,
-        message: sanitizeErrorMessage(error),
+        message: sanitizeErrorMessage(err),
       });
     }
 

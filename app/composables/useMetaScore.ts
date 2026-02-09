@@ -1,8 +1,15 @@
-// app/composables/useMetaScore.ts
-// Scoring system for meta tags based on diagnostics
+/**
+ * @fileoverview Weighted scoring system for meta tags. Converts diagnostics
+ * to a 0–100 score with letter grades (A–F). Uses Lighthouse-style methodology.
+ *
+ * @module composables/useMetaScore
+ */
 
 import type { Diagnostics } from '~/types/meta'
 
+/**
+ * Score and status for a single diagnostic category.
+ */
 export interface ScoreCategory {
   name: string
   score: number
@@ -12,6 +19,9 @@ export interface ScoreCategory {
   issues: string[]
 }
 
+/**
+ * Complete meta tag score with category breakdown and letter grade.
+ */
 export interface MetaScore {
   overall: number
   categories: {
@@ -28,7 +38,8 @@ export interface MetaScore {
 }
 
 /**
- * Weights for each category (must sum to 100)
+ * Category weights for weighted average. Must sum to 100.
+ * OG and image tags have highest weight for social sharing impact.
  */
 const WEIGHTS = {
   title: 15,          // 15% - Very important for SEO and social
@@ -41,11 +52,13 @@ const WEIGHTS = {
 }
 
 /**
- * Composable for computing meta tag score
+ * Composable for computing meta tag quality score from diagnostics.
+ *
+ * @returns Object with computeScore function
  */
 export function useMetaScore() {
   /**
-   * Compute score for a single category based on diagnostic status
+   * Maps diagnostic status to numeric score. Green=100, Yellow=60, Red=0.
    */
   const getCategoryScore = (status: 'green' | 'yellow' | 'red'): { score: number, result: 'pass' | 'warning' | 'fail' } => {
     switch (status) {
@@ -59,7 +72,7 @@ export function useMetaScore() {
   }
 
   /**
-   * Compute letter grade from overall score
+   * Converts numeric score to letter grade. A≥90, B≥80, C≥70, D≥60, F<60.
    */
   const getGrade = (score: number): 'A' | 'B' | 'C' | 'D' | 'F' => {
     if (score >= 90) return 'A'
@@ -70,7 +83,10 @@ export function useMetaScore() {
   }
 
   /**
-   * Compute overall meta tag score from diagnostics
+   * Computes weighted overall score from diagnostics.
+   *
+   * @param diagnostics - From useDiagnostics.generateDiagnostics
+   * @returns MetaScore with overall (0–100), grade, and per-category breakdown
    */
   const computeScore = (diagnostics: Diagnostics): MetaScore => {
     // Compute category scores

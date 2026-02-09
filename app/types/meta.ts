@@ -1,7 +1,15 @@
-// app/types/meta.ts
+/**
+ * @fileoverview TypeScript types for meta tags and diagnostics.
+ *
+ * @module types/meta
+ */
 
+/**
+ * Parsed meta tags from HTML. Includes standard meta, Open Graph, Twitter Card,
+ * and structured data. Nested objects (og, twitter, etc.) are always present.
+ */
 export interface MetaTags {
-  // Basic meta tags
+  /** Basic meta tags */
   title?: string;
   description?: string;
   viewport?: string;
@@ -87,6 +95,9 @@ export interface MetaTags {
   structuredData: Array<Record<string, unknown>>;
 }
 
+/**
+ * Result for a single diagnostic check (e.g. title, description).
+ */
 export interface DiagnosticResult {
   status: "green" | "yellow" | "red";
   icon: "check" | "warning" | "error";
@@ -94,6 +105,9 @@ export interface DiagnosticResult {
   suggestion?: string;
 }
 
+/**
+ * Full diagnostics for all meta tag categories plus overall status.
+ */
 export interface Diagnostics {
   overall: DiagnosticResult;
   title: DiagnosticResult;

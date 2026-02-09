@@ -1,5 +1,9 @@
-// app/composables/useFetchStatus.ts
-// State machine for URL fetch lifecycle with progressive status messages
+/**
+ * @fileoverview State machine for the URL fetch lifecycle. Manages status display
+ * and progressive feedback (neutral → amber → red) as fetch time increases.
+ *
+ * @module composables/useFetchStatus
+ */
 
 export type FetchState =
   | { status: 'idle' }
@@ -9,14 +13,17 @@ export type FetchState =
   | { status: 'complete'; timing: number }
   | { status: 'error'; code: string; message: string; suggestion: string }
 
+/**
+ * User-friendly error message with suggested action.
+ */
 export interface ErrorMessage {
   message: string
   suggestion: string
 }
 
 /**
- * Error code to user-friendly message mapping
- * Based on design doc section 5, lines 292-333
+ * Maps error codes to user-friendly messages and suggestions.
+ * Covers timeout, rate limit, SSRF, DNS, network, and server errors.
  */
 const ERROR_MESSAGES: Record<string, ErrorMessage> = {
   TIMEOUT: {
@@ -62,7 +69,11 @@ const ERROR_MESSAGES: Record<string, ErrorMessage> = {
 }
 
 /**
- * Map HTTP status codes and error messages to error codes
+ * Maps HTTP status codes and error message text to internal error codes.
+ *
+ * @param statusCode - HTTP status from the proxy response (0 if network error)
+ * @param message - Error message text (used for 400 responses to distinguish SSRF, DNS, etc.)
+ * @returns Error code key for ERROR_MESSAGES lookup
  */
 function mapErrorToCode(statusCode: number, message: string): string {
   if (statusCode === 429) return 'RATE_LIMITED'
@@ -91,7 +102,12 @@ function mapErrorToCode(statusCode: number, message: string): string {
 }
 
 /**
- * Composable for managing fetch status and providing user feedback
+ * Composable for managing the URL fetch lifecycle and user feedback.
+ *
+ * @returns State ref, elapsed time, status message computed, and state setters
+ *
+ * States: idle → validating → fetching → parsing → complete | error
+ * Progressive feedback: tone changes at 5s (amber) and 8s (red) during fetch.
  */
 export function useFetchStatus() {
   const state = ref<FetchState>({ status: 'idle' })
@@ -99,8 +115,8 @@ export function useFetchStatus() {
   let intervalId: ReturnType<typeof setInterval> | null = null
 
   /**
-   * Get progressive status message based on elapsed time
-   * Changes tone at 5s (amber) and 8s (red)
+   * Computed progressive status message. Tone escalates as fetch time increases:
+   * 0–5s: neutral, 5–8s: amber, 8s+: red with timeout warning.
    */
   const getStatusMessage = computed(() => {
     if (state.value.status !== 'fetching') return null
@@ -179,12 +195,16 @@ export function useFetchStatus() {
   }
 
   /**
-   * Set state to error with user-friendly message
+   * Sets state to error with a user-friendly message mapping.
+   *
+   * @param statusCode - HTTP status or 0 for network errors
+   * @param message - Raw error message from the proxy/network
    */
   const setError = (statusCode: number, message: string) => {
     stopTimer()
     const code = mapErrorToCode(statusCode, message)
-    const errorMsg = ERROR_MESSAGES[code] || ERROR_MESSAGES.FETCH_FAILED
+    const errorMsg =
+      ERROR_MESSAGES[code] ?? (ERROR_MESSAGES.FETCH_FAILED as ErrorMessage)
 
     state.value = {
       status: 'error',
