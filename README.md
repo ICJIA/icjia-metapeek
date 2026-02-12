@@ -192,6 +192,143 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - ✅ Structured data viewer (collapsible in Diagnostics — JSON-LD + schema.org basics)
 - ✅ Raw HTML debug view (collapsible in Export — actual parsed `<head>`)
 
+### Phase 4 — API Endpoint & Isomorphic Core ✅ Complete
+
+**Shared Core (`shared/`):**
+
+- ✅ Isomorphic modules usable in browser, Node.js, and serverless
+- ✅ Meta tag parser rewritten with cheerio (replaces browser-only DOMParser)
+- ✅ Pure function exports — no Vue/browser dependencies
+- ✅ Existing composables refactored to thin wrappers (zero breaking changes)
+
+**API Endpoint:**
+
+- ✅ `GET /api/analyze?url=<encoded-url>` — Full meta tag analysis as JSON
+- ✅ Returns: meta tags, diagnostics, quality score (0–100 with letter grade), timing
+- ✅ Same security stack as web app: SSRF protection, rate limiting, optional Bearer auth
+- ✅ Foundation for future CLI npm package
+
+---
+
+## API Endpoint
+
+MetaPeek exposes a JSON API for programmatic meta tag analysis.
+
+### Usage
+
+```
+GET /api/analyze?url=<encoded-url>
+```
+
+Returns complete meta tag analysis including parsed tags, diagnostics, quality score (0–100 with letter grade A–F), and timing.
+
+### Authentication
+
+Optional. If `METAPEEK_API_KEY` is set in environment variables, all requests require a Bearer token:
+
+```
+Authorization: Bearer YOUR_KEY
+```
+
+When no key is set, the endpoint is open (rate-limited).
+
+### Examples (Development)
+
+Start the dev server with `yarn dev`, then:
+
+```bash
+# Basic analysis
+curl "http://localhost:3000/api/analyze?url=https://example.com" | jq .
+
+# Government site with rich meta tags
+curl "http://localhost:3000/api/analyze?url=https://r3.illinois.gov" | jq .
+
+# GitHub
+curl "http://localhost:3000/api/analyze?url=https://github.com" | jq .
+```
+
+### Examples (Production)
+
+```bash
+# Basic analysis
+curl "https://metapeek.icjia.app/api/analyze?url=https://example.com" | jq .
+
+# With API key (if METAPEEK_API_KEY is set)
+curl -H "Authorization: Bearer YOUR_KEY" \
+  "https://metapeek.icjia.app/api/analyze?url=https://r3.illinois.gov" | jq .
+```
+
+### Extracting Specific Fields
+
+```bash
+# Just the score and grade
+curl -s "https://metapeek.icjia.app/api/analyze?url=https://r3.illinois.gov" \
+  | jq '{grade: .score.grade, overall: .score.overall, issues: .score.totalIssues}'
+
+# Open Graph tags only
+curl -s "https://metapeek.icjia.app/api/analyze?url=https://github.com" \
+  | jq '{ogTitle: .meta.ogTitle, ogDescription: .meta.ogDescription, ogImage: .meta.ogImage}'
+
+# All diagnostic errors and warnings
+curl -s "https://metapeek.icjia.app/api/analyze?url=https://example.com" \
+  | jq '[.diagnostics[] | select(.status == "error" or .status == "warning")]'
+
+# Score breakdown by category
+curl -s "https://metapeek.icjia.app/api/analyze?url=https://r3.illinois.gov" \
+  | jq '.score.categories'
+```
+
+### Response Format
+
+```json
+{
+  "ok": true,
+  "url": "https://example.com",
+  "finalUrl": "https://www.example.com/",
+  "analyzedAt": "2026-02-12T15:30:00.000Z",
+  "timing": 1234,
+  "meta": {
+    "title": "Example Domain",
+    "ogTitle": "Example Domain",
+    "ogDescription": "...",
+    "ogImage": "..."
+  },
+  "diagnostics": [
+    { "tag": "title", "status": "pass", "message": "..." },
+    { "tag": "og:image", "status": "error", "message": "..." }
+  ],
+  "score": {
+    "overall": 85,
+    "grade": "B",
+    "totalIssues": 2,
+    "categories": { }
+  }
+}
+```
+
+### Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Missing/invalid URL, or SSRF blocked |
+| `401` | Invalid API key (when auth is enabled) |
+| `429` | Rate limited (10 requests/min/IP) |
+| `502` | Target site unreachable |
+| `504` | Target site timed out |
+
+### Error Case Examples
+
+```bash
+# Missing URL parameter → 400
+curl "https://metapeek.icjia.app/api/analyze"
+
+# Private IP (SSRF protection) → 400
+curl "https://metapeek.icjia.app/api/analyze?url=http://192.168.1.1"
+
+# Non-existent domain → 400
+curl "https://metapeek.icjia.app/api/analyze?url=https://thissitedoesnotexist12345.com"
+```
+
 ---
 
 ## Tech Stack
@@ -222,8 +359,8 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 ### Parsing & Data
 
-- **[DOMParser](https://developer.mozilla.org/en-US/docs/Web/API/DOMParser)** (native) — Client-side HTML parsing
-- **Regex extraction** — Server-side head/body extraction in `server/utils/proxy.ts` (no DOM parser)
+- **[cheerio](https://cheerio.js.org/)** — Isomorphic HTML parsing (shared by client + server)
+- **Regex extraction** — Server-side head/body extraction in `server/utils/proxy.ts`
 
 ### Testing & Quality
 
@@ -275,6 +412,12 @@ A custom, accessible tooltip component built from scratch (no external dependenc
 
 ```
 icjia-metapeek/
+├── shared/                  # Isomorphic core (browser + Node.js)
+│   ├── types.ts             # All TypeScript interfaces
+│   ├── constants.ts         # Limits, image specs, required tags
+│   ├── parser.ts            # Meta tag parser (cheerio-based)
+│   ├── diagnostics.ts       # Diagnostic analysis (pure function)
+│   └── score.ts             # Quality scoring (pure function)
 ├── app/
 │   ├── assets/
 │   │   └── css/
@@ -291,23 +434,25 @@ icjia-metapeek/
 │   │   ├── PreviewiMessage.vue  # Phase 2
 │   │   ├── DiagnosticsPanel.vue
 │   │   └── CodeGenerator.vue
-│   ├── composables/         # Reusable composition functions
-│   │   ├── useMetaParser.ts
-│   │   ├── useDiagnostics.ts
-│   │   ├── useMetaScore.ts      # Phase 2 ✅ - Quality scoring system
+│   ├── composables/         # Thin wrappers around shared/ core
+│   │   ├── useMetaParser.ts     # → shared/parser
+│   │   ├── useDiagnostics.ts    # → shared/diagnostics
+│   │   ├── useMetaScore.ts      # → shared/score
 │   │   ├── useFetchProxy.ts     # Phase 2 ✅
 │   │   └── useFetchStatus.ts    # Phase 2 ✅
 │   ├── pages/
 │   │   └── index.vue        # Single-page application
 │   ├── types/
-│   │   └── meta.ts          # TypeScript type definitions
+│   │   └── meta.ts          # Re-exports from shared/types
 │   └── utils/
-│       ├── constants.ts
+│       ├── constants.ts         # Re-exports from shared/constants
 │       └── tagDefaults.ts
 ├── server/
 │   ├── api/
-│   │   └── fetch.post.ts    # Secure proxy endpoint with SSRF protection ✅
+│   │   ├── fetch.post.ts    # POST /api/fetch — raw HTML proxy ✅
+│   │   └── analyze.get.ts   # GET /api/analyze — full analysis JSON ✅
 │   └── utils/
+│       ├── fetcher.ts       # Shared fetch-with-redirects logic ✅
 │       ├── proxy.ts         # URL validation & security utilities ✅
 │       └── logger.ts        # Structured logging for production ✅
 ├── documentation/           # Complete design & implementation docs
@@ -620,7 +765,7 @@ const metapeekConfig = {
   },
   cors: {
     allowedOrigins: ["https://metapeek.icjia.app", "http://localhost:3000"],
-    allowedMethods: ["POST"],
+    allowedMethods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
   },
   diagnostics: {
@@ -658,11 +803,15 @@ git push origin main
 - [ ] Screen reader tested
 - [ ] Security tests passing (Phase 2)
 
-**Post-Deploy (Phase 2):**
+**Post-Deploy:**
 
-1. **Test live URL fetching:**
+1. **Test API endpoints:**
 
    ```bash
+   # Analyze endpoint (GET)
+   curl "https://metapeek.icjia.app/api/analyze?url=https://github.com" | jq .
+
+   # Fetch endpoint (POST)
    curl -X POST https://metapeek.icjia.app/api/fetch \
      -H "Content-Type: application/json" \
      -d '{"url":"https://github.com"}'

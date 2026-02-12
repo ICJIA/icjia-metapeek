@@ -36,7 +36,7 @@ const metapeekConfig = {
     // Origins allowed to call /api/fetch. The site URL is always included.
     // Add localhost origins for development.
     allowedOrigins: ["https://metapeek.icjia.app", "http://localhost:3000"],
-    allowedMethods: ["POST"],
+    allowedMethods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
   },
 

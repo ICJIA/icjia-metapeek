@@ -1,19 +1,15 @@
 /**
- * @fileoverview Secure proxy endpoint for fetching live URLs. Validates requests,
- * enforces SSRF protection, fetches target HTML, and returns sanitized head/body snippets.
+ * @fileoverview API endpoint for full meta tag analysis. Fetches a URL,
+ * parses meta tags, runs diagnostics, and computes a quality score.
  *
- * POST /api/fetch with body: { url: string }
+ * GET /api/analyze?url=<encoded-url>
  * Rate limited via Netlify (see config export at bottom).
  *
- * @module server/api/fetch.post
+ * @module server/api/analyze.get
  */
 
-import { defineEventHandler, readBody, createError, getHeader } from "h3";
-import {
-  validateUrl,
-  extractHead,
-  extractBodySnippet,
-} from "../utils/proxy";
+import { defineEventHandler, getQuery, createError, getHeader } from "h3";
+import { validateUrl } from "../utils/proxy";
 import {
   generateRequestId,
   logSuccess,
@@ -23,56 +19,31 @@ import {
   getUserAgent,
 } from "../utils/logger";
 import { fetchWithRedirects } from "../utils/fetcher";
+import { parseMetaTags } from "../../shared/parser";
+import { generateDiagnostics } from "../../shared/diagnostics";
+import { computeScore } from "../../shared/score";
 import metapeekConfig from "../../metapeek.config";
 
 export default defineEventHandler(async (event) => {
-  // Generate unique request ID for log correlation
   const requestId = generateRequestId();
   const clientIp = getClientIp(event);
   const userAgent = getUserAgent(event);
+
   // ═══════════════════════════════════════════════════════════
-  // 1. REQUEST VALIDATION
+  // 1. QUERY PARAMETER VALIDATION
   // ═══════════════════════════════════════════════════════════
 
-  // Parse request body
-  let body: { url?: unknown };
-  try {
-    body = await readBody(event);
-  } catch {
+  const query = getQuery(event);
+  const url = query.url;
+
+  if (typeof url !== "string" || !url.trim()) {
     throw createError({
       statusCode: 400,
-      message: 'Invalid request body. Expected JSON with "url" field.',
+      message: 'Missing required "url" query parameter.',
     });
   }
 
-  // Validate body structure
-  if (!body || typeof body !== "object") {
-    throw createError({
-      statusCode: 400,
-      message: "Invalid request body. Expected JSON object.",
-    });
-  }
-
-  // Validate URL field exists and is a string
-  if (typeof body.url !== "string") {
-    throw createError({
-      statusCode: 400,
-      message: 'Missing or invalid "url" field. Must be a string.',
-    });
-  }
-
-  // Reject unexpected fields (security: prevent parameter pollution)
-  const allowedKeys = new Set(["url"]);
-  const extraKeys = Object.keys(body).filter((key) => !allowedKeys.has(key));
-  if (extraKeys.length > 0) {
-    throw createError({
-      statusCode: 400,
-      message: `Unexpected fields in request: ${extraKeys.join(", ")}`,
-    });
-  }
-
-  // URL length check
-  if (body.url.length > metapeekConfig.proxy.maxUrlLength) {
+  if (url.length > metapeekConfig.proxy.maxUrlLength) {
     throw createError({
       statusCode: 400,
       message: `URL exceeds maximum length of ${metapeekConfig.proxy.maxUrlLength} characters`,
@@ -80,9 +51,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 2. OPTIONAL: BEARER TOKEN AUTHENTICATION (dormant at launch)
+  // 2. OPTIONAL: BEARER TOKEN AUTHENTICATION
   // ═══════════════════════════════════════════════════════════
-  // Activate by setting METAPEEK_API_KEY in Netlify environment variables
 
   const API_KEY = process.env.METAPEEK_API_KEY;
 
@@ -101,13 +71,12 @@ export default defineEventHandler(async (event) => {
   // 3. SSRF PROTECTION
   // ═══════════════════════════════════════════════════════════
 
-  const validation = await validateUrl(body.url);
+  const validation = await validateUrl(url);
 
   if (!validation.ok) {
-    // Log blocked request for security monitoring
     logBlocked({
       requestId,
-      url: body.url,
+      url,
       reason: validation.reason || "Invalid URL",
       ip: clientIp,
       userAgent,
@@ -120,57 +89,50 @@ export default defineEventHandler(async (event) => {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 4. FETCH TARGET URL WITH SECURITY CONTROLS
+  // 4. FETCH + PARSE + DIAGNOSE + SCORE
   // ═══════════════════════════════════════════════════════════
 
   try {
-    const result = await fetchWithRedirects(body.url);
+    const result = await fetchWithRedirects(url);
 
-    // ═══════════════════════════════════════════════════════════
-    // 5. EXTRACT AND SANITIZE HTML
-    // ═══════════════════════════════════════════════════════════
+    // Parse meta tags from full HTML
+    const meta = parseMetaTags(result.html);
 
-    const head = extractHead(result.html);
-    const bodySnippet = extractBodySnippet(result.html);
+    // Run diagnostics (no image analysis on server)
+    const diagnostics = generateDiagnostics(meta);
 
-    // ═══════════════════════════════════════════════════════════
-    // 6. LOG SUCCESS AND RETURN SANITIZED RESPONSE
-    // ═══════════════════════════════════════════════════════════
+    // Compute quality score
+    const score = computeScore(diagnostics);
 
-    const responseSize = head.length + bodySnippet.length;
-
-    // Log successful fetch for monitoring
+    // Log success
     logSuccess({
       requestId,
-      url: body.url,
+      url,
       finalUrl: result.finalUrl,
       statusCode: result.statusCode,
       timing: result.timing,
       redirectCount: result.redirectChain.length,
-      responseSize,
+      responseSize: result.html.length,
       ip: clientIp,
       userAgent,
     });
 
     return {
       ok: true,
-      url: body.url,
+      url,
       finalUrl: result.finalUrl,
-      redirectChain: result.redirectChain,
-      statusCode: result.statusCode,
-      contentType: result.contentType,
-      head,
-      bodySnippet,
-      fetchedAt: new Date().toISOString(),
+      analyzedAt: new Date().toISOString(),
       timing: result.timing,
+      meta,
+      diagnostics,
+      score,
     };
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
 
-    // Log error for debugging
     logError({
       requestId,
-      url: body.url,
+      url,
       error: err.message ?? "Unknown error",
       timing: Date.now(),
       ip: clientIp,
@@ -185,11 +147,9 @@ export default defineEventHandler(async (event) => {
 // ═══════════════════════════════════════════════════════════
 // NETLIFY RATE LIMITING (enforced at edge, before function invocation)
 // ═══════════════════════════════════════════════════════════
-// Rate-limited requests return 429 and don't count as invocations.
-// Values come from metapeek.config.ts — change them there, not here.
 
 export const config = {
-  path: "/api/fetch",
+  path: "/api/analyze",
   rateLimit: {
     windowLimit: metapeekConfig.rateLimit.windowLimit,
     windowSize: metapeekConfig.rateLimit.windowSize,
