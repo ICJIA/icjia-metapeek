@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "~": resolve(__dirname, "./app"),
       "@": resolve(__dirname, "./app"),
+      "#shared": resolve(__dirname, "./shared"),
     },
   },
   test: {
@@ -20,7 +21,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      include: ["app/composables/**", "app/utils/**", "server/utils/**"],
+      include: ["app/composables/**", "app/utils/**", "server/utils/**", "shared/**"],
       exclude: ["node_modules/", ".nuxt/", "tests/"],
     },
   },
