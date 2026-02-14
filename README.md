@@ -331,6 +331,22 @@ curl "https://metapeek.icjia.app/api/analyze?url=https://thissitedoesnotexist123
 
 ---
 
+## CLI Tool
+
+A **command-line interface (CLI) version** of MetaPeek is available for developers who want to analyze meta tags directly from the terminal or integrate analysis into build scripts and CI/CD pipelines.
+
+**GitHub:** [https://github.com/ICJIA/icjia-metapeek-cli](https://github.com/ICJIA/icjia-metapeek-cli)
+
+The CLI tool provides the same powerful analysis as the web app:
+- Analyze any URL from the command line
+- Output results as JSON, Markdown, or human-readable text
+- Integrate into automated workflows and testing pipelines
+- Perfect for developers, DevOps teams, and CI/CD automation
+
+For installation and usage instructions, visit the CLI repository.
+
+---
+
 ## Tech Stack
 
 ### Core Framework
@@ -572,7 +588,7 @@ yarn generate        # Generate static site
 yarn preview         # Preview production build
 
 # Testing
-yarn test            # Run all unit + security tests (verbose output)
+yarn test            # Run unit + security tests (verbose output)
 yarn test:all        # Run ALL tests (unit + security + accessibility)
 yarn test:unit       # Run unit tests only
 yarn test:security   # Run security tests only (SSRF, proxy utilities)
