@@ -80,3 +80,13 @@ export default defineEventHandler(async (event) => {
     llmsTxt,
   };
 });
+
+// Netlify rate limiting
+export const config = {
+  path: "/api/ai-check",
+  rateLimit: {
+    windowLimit: metapeekConfig.rateLimit.windowLimit,
+    windowSize: metapeekConfig.rateLimit.windowSize,
+    aggregateBy: [...metapeekConfig.rateLimit.aggregateBy],
+  },
+};

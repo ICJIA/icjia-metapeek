@@ -15,7 +15,7 @@ export const AI_BOTS = [
   "GPTBot",
   "ChatGPT-User",
   "Google-Extended",
-  "anthropic-ai",
+  "Anthropic-AI",
   "ClaudeBot",
   "CCBot",
   "PerplexityBot",
@@ -37,38 +37,33 @@ export const AI_BOTS = [
  * @returns `true` if the bot is blocked
  */
 function isBotBlocked(robotsTxt: string, botName: string): boolean {
-  const lines = robotsTxt.split("\n").map((l) => l.trim());
-
-  let currentAgentMatches = false;
+  const lines = robotsTxt.split(/\r?\n/);
+  let currentGroupMatches = false;
+  let inAgentLines = true;
 
   for (const line of lines) {
-    // Skip comments and empty lines
-    if (line === "" || line.startsWith("#")) {
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+
+    const agentMatch = trimmed.match(/^user-agent:\s*(.+)$/i);
+    if (agentMatch) {
+      if (!inAgentLines) {
+        // Starting a new group
+        currentGroupMatches = false;
+        inAgentLines = true;
+      }
+      const agent = agentMatch[1]!.trim().toLowerCase();
+      if (agent === "*" || agent === botName.toLowerCase()) {
+        currentGroupMatches = true;
+      }
       continue;
     }
 
-    const lowerLine = line.toLowerCase();
-
-    if (lowerLine.startsWith("user-agent:")) {
-      const agent = line.slice("user-agent:".length).trim();
-      // A new User-agent line: check if it matches the bot or wildcard
-      currentAgentMatches =
-        agent === "*" ||
-        agent.toLowerCase() === botName.toLowerCase();
-    } else if (lowerLine.startsWith("disallow:") && currentAgentMatches) {
-      const path = line.slice("disallow:".length).trim();
-      if (path === "/") {
-        return true;
-      }
-    } else if (
-      lowerLine.startsWith("allow:") ||
-      lowerLine.startsWith("sitemap:") ||
-      lowerLine.startsWith("crawl-delay:")
-    ) {
-      // Known directive — keep currentAgentMatches context
-    } else {
-      // Unknown directive — reset matching on non-directive lines only if
-      // it looks like a new section (this is a simplistic parser)
+    inAgentLines = false;
+    const disallowMatch = trimmed.match(/^disallow:\s*(.*)$/i);
+    if (disallowMatch && currentGroupMatches) {
+      const path = disallowMatch[1]!.trim();
+      if (path === "/") return true;
     }
   }
 
@@ -109,9 +104,16 @@ function checkJsonLd(tags: MetaTags): AiReadinessCheck {
     };
   }
 
-  const hasType = tags.structuredData.some(
-    (item) => item["@type"] !== undefined,
-  );
+  const hasType = tags.structuredData.some((item) => {
+    if (item["@type"] !== undefined) return true;
+    // Check @graph wrapper (common in WordPress/Yoast SEO)
+    if (Array.isArray(item["@graph"])) {
+      return (item["@graph"] as Array<Record<string, unknown>>).some(
+        (g) => g["@type"] !== undefined,
+      );
+    }
+    return false;
+  });
 
   if (!hasType) {
     return {
