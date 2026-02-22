@@ -176,7 +176,7 @@ export interface AiReadinessCheck {
  */
 export interface AiReadinessResult {
   verdict: 'ready' | 'partial' | 'not-ready';
-  checks: AiReadinessCheck[];
+  checks: readonly AiReadinessCheck[];
 }
 
 /**

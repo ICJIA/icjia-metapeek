@@ -26,6 +26,7 @@ const { generateDiagnostics } = useDiagnostics();
 const { computeScore } = useMetaScore();
 const { fetchUrl } = useFetchProxy();
 const fetchStatus = useFetchStatus();
+const { aiResult, aiLoading, assessFromHtml, assessFromUrl, reset: resetAi } = useAiReadiness();
 
 // Fix orphaned ARIA live regions by moving them into a landmark
 onMounted(() => {
@@ -77,6 +78,7 @@ const analyze = () => {
     imageAnalysisResult.value,
   );
   hasAnalyzed.value = true;
+  assessFromHtml(parsedTags.value);
   rawHeadHtml.value = extractHeadSection();
 };
 
@@ -107,6 +109,7 @@ watch(inputHtml, () => {
       hasAnalyzed.value = false;
       imageAnalysisResult.value = undefined;
       rawHeadHtml.value = "";
+      resetAi();
     }
   }
 });
@@ -118,6 +121,7 @@ watch(inputMode, () => {
   hasAnalyzed.value = false;
   imageAnalysisResult.value = undefined;
   fetchStatus.reset();
+  resetAi();
 });
 
 // Sample HTML
@@ -171,6 +175,7 @@ const resetAll = () => {
   imageAnalysisResult.value = undefined;
   rawHeadHtml.value = "";
   fetchStatus.reset();
+  resetAi();
   activeTab.value = "diagnostics";
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
@@ -199,6 +204,9 @@ const handleFetchUrl = async () => {
     diagnostics.value = generateDiagnostics(tags, imageAnalysisResult.value);
     hasAnalyzed.value = true;
     rawHeadHtml.value = response.head;
+
+    // Trigger AI readiness check (non-blocking)
+    assessFromUrl(tags, inputUrl.value);
 
     // Complete
     fetchStatus.setComplete(response.timing);
@@ -2252,6 +2260,30 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             </div>
           </details>
         </div>
+      </div>
+
+      <!-- Step 5b: AI Readiness -->
+      <div
+        v-if="parsedTags && diagnostics && aiResult"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-violet-50 dark:bg-violet-950/40 border-y border-violet-200 dark:border-violet-800"
+      >
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-16 h-16 rounded-full bg-violet-600 text-white font-extrabold text-2xl shadow-xl ring-4 ring-violet-200 dark:ring-violet-800"
+          >
+            <UIcon name="i-heroicons-cpu-chip" class="w-8 h-8" />
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              AI Readiness
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Is your page ready for AI systems to understand and cite?
+            </p>
+          </div>
+        </div>
+
+        <AiReadinessPanel :result="aiResult" :loading="aiLoading" />
       </div>
 
       <!-- Step 6: Export Results -->
