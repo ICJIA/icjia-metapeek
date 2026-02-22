@@ -24,6 +24,7 @@ export interface MetaTags {
   keywords?: string;
   language?: string;
   generator?: string;
+  htmlLang?: string;
 
   // Open Graph tags
   og: {
@@ -157,4 +158,32 @@ export interface MetaScore {
   };
   totalIssues: number;
   grade: "A" | "B" | "C" | "D" | "F";
+}
+
+/**
+ * Status of a single AI readiness check.
+ */
+export interface AiReadinessCheck {
+  id: string;
+  label: string;
+  status: 'pass' | 'warn' | 'fail' | 'na';
+  message: string;
+  suggestion?: string;
+}
+
+/**
+ * Complete AI readiness assessment result.
+ */
+export interface AiReadinessResult {
+  verdict: 'ready' | 'partial' | 'not-ready';
+  checks: AiReadinessCheck[];
+}
+
+/**
+ * Response from /api/ai-check endpoint.
+ */
+export interface AiCheckResponse {
+  ok: boolean;
+  robotsTxt: string | null;
+  llmsTxt: string | null;
 }

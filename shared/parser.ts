@@ -34,6 +34,9 @@ export function parseMetaTags(html: string): MetaTags {
   // Extract title
   const title = $("title").first().text() || undefined;
 
+  // Extract html lang attribute
+  const htmlLang = $("html").attr("lang") || undefined;
+
   // Extract basic meta tags
   const description = getMeta('meta[name="description"]');
   const viewport = getMeta('meta[name="viewport"]');
@@ -154,6 +157,7 @@ export function parseMetaTags(html: string): MetaTags {
     keywords,
     language,
     generator,
+    htmlLang,
     og,
     facebook,
     article,
