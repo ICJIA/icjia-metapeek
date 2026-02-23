@@ -69,7 +69,7 @@ const statusColor = (status: string) => {
     class="bg-white dark:bg-gray-900 rounded-xl border border-violet-200 dark:border-violet-800 p-6"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-2">
       <div class="flex items-center gap-3">
         <h3 class="text-lg font-bold text-gray-900 dark:text-white">
           AI Readiness
@@ -85,9 +85,16 @@ const statusColor = (status: string) => {
           {{ verdictConfig.label }}
         </span>
       </div>
-      <span class="text-xs text-gray-500 dark:text-gray-400 italic">
-        Does not affect score
-      </span>
+    </div>
+
+    <!-- Prominent non-scoring banner -->
+    <div
+      class="mb-4 px-3 py-2 rounded-lg bg-violet-100 dark:bg-violet-900/30 border border-violet-300 dark:border-violet-700 border-dashed"
+    >
+      <p class="text-xs font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+        <UIcon name="i-heroicons-information-circle" class="w-4 h-4 flex-shrink-0" />
+        Informational only — this assessment does not impact your meta tag quality score above.
+      </p>
     </div>
 
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -123,7 +130,7 @@ const statusColor = (status: string) => {
           </p>
           <p
             v-if="check.suggestion"
-            class="text-xs text-gray-500 dark:text-gray-500 mt-1"
+            class="text-xs text-gray-500 dark:text-gray-400 mt-1"
           >
             {{ check.suggestion }}
           </p>
@@ -137,7 +144,7 @@ const statusColor = (status: string) => {
     >
       <p class="text-xs text-violet-700 dark:text-violet-300">
         <UIcon name="i-heroicons-information-circle" class="inline-block w-3.5 h-3.5 mr-1 align-middle" />
-        AI readiness checks evaluate whether AI systems like ChatGPT, Perplexity, Bing Copilot, and Claude can effectively understand, cite, and link to your content. These checks are informational and do not affect your meta tag quality score.
+        AI readiness checks evaluate whether AI systems like ChatGPT, Perplexity, Bing Copilot, and Claude can effectively understand, cite, and link to your content.
       </p>
     </div>
   </div>

@@ -504,6 +504,18 @@ const generateExportData = () => {
       },
       structuredData: tags.structuredData,
     },
+    aiReadiness: aiResult.value
+      ? {
+          verdict: aiResult.value.verdict,
+          checks: aiResult.value.checks.map((c) => ({
+            id: c.id,
+            label: c.label,
+            status: c.status,
+            message: c.message,
+            suggestion: c.suggestion || null,
+          })),
+        }
+      : null,
   };
 };
 
@@ -773,6 +785,49 @@ ${JSON.stringify(schema, null, 2)}
     md += issues.join("\n") + "\n";
   }
 
+  // Add AI Readiness section if available
+  if (aiResult.value) {
+    const ai = aiResult.value;
+    const verdictLabel =
+      ai.verdict === "ready"
+        ? "AI Ready"
+        : ai.verdict === "partial"
+          ? "Partially AI Ready"
+          : "Not AI Ready";
+    const verdictEmoji =
+      ai.verdict === "ready" ? "✅" : ai.verdict === "partial" ? "⚠️" : "❌";
+    const aiStatusEmoji = (s: string) =>
+      s === "pass" ? "✅" : s === "warn" ? "⚠️" : s === "fail" ? "❌" : "➖";
+
+    md += `
+---
+
+## AI Readiness Assessment
+
+${verdictEmoji} **Verdict: ${verdictLabel}**
+
+*This assessment does not affect the meta tag quality score above.*
+
+| Check | Status | Details |
+|-------|--------|---------|
+${ai.checks.map((c) => `| ${c.label} | ${aiStatusEmoji(c.status)} | ${c.message} |`).join("\n")}
+
+`;
+
+    const aiIssues = ai.checks.filter(
+      (c) => c.status === "fail" || c.status === "warn",
+    );
+    if (aiIssues.length > 0) {
+      md += `### AI Readiness Suggestions\n\n`;
+      for (const check of aiIssues) {
+        if (check.suggestion) {
+          md += `- **${check.label}:** ${check.suggestion}\n`;
+        }
+      }
+      md += "\n";
+    }
+  }
+
   md += `
 ---
 
@@ -892,6 +947,74 @@ const downloadLlmIssuesAs = (format: "md" | "txt") => {
   URL.revokeObjectURL(url);
 };
 
+/**
+ * Generates LLM-ready text summarizing the AI readiness assessment.
+ * Includes verdict, all check results, and actionable suggestions.
+ */
+const generateAiReadinessLlmContent = (): string => {
+  if (!aiResult.value) return "";
+
+  const result = aiResult.value;
+  const verdictLabel =
+    result.verdict === "ready"
+      ? "AI Ready"
+      : result.verdict === "partial"
+        ? "Partially AI Ready"
+        : "Not AI Ready";
+
+  const statusEmoji = (s: string) =>
+    s === "pass" ? "PASS" : s === "warn" ? "WARN" : s === "fail" ? "FAIL" : "N/A";
+
+  let content = `# AI Readiness Assessment
+
+**Verdict:** ${verdictLabel}
+
+This assessment evaluates how well the page is prepared for AI systems (ChatGPT, Claude, Perplexity, Bing Copilot, etc.) to understand, cite, and link to the content. It does NOT affect the meta tag quality score.
+
+## Check Results
+
+`;
+
+  for (const check of result.checks) {
+    content += `### ${statusEmoji(check.status)} — ${check.label}\n`;
+    content += `${check.message}\n`;
+    if (check.suggestion) {
+      content += `**Suggestion:** ${check.suggestion}\n`;
+    }
+    content += "\n";
+  }
+
+  const fails = result.checks.filter((c) => c.status === "fail");
+  const warns = result.checks.filter((c) => c.status === "warn");
+
+  if (fails.length > 0 || warns.length > 0) {
+    content += `## Action Items\n\n`;
+    content += `Please help me improve my page's AI readiness by addressing these issues:\n\n`;
+    for (const check of [...fails, ...warns]) {
+      content += `- **${check.label}:** ${check.suggestion || check.message}\n`;
+    }
+    content += "\n";
+  } else {
+    content += `## Summary\n\nAll AI readiness checks passed. The page is well-prepared for AI systems to understand and cite its content.\n`;
+  }
+
+  return content;
+};
+
+const copyAiReadinessToClipboard = () => {
+  const content = generateAiReadinessLlmContent();
+  if (!content) return;
+  copyToClipboard(content, "ai-readiness");
+};
+
+const downloadAiReadinessAs = (format: "md" | "txt") => {
+  const content = generateAiReadinessLlmContent();
+  if (!content) return;
+  const ext = format === "md" ? ".md" : ".txt";
+  const mime = format === "md" ? "text/markdown" : "text/plain";
+  downloadFile(content, `metapeek-ai-readiness${ext}`, mime);
+};
+
 const exportAsHtml = () => {
   const data = generateExportData();
   if (!data) return;
@@ -922,6 +1045,15 @@ const exportAsHtml = () => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  };
+
+  const sanitizeCssColor = (color: string | undefined): string => {
+    if (!color) return "transparent";
+    if (/^#[0-9a-fA-F]{3,8}$/.test(color)) return color;
+    if (/^[a-zA-Z]{1,20}$/.test(color)) return color;
+    if (/^rgba?\(\s*[\d\s,./%]+\)$/.test(color)) return color;
+    if (/^hsla?\(\s*[\d\s,./%deg]+\)$/.test(color)) return color;
+    return "transparent";
   };
 
   const html = `<!DOCTYPE html>
@@ -1030,10 +1162,10 @@ const exportAsHtml = () => {
       }
 
       <div class="summary ${diag.overall.status}">
-        <h2>${statusEmoji(diag.overall.status)} ${diag.overall.message}</h2>
+        <h2>${statusEmoji(diag.overall.status)} ${escapeHtml(diag.overall.message)}</h2>
         ${
           diag.overall.suggestion
-            ? `<p style="margin-top: 0.5rem; opacity: 0.8;">${diag.overall.suggestion}</p>`
+            ? `<p style="margin-top: 0.5rem; opacity: 0.8;">${escapeHtml(diag.overall.suggestion)}</p>`
             : ""
         }
         <div class="stats">
@@ -1064,7 +1196,7 @@ const exportAsHtml = () => {
               : diag.title.status === "yellow"
                 ? "Warning"
                 : "Error"
-          }</span></td><td>${diag.title.message}</td></tr>
+          }</span></td><td>${escapeHtml(diag.title.message)}</td></tr>
           <tr><td>Description</td><td><span class="status ${
             diag.description.status
           }">${statusEmoji(diag.description.status)} ${
@@ -1073,7 +1205,7 @@ const exportAsHtml = () => {
               : diag.description.status === "yellow"
                 ? "Warning"
                 : "Error"
-          }</span></td><td>${diag.description.message}</td></tr>
+          }</span></td><td>${escapeHtml(diag.description.message)}</td></tr>
           <tr><td>Open Graph</td><td><span class="status ${
             diag.ogTags.status
           }">${statusEmoji(diag.ogTags.status)} ${
@@ -1082,7 +1214,7 @@ const exportAsHtml = () => {
               : diag.ogTags.status === "yellow"
                 ? "Warning"
                 : "Error"
-          }</span></td><td>${diag.ogTags.message}</td></tr>
+          }</span></td><td>${escapeHtml(diag.ogTags.message)}</td></tr>
           <tr><td>OG Image</td><td><span class="status ${
             diag.ogImage.status
           }">${statusEmoji(diag.ogImage.status)} ${
@@ -1091,7 +1223,7 @@ const exportAsHtml = () => {
               : diag.ogImage.status === "yellow"
                 ? "Warning"
                 : "Error"
-          }</span></td><td>${diag.ogImage.message}</td></tr>
+          }</span></td><td>${escapeHtml(diag.ogImage.message)}</td></tr>
           <tr><td>X/Twitter Card</td><td><span class="status ${
             diag.twitterCard.status
           }">${statusEmoji(diag.twitterCard.status)} ${
@@ -1100,7 +1232,7 @@ const exportAsHtml = () => {
               : diag.twitterCard.status === "yellow"
                 ? "Warning"
                 : "Error"
-          }</span></td><td>${diag.twitterCard.message}</td></tr>
+          }</span></td><td>${escapeHtml(diag.twitterCard.message)}</td></tr>
           <tr><td>Canonical URL</td><td><span class="status ${
             diag.canonical.status
           }">${statusEmoji(diag.canonical.status)} ${
@@ -1109,7 +1241,7 @@ const exportAsHtml = () => {
               : diag.canonical.status === "yellow"
                 ? "Warning"
                 : "Error"
-          }</span></td><td>${diag.canonical.message}</td></tr>
+          }</span></td><td>${escapeHtml(diag.canonical.message)}</td></tr>
           <tr><td>Robots</td><td><span class="status ${
             diag.robots.status
           }">${statusEmoji(diag.robots.status)} ${
@@ -1118,7 +1250,7 @@ const exportAsHtml = () => {
               : diag.robots.status === "yellow"
                 ? "Warning"
                 : "Error"
-          }</span></td><td>${diag.robots.message}</td></tr>
+          }</span></td><td>${escapeHtml(diag.robots.message)}</td></tr>
         </table>
       </div>
       
@@ -1165,7 +1297,7 @@ const exportAsHtml = () => {
           ${
             tags.themeColor
               ? `<tr><td>Theme Color</td><td><span style="display:inline-block;width:16px;height:16px;background:${
-                  tags.themeColor
+                  sanitizeCssColor(tags.themeColor)
                 };border:1px solid #ccc;border-radius:3px;vertical-align:middle;margin-right:8px;"></span><span class="value">${escapeHtml(
                   tags.themeColor,
                 )}</span></td></tr>`
@@ -1283,7 +1415,7 @@ const exportAsHtml = () => {
             (schema, i) => `
           <p style="font-weight: 600; margin-bottom: 0.5rem;">Schema ${
             i + 1
-          }: ${schema["@type"] || "Unknown"}</p>
+          }: ${escapeHtml(String(schema["@type"] || "Unknown"))}</p>
           <pre class="code-block">${escapeHtml(
             JSON.stringify(schema, null, 2),
           )}</pre>
@@ -1295,12 +1427,43 @@ const exportAsHtml = () => {
           : ""
       }
       
+      ${
+        aiResult.value
+          ? `
+      <div class="section">
+        <h3>🤖 AI Readiness Assessment</h3>
+        <div style="padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 2px dashed #8b5cf6; background: #f5f3ff;">
+          <p style="font-weight: 600; color: #6d28d9; margin-bottom: 0.25rem;">
+            ${aiResult.value.verdict === "ready" ? "✅ AI Ready" : aiResult.value.verdict === "partial" ? "⚠️ Partially AI Ready" : "❌ Not AI Ready"}
+          </p>
+          <p style="font-size: 0.75rem; color: #7c3aed;">Informational only — does not impact meta tag quality score.</p>
+        </div>
+        <table>
+          <tr><th>Check</th><th>Status</th><th>Details</th></tr>
+          ${aiResult.value.checks
+            .map(
+              (c) => `
+            <tr>
+              <td>${escapeHtml(c.label)}</td>
+              <td><span class="status ${c.status === "pass" ? "green" : c.status === "warn" ? "yellow" : c.status === "fail" ? "red" : ""}" style="${c.status === "na" ? "background:#f3f4f6;color:#6b7280;" : ""}">
+                ${c.status === "pass" ? "✅ Pass" : c.status === "warn" ? "⚠️ Warn" : c.status === "fail" ? "❌ Fail" : "➖ N/A"}
+              </span></td>
+              <td>${escapeHtml(c.message)}${c.suggestion ? `<br><span style="font-size:0.75rem;color:#6b7280;">${escapeHtml(c.suggestion)}</span>` : ""}</td>
+            </tr>`,
+            )
+            .join("")}
+        </table>
+      </div>
+      `
+          : ""
+      }
+
       <div class="section">
         <h3>📄 Original HTML Source</h3>
         <pre class="code-block">${escapeHtml(originalHtml)}</pre>
       </div>
     </div>
-    
+
     <div class="footer">
       Generated by <strong>MetaPeek</strong> — Open Graph & Social Sharing Meta Tag Analyzer<br>
       <a href="https://metapeek.icjia.app" style="color: #3b82f6;">metapeek.icjia.app</a> | 
@@ -2284,6 +2447,64 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
         </div>
 
         <AiReadinessPanel :result="aiResult" :loading="aiLoading" />
+
+        <!-- LLM-ready copy block (AI Readiness) -->
+        <div class="mt-6 bg-white dark:bg-gray-900 rounded-xl border border-violet-200 dark:border-violet-800 p-6">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Copy for AI assistant
+          </p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Paste this into ChatGPT, Claude, or another LLM to get help improving your AI readiness.
+          </p>
+          <pre
+            class="p-4 rounded-lg bg-gray-900 dark:bg-gray-950 text-gray-100 text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-words mb-3"
+          >{{ generateAiReadinessLlmContent() }}</pre>
+          <div class="flex flex-wrap items-center gap-3">
+            <UButton
+              size="sm"
+              variant="solid"
+              color="primary"
+              icon="i-heroicons-clipboard-document"
+              @click="copyAiReadinessToClipboard"
+            >
+              Copy to clipboard
+            </UButton>
+            <UButton
+              size="sm"
+              variant="soft"
+              color="neutral"
+              icon="i-heroicons-arrow-down-tray"
+              @click="downloadAiReadinessAs('md')"
+            >
+              Download .md
+            </UButton>
+            <UButton
+              size="sm"
+              variant="soft"
+              color="neutral"
+              icon="i-heroicons-arrow-down-tray"
+              @click="downloadAiReadinessAs('txt')"
+            >
+              Download .txt
+            </UButton>
+            <Transition
+              enter-active-class="transition-all duration-200 ease-out"
+              enter-from-class="opacity-0 translate-x-2"
+              enter-to-class="opacity-100 translate-x-0"
+              leave-active-class="transition-all duration-150 ease-in"
+              leave-from-class="opacity-100 translate-x-0"
+              leave-to-class="opacity-0 translate-x-2"
+            >
+              <span
+                v-if="copiedState === 'ai-readiness'"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-sm font-medium"
+              >
+                <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+                Copied!
+              </span>
+            </Transition>
+          </div>
+        </div>
       </div>
 
       <!-- Step 6: Export Results -->

@@ -54,6 +54,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Fetch robots.txt and llms.txt in parallel, soft-fail on errors
+  const MAX_TEXT_SIZE = 102_400; // 100KB
+
   const fetchText = async (targetUrl: string): Promise<string | null> => {
     try {
       const response = await ofetch(targetUrl, {
@@ -61,9 +63,13 @@ export default defineEventHandler(async (event) => {
           "User-Agent": metapeekConfig.proxy.userAgent,
         },
         timeout: 5000,
+        redirect: "manual",
         responseType: "text",
       });
-      return typeof response === "string" ? response : null;
+      if (typeof response !== "string") return null;
+      return response.length > MAX_TEXT_SIZE
+        ? response.slice(0, MAX_TEXT_SIZE)
+        : response;
     } catch {
       return null;
     }

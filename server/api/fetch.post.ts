@@ -23,6 +23,7 @@ import {
   getUserAgent,
 } from "../utils/logger";
 import { fetchWithRedirects } from "../utils/fetcher";
+import { safeEqual } from "../utils/auth";
 import metapeekConfig from "../../metapeek.config";
 
 export default defineEventHandler(async (event) => {
@@ -88,8 +89,11 @@ export default defineEventHandler(async (event) => {
 
   if (API_KEY) {
     const authHeader = getHeader(event, "authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : "";
 
-    if (!authHeader || authHeader !== `Bearer ${API_KEY}`) {
+    if (!token || !safeEqual(token, API_KEY)) {
       throw createError({
         statusCode: 401,
         message: "Unauthorized. Invalid or missing API key.",
