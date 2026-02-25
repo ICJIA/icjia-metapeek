@@ -274,6 +274,12 @@ export function extractHead(html: string): string {
     "",
   );
 
+  // Preserve the <html> opening tag so the parser can extract lang attribute
+  const htmlTagMatch = html.match(/<html[^>]*>/i);
+  if (htmlTagMatch) {
+    head = htmlTagMatch[0] + head;
+  }
+
   return head;
 }
 
