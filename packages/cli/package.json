@@ -1,0 +1,13 @@
+{
+  "name": "@icjia/metapeek-cli",
+  "version": "2.1.0",
+  "private": true,
+  "description": "CLI meta tag analyzer",
+  "license": "MIT",
+  "bin": {
+    "metapeek": "./metapeek"
+  },
+  "scripts": {
+    "test": "./test/run.sh --offline"
+  }
+}

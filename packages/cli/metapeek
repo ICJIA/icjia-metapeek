@@ -1,0 +1,1168 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="2.1.0"
+REPO_URL="https://github.com/ICJIA/icjia-metapeek-cli.git"
+UPDATE_CACHE_DIR="${HOME}/.cache/metapeek"
+UPDATE_CACHE_FILE="${UPDATE_CACHE_DIR}/latest_version"
+UPDATE_CACHE_MAX_AGE=86400  # 24 hours
+
+# ── Dependency check ─────────────────────────────────────────────────────────
+
+check_deps() {
+  local missing=()
+  command -v python3 >/dev/null 2>&1 || missing+=(python3)
+  command -v jq      >/dev/null 2>&1 || missing+=(jq)
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Error: missing required dependencies: ${missing[*]}" >&2
+    echo "" >&2
+    echo "Install them:" >&2
+    if [[ "$(uname)" == "Darwin" ]]; then
+      echo "  macOS:  xcode-select --install   # provides python3" >&2
+      echo "          brew install jq" >&2
+    else
+      echo "  Ubuntu/WSL2: sudo apt install ${missing[*]}" >&2
+    fi
+    exit 2
+  fi
+}
+
+# ── Update check ─────────────────────────────────────────────────────────────
+# Compares cached remote version with local VERSION. The cache is refreshed in
+# the background so the check never blocks execution.
+
+version_gt() {
+  # Returns 0 (true) if $1 > $2 using sort -V
+  [[ "$1" != "$2" ]] && [[ "$(printf '%s\n%s' "$1" "$2" | sort -V | tail -1)" == "$1" ]]
+}
+
+refresh_update_cache() {
+  # Run in a detached background process — no impact on runtime.
+  # Uses git ls-remote to fetch the latest vX.Y.Z tag from the repo.
+  # Works with private repos since it uses existing git credentials.
+  (
+    mkdir -p "$UPDATE_CACHE_DIR"
+    local latest
+    latest=$(git ls-remote --tags --sort=-v:refname "$REPO_URL" 'v*' 2>/dev/null \
+      | head -1 | sed 's|.*refs/tags/v||;s/\^{}//')
+    if [[ -n "$latest" ]]; then
+      echo "$latest" > "$UPDATE_CACHE_FILE"
+    fi
+  ) &>/dev/null &
+  disown 2>/dev/null || true
+}
+
+check_for_update() {
+  # Skip in non-interactive / JSON / piped contexts
+  if [[ ! -t 2 ]] || [[ "$JSON_MODE" == true ]] || [[ "$NO_COLOR" == true ]]; then
+    return
+  fi
+
+  local needs_refresh=true
+
+  if [[ -f "$UPDATE_CACHE_FILE" ]]; then
+    # Get cache file age (macOS + Linux compatible)
+    local file_mtime now cache_age
+    file_mtime=$(stat -f %m "$UPDATE_CACHE_FILE" 2>/dev/null) \
+      || file_mtime=$(stat -c %Y "$UPDATE_CACHE_FILE" 2>/dev/null) \
+      || file_mtime=0
+    now=$(date +%s)
+    cache_age=$(( now - file_mtime ))
+
+    if [[ $cache_age -lt $UPDATE_CACHE_MAX_AGE ]]; then
+      needs_refresh=false
+    fi
+
+    local cached_version
+    cached_version=$(cat "$UPDATE_CACHE_FILE" 2>/dev/null)
+    if [[ -n "$cached_version" ]] && version_gt "$cached_version" "$VERSION"; then
+      echo "" >&2
+      printf '  %s⬆ Update available: %s → %s%s\n' "$YELLOW" "$VERSION" "$cached_version" "$RESET" >&2
+      printf '  %sRun: cd <metapeek-cli dir> && git pull%s\n' "$DIM" "$RESET" >&2
+    fi
+  fi
+
+  if [[ "$needs_refresh" == true ]]; then
+    refresh_update_cache
+  fi
+}
+
+# ── Banner ───────────────────────────────────────────────────────────────────
+
+banner() {
+  if [[ -t 1 ]]; then
+    local c=$'\033[36m' b=$'\033[1m' d=$'\033[2m' r=$'\033[0m'
+  else
+    local c="" b="" d="" r=""
+  fi
+  cat <<EOF
+
+  ${c}┌┬┐┌─┐┌┬┐┌─┐┌─┐┌─┐┌─┐┬┌─${r}
+  ${c}│││├┤  │ ├─┤├─┘├┤ ├┤ ├┴┐${r}
+  ${c}┴ ┴└─┘ ┴ ┴ ┴┴  └─┘└─┘┴ ┴${r}  ${b}v${VERSION}${r}
+  ${d}meta tag analyzer${r}
+
+EOF
+}
+
+# ── Usage / Help ─────────────────────────────────────────────────────────────
+
+usage() {
+  banner
+  cat <<'USAGE'
+  Usage: metapeek <url> [options]
+
+  Options:
+    --json              Output raw JSON
+    --format <type>     Output format: terminal (default) or markdown
+    --full              Show all extracted metadata (default)
+    --no-color          Disable colored output
+    --no-spinner        Disable loading spinner
+    --tests             Run test suite
+    -V, --version       Show version
+    -h, --help          Show help
+
+  Note: The CLI does not include all features available in the web version
+  at https://metapeek.icjia.app — including AI readiness checks, social
+  media previews, and extended tag extraction.
+USAGE
+}
+
+# ── Argument parsing ─────────────────────────────────────────────────────────
+
+URL=""
+JSON_MODE=false
+FORMAT="terminal"
+FULL_MODE=true
+
+NO_COLOR=false
+NO_SPINNER=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)    usage; exit 0 ;;
+    -V|--version) echo "metapeek $VERSION"; exit 0 ;;
+    --tests)
+      # Try installed location first, then project directory
+      if [[ -x "${BASH_SOURCE%/*}/test/run.sh" ]]; then
+        exec "${BASH_SOURCE%/*}/test/run.sh"
+      elif [[ -x "./test/run.sh" ]]; then
+        exec "./test/run.sh"
+      else
+        echo "Error: test suite not found" >&2
+        echo "Run from the metapeek project directory or install test/ alongside metapeek" >&2
+        exit 2
+      fi
+      ;;
+    --json)       JSON_MODE=true; shift ;;
+    --full)       FULL_MODE=true; shift ;;
+    --format)
+      [[ $# -lt 2 ]] && { echo "Error: --format requires an argument" >&2; exit 2; }
+      FORMAT="$2"; shift 2 ;;
+    --no-color)   NO_COLOR=true; shift ;;
+    --no-spinner) NO_SPINNER=true; shift ;;
+    -*)
+      echo "Error: unknown option \"$1\"" >&2
+      echo "Run 'metapeek --help' for usage." >&2
+      exit 2 ;;
+    *)
+      if [[ -z "$URL" ]]; then
+        URL="$1"
+      else
+        echo "Error: unexpected argument \"$1\"" >&2
+        exit 2
+      fi
+      shift ;;
+  esac
+done
+
+if [[ -z "$URL" ]]; then
+  usage
+  exit 2
+fi
+
+if [[ "$FORMAT" != "terminal" && "$FORMAT" != "markdown" ]]; then
+  echo "Error: unknown format \"$FORMAT\" (expected: terminal or markdown)" >&2
+  exit 2
+fi
+
+# ── URL normalization & validation ───────────────────────────────────────────
+
+# Reject non-http(s) protocols
+if [[ "$URL" =~ ^[a-zA-Z]+:// && ! "$URL" =~ ^https?:// ]]; then
+  echo "Error: invalid URL \"$URL\" (only http and https are supported)" >&2
+  exit 2
+fi
+
+# Prepend https:// if no protocol
+if [[ ! "$URL" =~ ^https?:// ]]; then
+  URL="https://$URL"
+fi
+
+# ── Sanitize helper ──────────────────────────────────────────────────────────
+# Strip ASCII control characters (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F, 0x7F)
+# from API response strings to prevent ANSI injection from untrusted data.
+# Preserves tabs (0x09) and newlines (0x0A, 0x0D).
+
+sanitize() {
+  LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'
+}
+
+# Safe jq extraction: decode JSON + strip control characters
+jq_safe() {
+  echo "$RESPONSE" | jq -r "$1" | sanitize
+}
+
+# ── Color helpers ────────────────────────────────────────────────────────────
+
+setup_colors() {
+  if [[ "$NO_COLOR" == true ]] || [[ ! -t 1 ]]; then
+    BOLD="" RESET="" RED="" GREEN="" YELLOW="" CYAN="" DIM=""
+  else
+    BOLD=$'\033[1m'  RESET=$'\033[0m'
+    RED=$'\033[31m'  GREEN=$'\033[32m' YELLOW=$'\033[33m' CYAN=$'\033[36m'
+    DIM=$'\033[2m'
+  fi
+}
+
+setup_colors
+
+# ── Spinner ──────────────────────────────────────────────────────────────────
+
+SPINNER_PID=""
+
+start_spinner() {
+  if [[ "$NO_SPINNER" == true ]] || [[ "$JSON_MODE" == true ]] || [[ ! -t 2 ]]; then
+    return
+  fi
+  local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+  (
+    while true; do
+      for (( i=0; i<${#chars}; i++ )); do
+        printf "\r  %s Analyzing %s..." "${chars:$i:1}" "$URL" >&2
+        sleep 0.08
+      done
+    done
+  ) &
+  SPINNER_PID=$!
+}
+
+stop_spinner() {
+  if [[ -n "$SPINNER_PID" ]]; then
+    kill "$SPINNER_PID" 2>/dev/null || true
+    wait "$SPINNER_PID" 2>/dev/null || true
+    printf "\r\033[K" >&2
+    SPINNER_PID=""
+  fi
+}
+
+trap stop_spinner EXIT
+
+# ── Inline Python analyzer ──────────────────────────────────────────────────
+
+analyze_url() {
+  local url="$1"
+  python3 - "$url" "$VERSION" <<'PYEOF'
+import sys, json, time, struct
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
+from html.parser import HTMLParser
+
+url = sys.argv[1]
+version = sys.argv[2]
+
+MAX_BYTES = 1_048_576  # 1 MB
+
+class MetaParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.title = ""
+        self.in_title = False
+        self.meta = {}          # name/property -> content
+        self.link_canonical = None
+        self.links = {}         # rel -> href (favicon, apple-touch-icon, manifest)
+        self.structured_data = []  # parsed JSON-LD objects
+        self.in_jsonld = False
+        self.jsonld_buf = ""
+        self.done = False       # stop after </head>
+
+    def handle_starttag(self, tag, attrs):
+        if self.done:
+            return
+        a = dict(attrs)
+        if tag == "title":
+            self.in_title = True
+            self.title = ""
+        elif tag == "meta":
+            content = a.get("content", "")
+            name = a.get("name", "") or a.get("property", "")
+            if name:
+                self.meta[name.lower()] = content
+        elif tag == "link":
+            rel = a.get("rel", "").lower()
+            href = a.get("href", "")
+            if "canonical" in rel.split():
+                self.link_canonical = href
+            if href:
+                for r in ("icon", "shortcut icon", "apple-touch-icon", "manifest"):
+                    if r in rel:
+                        self.links[r] = href
+                        break
+        elif tag == "script":
+            stype = a.get("type", "").lower()
+            if stype == "application/ld+json":
+                self.in_jsonld = True
+                self.jsonld_buf = ""
+
+    def handle_data(self, data):
+        if self.done:
+            return
+        if self.in_title:
+            self.title += data
+        if self.in_jsonld:
+            self.jsonld_buf += data
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self.in_title = False
+        if tag == "script" and self.in_jsonld:
+            self.in_jsonld = False
+            try:
+                self.structured_data.append(json.loads(self.jsonld_buf))
+            except (json.JSONDecodeError, ValueError):
+                pass
+            self.jsonld_buf = ""
+        if tag == "head":
+            self.done = True
+
+def fetch(url):
+    req = Request(url, headers={
+        "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
+        "Accept-Encoding": "identity"
+    })
+    resp = urlopen(req, timeout=10)
+    return resp.read(MAX_BYTES).decode("utf-8", errors="replace")
+
+def parse_png(data):
+    if data[:8] != b'\x89PNG\r\n\x1a\n' or len(data) < 24:
+        return None
+    w, h = struct.unpack('>II', data[16:24])
+    return (w, h)
+
+def parse_jpeg(data):
+    if data[:2] != b'\xff\xd8':
+        return None
+    i = 2
+    while i < len(data) - 9:
+        if data[i] != 0xFF:
+            break
+        marker = data[i + 1]
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8):
+            h, w = struct.unpack('>HH', data[i + 5:i + 9])
+            return (w, h)
+        length = struct.unpack('>H', data[i + 2:i + 4])[0]
+        if length < 2:
+            break
+        i += 2 + length
+    return None
+
+def parse_gif(data):
+    if data[:4] not in (b'GIF8', ) or len(data) < 10:
+        return None
+    if data[:6] not in (b'GIF87a', b'GIF89a'):
+        return None
+    w, h = struct.unpack('<HH', data[6:10])
+    return (w, h)
+
+def parse_webp(data):
+    if data[:4] != b'RIFF' or data[8:12] != b'WEBP' or len(data) < 30:
+        return None
+    chunk = data[12:16]
+    if chunk == b'VP8 ' and len(data) >= 30:
+        w = struct.unpack('<H', data[26:28])[0] & 0x3FFF
+        h = struct.unpack('<H', data[28:30])[0] & 0x3FFF
+        return (w, h)
+    elif chunk == b'VP8L' and len(data) >= 25:
+        bits = struct.unpack('<I', data[21:25])[0]
+        w = (bits & 0x3FFF) + 1
+        h = ((bits >> 14) & 0x3FFF) + 1
+        return (w, h)
+    elif chunk == b'VP8X' and len(data) >= 30:
+        w = struct.unpack('<I', data[24:27] + b'\x00')[0] + 1
+        h = struct.unpack('<I', data[27:30] + b'\x00')[0] + 1
+        return (w, h)
+    return None
+
+def get_image_dimensions(data):
+    for parser in (parse_png, parse_jpeg, parse_gif, parse_webp):
+        result = parser(data)
+        if result:
+            return result
+    return None
+
+IMG_MAX_BYTES = 65536  # 64 KB — enough for image headers
+
+def fetch_image_bytes(url):
+    try:
+        req = Request(url, headers={
+            "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
+            "Accept-Encoding": "identity"
+        })
+        resp = urlopen(req, timeout=4)
+        return resp.read(IMG_MAX_BYTES)
+    except Exception:
+        return None
+
+def fetch_image_dimensions(url):
+    data = fetch_image_bytes(url)
+    if not data:
+        return {"width": None, "height": None, "error": "fetch failed"}
+    dims = get_image_dimensions(data)
+    if dims:
+        return {"width": dims[0], "height": dims[1]}
+    return {"width": None, "height": None, "error": "unrecognized format"}
+
+def analyze(html, page_url):
+    p = MetaParser()
+    try:
+        p.feed(html)
+    except Exception:
+        pass
+
+    m = p.meta
+    title_text = p.title.strip()
+    desc = m.get("description", "")
+    robots = m.get("robots", "")
+    canonical = p.link_canonical or m.get("canonical", "")
+
+    og_title = m.get("og:title", "")
+    og_desc  = m.get("og:description", "")
+    og_image = m.get("og:image", "")
+    og_url   = m.get("og:url", "")
+    tw_card  = m.get("twitter:card", "")
+    tw_image = m.get("twitter:image", "")
+
+    # Fetch image dimensions (only for absolute URLs)
+    og_image_dims = None
+    tw_image_dims = None
+    if og_image and og_image.startswith(("http://", "https://")):
+        og_image_dims = fetch_image_dimensions(og_image)
+    if tw_image and tw_image == og_image:
+        tw_image_dims = og_image_dims
+    elif tw_image and tw_image.startswith(("http://", "https://")):
+        tw_image_dims = fetch_image_dimensions(tw_image)
+
+    cats = {}
+    diags = {}
+
+    # 1. Title
+    if not title_text:
+        cats["title"] = {"score": 0, "status": "fail", "issues": ["Missing <title> tag"]}
+        diags["title"] = {"message": "Missing <title> tag", "suggestion": "Add a descriptive <title> element inside <head>."}
+    elif len(title_text) > 60:
+        cats["title"] = {"score": 60, "status": "warning", "issues": [f"Title exceeds 60 characters ({len(title_text)})"]}
+        diags["title"] = {"message": f"Title is {len(title_text)} characters", "suggestion": "Keep the title under 60 characters for best display in search results."}
+    else:
+        cats["title"] = {"score": 100, "status": "pass", "issues": []}
+        diags["title"] = {"message": f"Title is {len(title_text)} characters", "suggestion": None}
+
+    # 2. Description
+    if not desc:
+        cats["description"] = {"score": 0, "status": "fail", "issues": ["Missing meta description"]}
+        diags["description"] = {"message": "Missing meta description", "suggestion": "Add <meta name=\"description\" content=\"...\"> to improve SEO and social sharing."}
+    elif len(desc) > 160:
+        cats["description"] = {"score": 60, "status": "warning", "issues": [f"Description exceeds 160 characters ({len(desc)})"]}
+        diags["description"] = {"message": f"Description is {len(desc)} characters", "suggestion": "Keep the meta description under 160 characters for best display in search results."}
+    elif len(desc) < 50:
+        cats["description"] = {"score": 60, "status": "warning", "issues": [f"Description is short ({len(desc)} characters)"]}
+        diags["description"] = {"message": f"Description is {len(desc)} characters", "suggestion": "Aim for at least 50 characters for an effective meta description."}
+    else:
+        cats["description"] = {"score": 100, "status": "pass", "issues": []}
+        diags["description"] = {"message": f"Description is {len(desc)} characters", "suggestion": None}
+
+    # 3. Open Graph tags
+    og_required = {"og:title": og_title, "og:description": og_desc, "og:image": og_image}
+    og_missing = [k for k, v in og_required.items() if not v]
+    if len(og_missing) >= 2:
+        cats["openGraph"] = {"score": 0, "status": "fail", "issues": [f"Missing Open Graph tags: {', '.join(og_missing)}"]}
+        diags["ogTags"] = {"message": f"Missing {len(og_missing)} required OG tags", "suggestion": f"Add {', '.join(og_missing)} meta tags for rich social sharing."}
+    elif len(og_missing) == 1:
+        cats["openGraph"] = {"score": 60, "status": "warning", "issues": [f"Missing Open Graph tag: {og_missing[0]}"]}
+        diags["ogTags"] = {"message": f"Missing {og_missing[0]}", "suggestion": f"Add {og_missing[0]} meta tag for complete social sharing support."}
+    else:
+        cats["openGraph"] = {"score": 100, "status": "pass", "issues": []}
+        diags["ogTags"] = {"message": "All required OG tags present", "suggestion": None}
+
+    # 4. OG Image
+    if not og_image:
+        cats["ogImage"] = {"score": 0, "status": "fail", "issues": ["Missing og:image tag"]}
+        diags["ogImage"] = {"message": "No og:image found", "suggestion": "Add <meta property=\"og:image\" content=\"https://...\"> for social sharing previews."}
+    elif og_image and not og_image.startswith(("http://", "https://")):
+        cats["ogImage"] = {"score": 60, "status": "warning", "issues": ["og:image uses a relative URL"]}
+        diags["ogImage"] = {"message": "og:image is a relative URL", "suggestion": "Use an absolute URL (starting with https://) for og:image."}
+    else:
+        if og_image_dims and og_image_dims.get("width") is not None and og_image_dims.get("height") is not None:
+            w, h = og_image_dims["width"], og_image_dims["height"]
+            if w < 1200 or h < 630:
+                cats["ogImage"] = {"score": 60, "status": "warning", "issues": [f"og:image is {w}x{h}, below recommended 1200x630"]}
+                diags["ogImage"] = {"message": f"og:image is {w}x{h}", "suggestion": "Use an image at least 1200x630 pixels for best social sharing previews."}
+            else:
+                cats["ogImage"] = {"score": 100, "status": "pass", "issues": []}
+                diags["ogImage"] = {"message": f"og:image is present and absolute ({w}x{h})", "suggestion": None}
+        else:
+            cats["ogImage"] = {"score": 100, "status": "pass", "issues": []}
+            diags["ogImage"] = {"message": "og:image is present and absolute (dimensions unavailable)", "suggestion": None}
+
+    # 5. Twitter Card
+    has_og = bool(og_title or og_desc or og_image)
+    if not tw_card and has_og:
+        cats["twitterCard"] = {"score": 0, "status": "fail", "issues": ["Missing twitter:card but has OG tags"]}
+        diags["twitterCard"] = {"message": "No twitter:card meta tag", "suggestion": "Add <meta name=\"twitter:card\" content=\"summary_large_image\"> to control Twitter previews."}
+    elif tw_card:
+        cats["twitterCard"] = {"score": 100, "status": "pass", "issues": []}
+        diags["twitterCard"] = {"message": f"twitter:card is \"{tw_card}\"", "suggestion": None}
+    else:
+        cats["twitterCard"] = {"score": 100, "status": "pass", "issues": []}
+        diags["twitterCard"] = {"message": "No OG tags either; twitter:card not expected", "suggestion": None}
+
+    # 6. Canonical
+    if not canonical:
+        cats["canonical"] = {"score": 0, "status": "fail", "issues": ["Missing canonical URL"]}
+        diags["canonical"] = {"message": "No canonical URL found", "suggestion": "Add <link rel=\"canonical\" href=\"...\"> to avoid duplicate content issues."}
+    else:
+        canon_norm = canonical.rstrip("/")
+        og_norm = og_url.rstrip("/") if og_url else ""
+        if og_url and canon_norm == og_norm and canonical != og_url:
+            c_slash = canonical.endswith("/")
+            o_slash = og_url.endswith("/")
+            cats["canonical"] = {"score": 60, "status": "warning", "issues": ["Trailing slash inconsistency with og:url"]}
+            diags["canonical"] = {"message": "Trailing slash inconsistency with og:url", "suggestion": f"Canonical {'has' if c_slash else 'lacks'} trailing slash but og:url {'has' if o_slash else 'lacks'} it. Choose one format and use it consistently across canonical, og:url, and all meta tags."}
+        else:
+            cats["canonical"] = {"score": 100, "status": "pass", "issues": []}
+            diags["canonical"] = {"message": f"Canonical URL is set", "suggestion": None}
+
+    # 7. Robots
+    if "noindex" in robots.lower():
+        cats["robots"] = {"score": 60, "status": "warning", "issues": ["Robots meta contains noindex"]}
+        diags["robots"] = {"message": "Page is marked noindex", "suggestion": "Remove noindex from robots meta if this page should appear in search results."}
+    else:
+        cats["robots"] = {"score": 100, "status": "pass", "issues": []}
+        diags["robots"] = {"message": "No blocking directives", "suggestion": None}
+
+    # Weighted score
+    weights = {
+        "title": 0.15, "description": 0.15, "openGraph": 0.25,
+        "ogImage": 0.20, "twitterCard": 0.10, "canonical": 0.10, "robots": 0.05
+    }
+    overall = sum(cats[k]["score"] * weights[k] for k in weights)
+    overall = round(overall)
+
+    if   overall >= 90: grade = "A"
+    elif overall >= 80: grade = "B"
+    elif overall >= 70: grade = "C"
+    elif overall >= 60: grade = "D"
+    else:               grade = "F"
+
+    total_issues = sum(len(cats[k]["issues"]) for k in cats)
+
+    favicon = p.links.get("icon", "") or p.links.get("shortcut icon", "")
+    apple_touch = p.links.get("apple-touch-icon", "")
+
+    meta_obj = {
+        "title": title_text,
+        "description": desc,
+        "viewport": m.get("viewport", ""),
+        "robots": robots,
+        "canonical": canonical,
+        "themeColor": m.get("theme-color", ""),
+        "author": m.get("author", ""),
+        "keywords": m.get("keywords", ""),
+        "language": m.get("language", "") or m.get("content-language", ""),
+        "generator": m.get("generator", ""),
+        "og": {
+            "title": og_title,
+            "description": og_desc,
+            "image": og_image,
+            "url": og_url,
+            "type": m.get("og:type", ""),
+            "site_name": m.get("og:site_name", ""),
+            "locale": m.get("og:locale", ""),
+            "image_dimensions": og_image_dims
+        },
+        "twitter": {
+            "card": tw_card,
+            "site": m.get("twitter:site", ""),
+            "creator": m.get("twitter:creator", ""),
+            "title": m.get("twitter:title", ""),
+            "description": m.get("twitter:description", ""),
+            "image": tw_image,
+            "image_dimensions": tw_image_dims
+        },
+        "favicon": favicon,
+        "appleTouchIcon": apple_touch,
+        "structuredData": p.structured_data
+    }
+
+    return {
+        "score": {
+            "overall": overall,
+            "grade": grade,
+            "totalIssues": total_issues,
+            "categories": cats
+        },
+        "diagnostics": diags,
+        "meta": meta_obj
+    }
+
+try:
+    t0 = time.time()
+    html = fetch(url)
+    elapsed = round((time.time() - t0) * 1000)
+
+    result = analyze(html, url)
+    result["ok"] = True
+    result["url"] = url
+    result["timing"] = elapsed
+
+    json.dump(result, sys.stdout, separators=(",", ":"))
+
+except HTTPError as e:
+    json.dump({"ok": False, "message": f"HTTP {e.code}: {e.reason}"}, sys.stdout, separators=(",", ":"))
+except URLError as e:
+    reason = str(e.reason) if hasattr(e, "reason") else str(e)
+    if "Name or service not known" in reason or "nodename nor servname" in reason:
+        msg = "Could not resolve hostname. Check that the domain exists and is spelled correctly."
+    elif "Connection refused" in reason:
+        msg = "Connection refused by target server. The site may be down or blocking requests."
+    elif "timed out" in reason:
+        msg = "Request timed out after 10 seconds. The target site did not respond in time."
+    elif "CERTIFICATE_VERIFY_FAILED" in reason or "SSL" in reason:
+        msg = "SSL certificate verification failed. The site may have an invalid or expired certificate."
+    else:
+        msg = f"Failed to fetch URL: {reason}"
+    json.dump({"ok": False, "message": msg}, sys.stdout, separators=(",", ":"))
+except Exception as e:
+    json.dump({"ok": False, "message": str(e)}, sys.stdout, separators=(",", ":"))
+PYEOF
+}
+
+# ── Analysis ────────────────────────────────────────────────────────────────
+
+check_deps
+start_spinner
+
+RESPONSE=$(analyze_url "$URL") || {
+  stop_spinner
+  echo "Error: analyzer failed unexpectedly" >&2
+  exit 2
+}
+
+stop_spinner
+
+# Check for analyzer errors
+IS_OK=$(echo "$RESPONSE" | jq -r '.ok' 2>/dev/null)
+if [[ "$IS_OK" != "true" ]]; then
+  MSG=$(echo "$RESPONSE" | jq -r '.message // empty' 2>/dev/null | sanitize)
+  if [[ -n "$MSG" ]]; then
+    echo "Error: $MSG" >&2
+  else
+    echo "Error: analysis failed" >&2
+  fi
+  exit 2
+fi
+
+# ── JSON output mode ─────────────────────────────────────────────────────────
+
+if [[ "$JSON_MODE" == true ]]; then
+  echo "$RESPONSE" | jq .
+  GRADE=$(echo "$RESPONSE" | jq -r '.score.grade')
+  [[ "$GRADE" == "A" || "$GRADE" == "B" ]] && exit 0 || exit 1
+fi
+
+# ── Extract data with jq ────────────────────────────────────────────────────
+
+ANALYZED_URL=$(jq_safe '.url')
+OVERALL=$(jq_safe '.score.overall')
+GRADE=$(jq_safe '.score.grade')
+TIMING=$(jq_safe '.timing')
+TOTAL_ISSUES=$(jq_safe '.score.totalIssues')
+
+# Category keys (API JSON keys) and display labels
+CAT_KEYS=(title description openGraph ogImage twitterCard canonical robots)
+CAT_LABELS=("Title" "Description" "Open Graph" "OG Image" "Twitter Card" "Canonical" "Robots")
+
+# Diagnostics keys map (category key -> diagnostics key)
+diag_key_for() {
+  case "$1" in
+    title)       echo "title" ;;
+    description) echo "description" ;;
+    openGraph)   echo "ogTags" ;;
+    ogImage)     echo "ogImage" ;;
+    twitterCard) echo "twitterCard" ;;
+    canonical)   echo "canonical" ;;
+    robots)      echo "robots" ;;
+  esac
+}
+
+# ── Terminal formatter ───────────────────────────────────────────────────────
+
+color_grade() {
+  case "$1" in
+    A|B) printf '%s%s%s' "$GREEN" "$1" "$RESET" ;;
+    C)   printf '%s%s%s' "$YELLOW" "$1" "$RESET" ;;
+    *)   printf '%s%s%s' "$RED" "$1" "$RESET" ;;
+  esac
+}
+
+color_score() {
+  local s=$1
+  if [[ "$s" -eq 100 ]]; then
+    printf '%s%s%s' "$GREEN" "$s" "$RESET"
+  elif [[ "$s" -ge 60 ]]; then
+    printf '%s%s%s' "$YELLOW" "$s" "$RESET"
+  else
+    printf '%s%s%s' "$RED" "$s" "$RESET"
+  fi
+}
+
+status_icon() {
+  case "$1" in
+    pass)    printf '%s✓%s' "$GREEN" "$RESET" ;;
+    warning) printf '%s⚠%s' "$YELLOW" "$RESET" ;;
+    fail)    printf '%s✗%s' "$RED" "$RESET" ;;
+  esac
+}
+
+format_terminal() {
+  # Header
+  printf '%smetapeek%s — %s%s%s\n' "$BOLD" "$RESET" "$CYAN" "$ANALYZED_URL" "$RESET"
+  echo ""
+
+  # Score line
+  printf '  Score: %s%s%s/100 (%s)\n' "$BOLD" "$OVERALL" "$RESET" "$(color_grade "$GRADE")"
+  echo ""
+
+  # Category rows
+  for i in "${!CAT_KEYS[@]}"; do
+    local key="${CAT_KEYS[$i]}"
+    local label="${CAT_LABELS[$i]}"
+    local dkey
+    dkey=$(diag_key_for "$key")
+
+    local score status message
+    score=$(jq_safe ".score.categories.${key}.score")
+    status=$(jq_safe ".score.categories.${key}.status")
+    message=$(jq_safe ".diagnostics.${dkey}.message")
+
+    local icon
+    icon=$(status_icon "$status")
+    local cscore
+    cscore=$(color_score "$score")
+
+    # Pad label to 14 chars
+    printf '  %s %-14s %s  %s%s%s\n' "$icon" "$label" "$cscore" "$DIM" "$message" "$RESET"
+  done
+
+  echo ""
+
+  # Full metadata display
+  if [[ "$FULL_MODE" == true ]]; then
+    printf '  %sMetadata%s\n' "$BOLD" "$RESET"
+    echo ""
+
+    # Helper: print a metadata row if value is non-empty
+    print_meta_row() {
+      local label="$1" value="$2"
+      [[ -z "$value" || "$value" == "null" ]] && return
+      # Truncate long values
+      if [[ ${#value} -gt 80 ]]; then
+        value="${value:0:77}..."
+      fi
+      printf '  %s%-20s%s %s\n' "$DIM" "$label" "$RESET" "$value"
+    }
+
+    # Basic
+    print_meta_row "title" "$(jq_safe '.meta.title')"
+    print_meta_row "description" "$(jq_safe '.meta.description')"
+    print_meta_row "viewport" "$(jq_safe '.meta.viewport')"
+    print_meta_row "canonical" "$(jq_safe '.meta.canonical')"
+    print_meta_row "robots" "$(jq_safe '.meta.robots')"
+    print_meta_row "author" "$(jq_safe '.meta.author')"
+    print_meta_row "keywords" "$(jq_safe '.meta.keywords')"
+    print_meta_row "language" "$(jq_safe '.meta.language')"
+    print_meta_row "generator" "$(jq_safe '.meta.generator')"
+    print_meta_row "theme-color" "$(jq_safe '.meta.themeColor')"
+
+    # Open Graph
+    local og_title og_desc og_image og_url og_type og_site og_locale
+    og_title=$(jq_safe '.meta.og.title')
+    og_desc=$(jq_safe '.meta.og.description')
+    og_image=$(jq_safe '.meta.og.image')
+    og_url=$(jq_safe '.meta.og.url')
+    og_type=$(jq_safe '.meta.og.type')
+    og_site=$(jq_safe '.meta.og.site_name')
+    og_locale=$(jq_safe '.meta.og.locale')
+    if [[ -n "$og_title" || -n "$og_desc" || -n "$og_image" || -n "$og_url" ]]; then
+      echo ""
+      print_meta_row "og:title" "$og_title"
+      print_meta_row "og:description" "$og_desc"
+      print_meta_row "og:image" "$og_image"
+      local og_iw og_ih
+      og_iw=$(jq_safe '.meta.og.image_dimensions.width')
+      og_ih=$(jq_safe '.meta.og.image_dimensions.height')
+      if [[ -n "$og_iw" && "$og_iw" != "null" && -n "$og_ih" && "$og_ih" != "null" ]]; then
+        print_meta_row "og:image size" "${og_iw}x${og_ih}"
+      fi
+      print_meta_row "og:url" "$og_url"
+      print_meta_row "og:type" "$og_type"
+      print_meta_row "og:site_name" "$og_site"
+      print_meta_row "og:locale" "$og_locale"
+    fi
+
+    # Twitter
+    local tw_card tw_site tw_creator tw_title tw_desc tw_image
+    tw_card=$(jq_safe '.meta.twitter.card')
+    tw_site=$(jq_safe '.meta.twitter.site')
+    tw_creator=$(jq_safe '.meta.twitter.creator')
+    tw_title=$(jq_safe '.meta.twitter.title')
+    tw_desc=$(jq_safe '.meta.twitter.description')
+    tw_image=$(jq_safe '.meta.twitter.image')
+    if [[ -n "$tw_card" || -n "$tw_title" || -n "$tw_image" ]]; then
+      echo ""
+      print_meta_row "twitter:card" "$tw_card"
+      print_meta_row "twitter:site" "$tw_site"
+      print_meta_row "twitter:creator" "$tw_creator"
+      print_meta_row "twitter:title" "$tw_title"
+      print_meta_row "twitter:description" "$tw_desc"
+      print_meta_row "twitter:image" "$tw_image"
+      local tw_iw tw_ih
+      tw_iw=$(jq_safe '.meta.twitter.image_dimensions.width')
+      tw_ih=$(jq_safe '.meta.twitter.image_dimensions.height')
+      if [[ -n "$tw_iw" && "$tw_iw" != "null" && -n "$tw_ih" && "$tw_ih" != "null" ]]; then
+        print_meta_row "twitter:image size" "${tw_iw}x${tw_ih}"
+      fi
+    fi
+
+    # Links
+    local favicon apple_touch
+    favicon=$(jq_safe '.meta.favicon')
+    apple_touch=$(jq_safe '.meta.appleTouchIcon')
+    if [[ -n "$favicon" || -n "$apple_touch" ]]; then
+      echo ""
+      print_meta_row "favicon" "$favicon"
+      print_meta_row "apple-touch-icon" "$apple_touch"
+    fi
+
+    # Structured Data
+    local sd_count
+    sd_count=$(echo "$RESPONSE" | jq '.meta.structuredData | length')
+    if [[ "$sd_count" -gt 0 ]]; then
+      local sd_types
+      sd_types=$(echo "$RESPONSE" | jq -r '[.meta.structuredData[]."@type" // empty] | join(", ")' | sanitize)
+      echo ""
+      print_meta_row "structured data" "${sd_count} JSON-LD block(s)"
+      [[ -n "$sd_types" ]] && print_meta_row "  types" "$sd_types"
+    fi
+
+    echo ""
+  fi
+
+  # Issues count
+  if [[ "$TOTAL_ISSUES" -eq 0 ]]; then
+    printf '  %s%s issues found%s\n' "$GREEN" "$TOTAL_ISSUES" "$RESET"
+  else
+    local suffix="s"
+    [[ "$TOTAL_ISSUES" -eq 1 ]] && suffix=""
+    printf '  %s%s issue%s found%s\n' "$YELLOW" "$TOTAL_ISSUES" "$suffix" "$RESET"
+  fi
+  echo ""
+
+  # Issues detail + LLM block (only when issues exist)
+  if [[ "$TOTAL_ISSUES" -gt 0 ]]; then
+    printf '  %sIssues:%s\n' "$BOLD" "$RESET"
+    echo ""
+
+    for i in "${!CAT_KEYS[@]}"; do
+      local key="${CAT_KEYS[$i]}"
+      local label="${CAT_LABELS[$i]}"
+      local dkey
+      dkey=$(diag_key_for "$key")
+
+      local issue_count
+      issue_count=$(jq_safe ".score.categories.${key}.issues | length")
+      [[ "$issue_count" -eq 0 ]] && continue
+
+      local suggestion
+      suggestion=$(jq_safe ".diagnostics.${dkey}.suggestion // empty")
+
+      printf '  %s✗%s %s%s%s\n' "$RED" "$RESET" "$BOLD" "$label" "$RESET"
+
+      local j
+      for (( j=0; j<issue_count; j++ )); do
+        local issue
+        issue=$(jq_safe ".score.categories.${key}.issues[$j]")
+        printf '    %s•%s %s\n' "$DIM" "$RESET" "$issue"
+      done
+
+      if [[ -n "$suggestion" ]]; then
+        printf '    %s→%s %s\n' "$CYAN" "$RESET" "$suggestion"
+      fi
+      echo ""
+    done
+
+    # LLM copy block
+    build_llm_block
+    echo ""
+  fi
+
+  # Timing + exit hint
+  printf '  %sAnalyzed in %sms%s\n' "$DIM" "$TIMING" "$RESET"
+
+  if [[ "$GRADE" == "A" || "$GRADE" == "B" ]]; then
+    printf '  %s✓ Pass (exit 0) — grade %s%s\n' "$GREEN" "$GRADE" "$RESET"
+  else
+    printf '  %s✗ Fail (exit 1) — grade %s%s\n' "$RED" "$GRADE" "$RESET"
+  fi
+  echo ""
+}
+
+build_llm_block() {
+  local separator="─────────────────────────────────────────────────────────"
+
+  echo ""
+  echo "$separator"
+  echo "Copy for LLM"
+  echo "$separator"
+  echo ""
+  echo "URL: $ANALYZED_URL"
+  echo "Score: $OVERALL/100 ($GRADE)"
+  echo ""
+  echo "Issues:"
+
+  for i in "${!CAT_KEYS[@]}"; do
+    local key="${CAT_KEYS[$i]}"
+    local dkey
+    dkey=$(diag_key_for "$key")
+
+    local issue_count
+    issue_count=$(jq_safe ".score.categories.${key}.issues | length")
+    [[ "$issue_count" -eq 0 ]] && continue
+
+    local suggestion
+    suggestion=$(jq_safe ".diagnostics.${dkey}.suggestion // empty")
+
+    local j
+    for (( j=0; j<issue_count; j++ )); do
+      local issue
+      issue=$(jq_safe ".score.categories.${key}.issues[$j]")
+      echo "- $issue"
+    done
+    if [[ -n "$suggestion" ]]; then
+      echo "  Fix: $suggestion"
+    fi
+  done
+
+  echo ""
+}
+
+# ── Markdown formatter ───────────────────────────────────────────────────────
+
+status_emoji() {
+  case "$1" in
+    pass)    echo "✅" ;;
+    warning) echo "⚠️" ;;
+    fail)    echo "❌" ;;
+  esac
+}
+
+format_markdown() {
+  printf '# metapeek — %s\n\n' "$ANALYZED_URL"
+  printf '**Score:** %s/100 (**%s**)\n\n' "$OVERALL" "$GRADE"
+
+  # Table
+  echo "| Status | Category | Score | Details |"
+  echo "|--------|----------|------:|---------|"
+
+  for i in "${!CAT_KEYS[@]}"; do
+    local key="${CAT_KEYS[$i]}"
+    local label="${CAT_LABELS[$i]}"
+    local dkey
+    dkey=$(diag_key_for "$key")
+
+    local score status message
+    score=$(jq_safe ".score.categories.${key}.score")
+    status=$(jq_safe ".score.categories.${key}.status")
+    message=$(jq_safe ".diagnostics.${dkey}.message")
+
+    local emoji
+    emoji=$(status_emoji "$status")
+    printf '| %s | %s | %s | %s |\n' "$emoji" "$label" "$score" "$message"
+  done
+
+  echo ""
+
+  # Full metadata display
+  if [[ "$FULL_MODE" == true ]]; then
+    echo "## Metadata"
+    echo ""
+    echo "| Tag | Value |"
+    echo "|-----|-------|"
+
+    # Helper: print a markdown table row if value is non-empty
+    md_meta_row() {
+      local label="$1" value="$2"
+      [[ -z "$value" || "$value" == "null" ]] && return
+      # Truncate long values
+      if [[ ${#value} -gt 80 ]]; then
+        value="${value:0:77}..."
+      fi
+      # Escape pipe chars in value
+      value="${value//|/\\|}"
+      printf '| %s | %s |\n' "$label" "$value"
+    }
+
+    # Basic
+    md_meta_row "title" "$(jq_safe '.meta.title')"
+    md_meta_row "description" "$(jq_safe '.meta.description')"
+    md_meta_row "viewport" "$(jq_safe '.meta.viewport')"
+    md_meta_row "canonical" "$(jq_safe '.meta.canonical')"
+    md_meta_row "robots" "$(jq_safe '.meta.robots')"
+    md_meta_row "author" "$(jq_safe '.meta.author')"
+    md_meta_row "keywords" "$(jq_safe '.meta.keywords')"
+    md_meta_row "language" "$(jq_safe '.meta.language')"
+    md_meta_row "generator" "$(jq_safe '.meta.generator')"
+    md_meta_row "theme-color" "$(jq_safe '.meta.themeColor')"
+
+    # Open Graph
+    md_meta_row "og:title" "$(jq_safe '.meta.og.title')"
+    md_meta_row "og:description" "$(jq_safe '.meta.og.description')"
+    md_meta_row "og:image" "$(jq_safe '.meta.og.image')"
+    local md_og_iw md_og_ih
+    md_og_iw=$(jq_safe '.meta.og.image_dimensions.width')
+    md_og_ih=$(jq_safe '.meta.og.image_dimensions.height')
+    if [[ -n "$md_og_iw" && "$md_og_iw" != "null" && -n "$md_og_ih" && "$md_og_ih" != "null" ]]; then
+      md_meta_row "og:image size" "${md_og_iw}x${md_og_ih}"
+    fi
+    md_meta_row "og:url" "$(jq_safe '.meta.og.url')"
+    md_meta_row "og:type" "$(jq_safe '.meta.og.type')"
+    md_meta_row "og:site_name" "$(jq_safe '.meta.og.site_name')"
+    md_meta_row "og:locale" "$(jq_safe '.meta.og.locale')"
+
+    # Twitter
+    md_meta_row "twitter:card" "$(jq_safe '.meta.twitter.card')"
+    md_meta_row "twitter:site" "$(jq_safe '.meta.twitter.site')"
+    md_meta_row "twitter:creator" "$(jq_safe '.meta.twitter.creator')"
+    md_meta_row "twitter:title" "$(jq_safe '.meta.twitter.title')"
+    md_meta_row "twitter:description" "$(jq_safe '.meta.twitter.description')"
+    md_meta_row "twitter:image" "$(jq_safe '.meta.twitter.image')"
+    local md_tw_iw md_tw_ih
+    md_tw_iw=$(jq_safe '.meta.twitter.image_dimensions.width')
+    md_tw_ih=$(jq_safe '.meta.twitter.image_dimensions.height')
+    if [[ -n "$md_tw_iw" && "$md_tw_iw" != "null" && -n "$md_tw_ih" && "$md_tw_ih" != "null" ]]; then
+      md_meta_row "twitter:image size" "${md_tw_iw}x${md_tw_ih}"
+    fi
+
+    # Links
+    md_meta_row "favicon" "$(jq_safe '.meta.favicon')"
+    md_meta_row "apple-touch-icon" "$(jq_safe '.meta.appleTouchIcon')"
+
+    # Structured Data
+    local sd_count
+    sd_count=$(echo "$RESPONSE" | jq '.meta.structuredData | length')
+    if [[ "$sd_count" -gt 0 ]]; then
+      local sd_types
+      sd_types=$(echo "$RESPONSE" | jq -r '[.meta.structuredData[]."@type" // empty] | join(", ")' | sanitize)
+      md_meta_row "structured data" "${sd_count} JSON-LD block(s): ${sd_types}"
+    fi
+
+    echo ""
+  fi
+
+  printf '**Issues:** %s\n\n' "$TOTAL_ISSUES"
+
+  if [[ "$TOTAL_ISSUES" -gt 0 ]]; then
+    echo "## Issues"
+    echo ""
+
+    for i in "${!CAT_KEYS[@]}"; do
+      local key="${CAT_KEYS[$i]}"
+      local label="${CAT_LABELS[$i]}"
+      local dkey
+      dkey=$(diag_key_for "$key")
+
+      local issue_count
+      issue_count=$(jq_safe ".score.categories.${key}.issues | length")
+      [[ "$issue_count" -eq 0 ]] && continue
+
+      local suggestion
+      suggestion=$(jq_safe ".diagnostics.${dkey}.suggestion // empty")
+
+      printf '### ❌ %s\n\n' "$label"
+
+      local j
+      for (( j=0; j<issue_count; j++ )); do
+        local issue
+        issue=$(jq_safe ".score.categories.${key}.issues[$j]")
+        printf -- '- %s\n' "$issue"
+      done
+      if [[ -n "$suggestion" ]]; then
+        printf '  - **Fix:** %s\n' "$suggestion"
+      fi
+      echo ""
+    done
+
+    echo "## Copy for LLM"
+    echo ""
+    echo '```'
+    printf 'URL: %s\n' "$ANALYZED_URL"
+    printf 'Score: %s/100 (%s)\n' "$OVERALL" "$GRADE"
+    echo ""
+    echo "Issues:"
+    for i in "${!CAT_KEYS[@]}"; do
+      local key="${CAT_KEYS[$i]}"
+      local dkey
+      dkey=$(diag_key_for "$key")
+
+      local issue_count
+      issue_count=$(jq_safe ".score.categories.${key}.issues | length")
+      [[ "$issue_count" -eq 0 ]] && continue
+
+      local suggestion
+      suggestion=$(jq_safe ".diagnostics.${dkey}.suggestion // empty")
+
+      local j
+      for (( j=0; j<issue_count; j++ )); do
+        local issue
+        issue=$(jq_safe ".score.categories.${key}.issues[$j]")
+        printf -- '- %s\n' "$issue"
+      done
+      if [[ -n "$suggestion" ]]; then
+        printf '  Fix: %s\n' "$suggestion"
+      fi
+    done
+    echo '```'
+    echo ""
+  fi
+
+  printf '*Analyzed in %sms*\n\n' "$TIMING"
+
+  if [[ "$GRADE" == "A" || "$GRADE" == "B" ]]; then
+    printf '**Result:** Pass (exit 0) — grade %s\n\n' "$GRADE"
+  else
+    printf '**Result:** Fail (exit 1) — grade %s\n\n' "$GRADE"
+  fi
+}
+
+# ── Dispatch formatter ───────────────────────────────────────────────────────
+
+if [[ "$FORMAT" == "markdown" ]]; then
+  format_markdown
+else
+  format_terminal
+fi
+
+# ── Update check & exit code ──────────────────────────────────────────────────
+
+check_for_update
+
+[[ "$GRADE" == "A" || "$GRADE" == "B" ]] && exit 0 || exit 1
