@@ -84,9 +84,16 @@ export default defineEventHandler(async (event) => {
         resolvedAddresses: validation.resolvedAddresses!,
       });
       if (response.status < 200 || response.status >= 300) return null;
-      return response.data.length > MAX_TEXT_SIZE
+      const body = response.data.length > MAX_TEXT_SIZE
         ? response.data.slice(0, MAX_TEXT_SIZE)
         : response.data;
+      // Many SPAs return their index HTML for unknown routes instead of 404.
+      // Reject responses that look like HTML rather than plain text files.
+      const trimmed = body.trimStart();
+      if (trimmed.startsWith("<!") || trimmed.startsWith("<html") || trimmed.startsWith("<HTML")) {
+        return null;
+      }
+      return body;
     } catch {
       return null;
     }

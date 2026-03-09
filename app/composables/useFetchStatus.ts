@@ -52,7 +52,7 @@ const ERROR_MESSAGES: Record<string, ErrorMessage> = {
   },
   RESPONSE_TOO_LARGE: {
     message: 'Response was too large to process.',
-    suggestion: 'The target page exceeds 1MB. This is unusual for an HTML page — it may be serving a file download rather than a web page.',
+    suggestion: 'The target page exceeds 5MB. It may be serving a file download rather than a web page.',
   },
   PARSE_ERROR: {
     message: "Couldn't parse the response as HTML.",

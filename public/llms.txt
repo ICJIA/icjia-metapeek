@@ -1,0 +1,30 @@
+# MetaPeek
+
+> Inspect, preview, and fix HTML meta tags and Open Graph markup.
+
+MetaPeek is a free, open-source tool by the Illinois Criminal Justice Information Authority (ICJIA) that analyzes how web pages appear when shared on social media platforms.
+
+## What MetaPeek Does
+
+- Previews link appearance on 7 platforms: Google, Facebook, LinkedIn, X (Twitter), WhatsApp, Slack, iMessage
+- Scores meta tag quality 0–100 with letter grades (A–F) across 7 weighted categories
+- Detects missing, duplicate, or misconfigured Open Graph, Twitter Card, and standard meta tags
+- Validates OG image dimensions against platform-specific requirements
+- Assesses AI readiness: structured data, authorship, canonical URLs, robots.txt, llms.txt
+- Provides 10 advisory SEO insight checks: charset, favicon, viewport, og:type, image alt text, hreflang, H1 tags, resource hints
+- Generates copy-paste HTML fixes and exports reports as JSON, Markdown, or HTML
+
+## Modes
+
+- **Paste HTML** — Paste a page's head section for instant offline analysis
+- **Fetch URL** — Enter any URL to analyze a live page via server-side proxy
+
+## API
+
+GET /api/analyze?url=<encoded-url> — Returns JSON with parsed meta tags, diagnostics, quality score, and timing.
+
+## Links
+
+- Live app: https://metapeek.icjia.app
+- Source code: https://github.com/ICJIA/icjia-metapeek
+- ICJIA: https://icjia.illinois.gov

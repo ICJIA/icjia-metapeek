@@ -27,6 +27,7 @@ const { computeScore } = useMetaScore();
 const { fetchUrl } = useFetchProxy();
 const fetchStatus = useFetchStatus();
 const { aiResult, aiLoading, assessFromHtml, assessFromUrl, reset: resetAi } = useAiReadiness();
+const { seoInsightsResult, assessFromHtml: assessSeoFromHtml, assessFromUrl: assessSeoFromUrl, reset: resetSeo } = useSeoInsights();
 
 // Fix orphaned ARIA live regions by moving them into a landmark
 onMounted(() => {
@@ -80,6 +81,7 @@ const analyze = () => {
   );
   hasAnalyzed.value = true;
   assessFromHtml(parsedTags.value);
+  assessSeoFromHtml(parsedTags.value);
   rawHeadHtml.value = extractHeadSection();
 };
 
@@ -111,6 +113,7 @@ watch(inputHtml, () => {
       imageAnalysisResult.value = undefined;
       rawHeadHtml.value = "";
       resetAi();
+      resetSeo();
     }
   }
 });
@@ -124,6 +127,7 @@ watch(inputMode, () => {
   httpsPrefixAdded.value = false;
   fetchStatus.reset();
   resetAi();
+  resetSeo();
 });
 
 
@@ -180,6 +184,7 @@ const resetAll = () => {
   rawHeadHtml.value = "";
   fetchStatus.reset();
   resetAi();
+  resetSeo();
   activeTab.value = "diagnostics";
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
@@ -226,6 +231,7 @@ const handleFetchUrl = async () => {
 
     // Trigger AI readiness check (non-blocking)
     assessFromUrl(tags, inputUrl.value);
+    assessSeoFromUrl(tags);
 
     // Complete
     fetchStatus.setComplete(response.timing);
@@ -1751,17 +1757,22 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               <UButton
                 :disabled="
                   !inputUrl.trim() ||
-                  fetchStatus.state.value.status === 'fetching'
+                  fetchStatus.state.value.status === 'fetching' ||
+                  hasAnalyzed
                 "
                 size="sm"
-                color="primary"
+                :color="hasAnalyzed ? 'neutral' : 'primary'"
+                :variant="hasAnalyzed ? 'soft' : 'solid'"
                 :loading="fetchStatus.state.value.status === 'fetching'"
+                :class="hasAnalyzed ? 'opacity-50 cursor-not-allowed' : ''"
                 @click="handleFetchUrl"
               >
                 {{
                   fetchStatus.state.value.status === "fetching"
                     ? "Fetching..."
-                    : "Fetch"
+                    : hasAnalyzed
+                      ? "Fetched"
+                      : "Fetch"
                 }}
               </UButton>
             </div>
@@ -2166,8 +2177,8 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 </p>
               </div>
 
-              <!-- LLM-ready copy block (Step 5) -->
-              <div class="mt-6 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+              <!-- LLM-ready copy block (Step 5) — hidden when score is 100 -->
+              <div v-if="metaScore?.overall !== 100" class="mt-6 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                 <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Copy for AI assistant
                 </p>
@@ -2469,8 +2480,8 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
 
         <AiReadinessPanel :result="aiResult" :loading="aiLoading" />
 
-        <!-- LLM-ready copy block (AI Readiness) -->
-        <div class="mt-6 bg-white dark:bg-gray-900 rounded-xl border border-violet-200 dark:border-violet-800 p-6">
+        <!-- LLM-ready copy block (AI Readiness) — hidden when 100% AI Ready -->
+        <div v-if="aiResult?.verdict !== 'ready'" class="mt-6 bg-white dark:bg-gray-900 rounded-xl border border-violet-200 dark:border-violet-800 p-6">
           <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Copy for AI assistant
           </p>
@@ -2526,6 +2537,30 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             </Transition>
           </div>
         </div>
+      </div>
+
+      <!-- Step 5c: SEO Insights -->
+      <div
+        v-if="parsedTags && diagnostics && seoInsightsResult"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-8 mb-8 bg-teal-50 dark:bg-teal-950/40 border-y border-teal-200 dark:border-teal-800"
+      >
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="flex items-center justify-center w-16 h-16 rounded-full bg-teal-600 text-white font-extrabold text-2xl shadow-xl ring-4 ring-teal-200 dark:ring-teal-800"
+          >
+            <UIcon name="i-heroicons-magnifying-glass-circle" class="w-8 h-8" />
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+              SEO Insights
+            </h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Additional SEO signals and best practices for developers.
+            </p>
+          </div>
+        </div>
+
+        <SeoInsightsPanel :result="seoInsightsResult" />
       </div>
 
       <!-- Step 6: Export Results -->

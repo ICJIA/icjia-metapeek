@@ -145,6 +145,217 @@ export function parseMetaTags(html: string): MetaTags {
     }
   });
 
+  // SEO Insights — additional data for advisory checks
+  const charset =
+    $("meta[charset]").first().attr("charset") ||
+    (() => {
+      const ct = $('meta[http-equiv="Content-Type"]').first().attr("content");
+      return ct?.match(/charset=([^\s;]+)/i)?.[1];
+    })() ||
+    undefined;
+
+  const hreflangLinks: Array<{ lang: string; href: string }> = [];
+  $('link[rel="alternate"][hreflang]').each((_, el) => {
+    const lang = $(el).attr("hreflang");
+    const href = $(el).attr("href");
+    if (lang && href) hreflangLinks.push({ lang, href });
+  });
+
+  const preconnectHints: string[] = [];
+  $('link[rel="preconnect"]').each((_, el) => {
+    const href = $(el).attr("href");
+    if (href) preconnectHints.push(href);
+  });
+
+  const dnsPrefetchHints: string[] = [];
+  $('link[rel="dns-prefetch"]').each((_, el) => {
+    const href = $(el).attr("href");
+    if (href) dnsPrefetchHints.push(href);
+  });
+
+  const h1Tags: string[] = [];
+  $("h1").each((_, el) => {
+    const text = $(el).text().trim();
+    if (text) h1Tags.push(text);
+  });
+
+  const duplicates = {
+    title: $("title").length,
+    description: $('meta[name="description"]').length,
+    canonical: $('link[rel="canonical"]').length,
+  };
+
+  // Technology & analytics detection from scripts, links, and meta tags
+  const scriptSrcs: string[] = [];
+  const inlineScripts: string[] = [];
+  $("script").each((_, el) => {
+    const src = $(el).attr("src");
+    if (src) scriptSrcs.push(src);
+    const inline = $(el).html();
+    if (inline) inlineScripts.push(inline);
+  });
+
+  const linkHrefs: string[] = [];
+  $("link[href]").each((_, el) => {
+    const href = $(el).attr("href");
+    if (href) linkHrefs.push(href);
+  });
+
+  const allSources = [...scriptSrcs, ...linkHrefs].join("\n");
+  const allInline = inlineScripts.join("\n");
+
+  // --- Technology detection ---
+  const detectedTech: Array<{ name: string; category: string; evidence: string }> = [];
+  const addTech = (name: string, category: string, evidence: string) => {
+    if (!detectedTech.some((t) => t.name === name)) {
+      detectedTech.push({ name, category, evidence });
+    }
+  };
+
+  // Generator meta tag
+  if (generator) {
+    const gl = generator.toLowerCase();
+    if (gl.includes("wordpress")) addTech("WordPress", "CMS", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("drupal")) addTech("Drupal", "CMS", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("joomla")) addTech("Joomla", "CMS", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("hugo")) addTech("Hugo", "Static Site Generator", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("jekyll")) addTech("Jekyll", "Static Site Generator", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("ghost")) addTech("Ghost", "CMS", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("wix")) addTech("Wix", "Website Builder", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("squarespace")) addTech("Squarespace", "Website Builder", `<meta name="generator" content="${generator}">`);
+    else if (gl.includes("webflow")) addTech("Webflow", "Website Builder", `<meta name="generator" content="${generator}">`);
+    else addTech(generator, "Generator", `<meta name="generator" content="${generator}">`);
+  }
+
+  // Framework detection from scripts/links
+  if (allSources.includes("/_next/") || allSources.includes("__next"))
+    addTech("Next.js", "Framework", "Script/link pattern: /_next/");
+  if (allSources.includes("/_nuxt/") || allSources.includes("/__nuxt"))
+    addTech("Nuxt", "Framework", "Script/link pattern: /_nuxt/");
+  if (allSources.includes("/gatsby-") || allSources.includes("gatsby.js"))
+    addTech("Gatsby", "Framework", "Script pattern: gatsby");
+  if (allSources.includes("astro"))
+    addTech("Astro", "Framework", "Script/link pattern: astro");
+  if (allSources.includes("svelte") || allSources.includes("sveltekit"))
+    addTech("SvelteKit", "Framework", "Script pattern: svelte");
+  if (allSources.includes("remix") && allSources.includes("__remix"))
+    addTech("Remix", "Framework", "Script pattern: __remix");
+  if (allSources.includes("angular") || $("app-root").length > 0)
+    addTech("Angular", "Framework", "Script/element pattern: angular");
+
+  // CDN / hosting detection
+  if (allSources.includes("cdn.shopify.com") || allSources.includes("shopify"))
+    addTech("Shopify", "E-Commerce", "CDN: cdn.shopify.com");
+  if (allSources.includes("cdn.jsdelivr.net"))
+    addTech("jsDelivr CDN", "CDN", "Link: cdn.jsdelivr.net");
+  if (allSources.includes("cdnjs.cloudflare.com"))
+    addTech("Cloudflare CDN", "CDN", "Link: cdnjs.cloudflare.com");
+  if (allSources.includes("unpkg.com"))
+    addTech("unpkg", "CDN", "Link: unpkg.com");
+
+  // UI libraries
+  if (allSources.includes("bootstrap"))
+    addTech("Bootstrap", "CSS Framework", "Script/link pattern: bootstrap");
+  if (allSources.includes("tailwindcss") || allSources.includes("tailwind"))
+    addTech("Tailwind CSS", "CSS Framework", "Script/link pattern: tailwind");
+  if (allSources.includes("jquery") || allInline.includes("jQuery"))
+    addTech("jQuery", "Library", "Script pattern: jquery");
+  if (allSources.includes("react") || $('[data-reactroot]').length > 0 || $('[id="__next"]').length > 0)
+    addTech("React", "Library", "Script/element pattern: react");
+  if (allSources.includes("vue") || $('[id="__nuxt"]').length > 0 || $('[id="app"][data-v-]').length > 0)
+    addTech("Vue.js", "Library", "Script/element pattern: vue");
+
+  // Fonts
+  if (allSources.includes("fonts.googleapis.com") || allSources.includes("fonts.gstatic.com"))
+    addTech("Google Fonts", "Fonts", "Link: fonts.googleapis.com");
+  if (allSources.includes("use.typekit.net") || allSources.includes("p.typekit.net"))
+    addTech("Adobe Fonts (Typekit)", "Fonts", "Link: use.typekit.net");
+
+  // --- Analytics & tracking detection ---
+  const detectedAnalytics: Array<{ name: string; evidence: string }> = [];
+  const addAnalytics = (name: string, evidence: string) => {
+    if (!detectedAnalytics.some((a) => a.name === name)) {
+      detectedAnalytics.push({ name, evidence });
+    }
+  };
+
+  // Google Analytics / GA4
+  if (allSources.includes("googletagmanager.com/gtag") || allInline.includes("gtag("))
+    addAnalytics("Google Analytics (GA4)", "Script: googletagmanager.com/gtag");
+  else if (allSources.includes("google-analytics.com") || allInline.includes("ga("))
+    addAnalytics("Google Analytics (Universal)", "Script: google-analytics.com");
+
+  // Google Tag Manager
+  if (allSources.includes("googletagmanager.com/gtm") || allInline.includes("GTM-"))
+    addAnalytics("Google Tag Manager", "Script: googletagmanager.com/gtm");
+
+  // Facebook Pixel
+  if (allSources.includes("connect.facebook.net") || allInline.includes("fbq("))
+    addAnalytics("Meta Pixel (Facebook)", "Script: connect.facebook.net / fbq()");
+
+  // Hotjar
+  if (allSources.includes("static.hotjar.com") || allInline.includes("hotjar") || allInline.includes("hj("))
+    addAnalytics("Hotjar", "Script: static.hotjar.com");
+
+  // Segment
+  if (allSources.includes("cdn.segment.com") || allInline.includes("analytics.identify"))
+    addAnalytics("Segment", "Script: cdn.segment.com");
+
+  // Plausible
+  if (allSources.includes("plausible.io"))
+    addAnalytics("Plausible Analytics", "Script: plausible.io");
+
+  // Fathom
+  if (allSources.includes("cdn.usefathom.com") || allSources.includes("usefathom.com"))
+    addAnalytics("Fathom Analytics", "Script: usefathom.com");
+
+  // Matomo / Piwik
+  if (allSources.includes("matomo") || allInline.includes("_paq") || allSources.includes("piwik"))
+    addAnalytics("Matomo (Piwik)", "Script pattern: matomo / _paq");
+
+  // Clarity
+  if (allSources.includes("clarity.ms") || allInline.includes("clarity"))
+    addAnalytics("Microsoft Clarity", "Script: clarity.ms");
+
+  // HubSpot
+  if (allSources.includes("js.hs-scripts.com") || allSources.includes("js.hs-analytics.net") || allSources.includes("hubspot"))
+    addAnalytics("HubSpot", "Script: js.hs-scripts.com");
+
+  // LinkedIn Insight
+  if (allSources.includes("snap.licdn.com") || allInline.includes("_linkedin_partner_id"))
+    addAnalytics("LinkedIn Insight Tag", "Script: snap.licdn.com");
+
+  // Twitter/X Pixel
+  if (allSources.includes("static.ads-twitter.com") || allInline.includes("twq("))
+    addAnalytics("X (Twitter) Pixel", "Script: ads-twitter.com / twq()");
+
+  // Pinterest Tag
+  if (allSources.includes("pintrk") || allInline.includes("pintrk"))
+    addAnalytics("Pinterest Tag", "Script pattern: pintrk");
+
+  // TikTok Pixel
+  if (allSources.includes("analytics.tiktok.com") || allInline.includes("ttq"))
+    addAnalytics("TikTok Pixel", "Script: analytics.tiktok.com");
+
+  // Vercel Analytics
+  if (allSources.includes("vercel-analytics") || allSources.includes("_vercel/insights"))
+    addAnalytics("Vercel Analytics", "Script: _vercel/insights");
+
+  // Google Ads
+  if (allSources.includes("googleads") || allInline.includes("google_conversion_id"))
+    addAnalytics("Google Ads", "Script pattern: googleads");
+
+  const seoInsights = {
+    charset,
+    hreflangLinks,
+    preconnectHints,
+    dnsPrefetchHints,
+    h1Tags,
+    duplicates,
+    detectedTech,
+    detectedAnalytics,
+  };
+
   return {
     title,
     description,
@@ -166,5 +377,6 @@ export function parseMetaTags(html: string): MetaTags {
     apple,
     microsoft,
     structuredData,
+    seoInsights,
   };
 }

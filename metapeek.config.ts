@@ -24,7 +24,7 @@ const metapeekConfig = {
 
     userAgent: "MetaPeek/1.0 (+https://metapeek.icjia.app)",
     fetchTimeoutMs: 10_000, // abort fetch after this long
-    maxResponseBytes: 1_048_576, // 1MB — abort if response exceeds this
+    maxResponseBytes: 5_242_880, // 5MB — modern SPAs with inline JS can exceed 1MB
     maxRedirects: 5, // follow up to N redirects
     maxUrlLength: 2048, // reject URLs longer than this
     allowHttpInDev: true, // allow http:// URLs in development mode

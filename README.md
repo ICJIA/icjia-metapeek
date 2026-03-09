@@ -192,6 +192,28 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - ✅ Structured data viewer (collapsible in Diagnostics — JSON-LD + schema.org basics)
 - ✅ Raw HTML debug view (collapsible in Export — actual parsed `<head>`)
 
+### SEO Insights — Advisory Developer Checks ✅
+
+10 non-scoring checks that surface useful SEO signals for developers:
+
+| Check | What It Detects |
+|-------|----------------|
+| **Character Encoding** | Missing or non-UTF-8 `<meta charset>` declaration |
+| **Favicon** | Missing `<link rel="icon">` tag |
+| **Viewport Meta** | Missing viewport tag (critical for mobile-first indexing) |
+| **Open Graph Type** | Missing or non-standard `og:type` value |
+| **OG Image Alt Text** | `og:image` present without `og:image:alt` |
+| **Twitter Image Alt Text** | `twitter:image` present without `twitter:image:alt` |
+| **Duplicate Meta Tags** | Multiple `<title>`, `<meta description>`, or `<link canonical>` tags |
+| **Hreflang (i18n)** | Presence and listing of `<link rel="alternate" hreflang="...">` tags |
+| **H1 Heading Tags** | Missing, single (correct), or multiple H1 elements |
+| **Resource Hints** | `<link rel="preconnect">` and `<link rel="dns-prefetch">` for performance |
+
+These checks appear in a dedicated "SEO Insights" panel after the AI Readiness section. Each check shows:
+- **Status** — Pass (green), info (blue), advisory warning (amber), or N/A (gray)
+- **Detail** — The actual HTML found (or what's missing)
+- **Suggestion** — Actionable fix with explanation of SEO impact
+
 ### Phase 4 — API Endpoint & Isomorphic Core ✅ Complete
 
 **Shared Core (`shared/`):**
@@ -487,7 +509,9 @@ icjia-metapeek/
 │   ├── constants.ts         # Limits, image specs, required tags
 │   ├── parser.ts            # Meta tag parser (cheerio-based)
 │   ├── diagnostics.ts       # Diagnostic analysis (pure function)
-│   └── score.ts             # Quality scoring (pure function)
+│   ├── score.ts             # Quality scoring (pure function)
+│   ├── ai-readiness.ts      # AI readiness checks (pure function)
+│   └── seo-insights.ts      # SEO insights advisory checks (pure function)
 ├── app/
 │   ├── assets/
 │   │   └── css/
@@ -503,13 +527,17 @@ icjia-metapeek/
 │   │   ├── PreviewSlack.vue
 │   │   ├── PreviewiMessage.vue  # Phase 2
 │   │   ├── DiagnosticsPanel.vue
-│   │   └── CodeGenerator.vue
+│   │   ├── CodeGenerator.vue
+│   │   ├── AiReadinessPanel.vue   # AI readiness verdict + check list
+│   │   └── SeoInsightsPanel.vue   # SEO insights advisory panel
 │   ├── composables/         # Thin wrappers around shared/ core
 │   │   ├── useMetaParser.ts     # → shared/parser
 │   │   ├── useDiagnostics.ts    # → shared/diagnostics
 │   │   ├── useMetaScore.ts      # → shared/score
 │   │   ├── useFetchProxy.ts     # Phase 2 ✅
-│   │   └── useFetchStatus.ts    # Phase 2 ✅
+│   │   ├── useFetchStatus.ts    # Phase 2 ✅
+│   │   ├── useAiReadiness.ts    # AI readiness composable
+│   │   └── useSeoInsights.ts    # SEO insights composable
 │   ├── pages/
 │   │   └── index.vue        # Single-page application
 │   ├── types/
@@ -618,9 +646,13 @@ The app will be available at `http://localhost:3000`
 
 4. **Meta Results and Suggestions** — Diagnostics tab with color-coded status; Code tab with copyable HTML. Expand "Structured Data (JSON-LD)" in the diagnostics to check JSON-LD and basic schema.org validation.
 
-5. **Overall Meta Tag Score** — 0–100 score with letter grade (A–F), category breakdown, and copy-ready issues for AI assistants.
+5. **Overall Meta Tag Score** — 0–100 score with letter grade (A–F), category breakdown, and copy-ready issues for AI assistants. When you score a perfect 100, the "Copy for AI assistant" block is hidden since there's nothing to fix.
 
-6. **Export Results** — Download JSON, Markdown, or HTML report. Expand "Raw HTML debug" to see the actual parsed `<head>` (useful when results seem wrong).
+6. **AI Readiness** — Checks whether your page is prepared for AI systems (ChatGPT, Claude, Perplexity, etc.) to understand and cite your content. When fully AI-ready (100%), the copy block is hidden.
+
+7. **SEO Insights** — 10 advisory, non-scoring checks covering character encoding, favicon, viewport, og:type, image alt text, duplicate tags, hreflang, H1 structure, and resource hints. These don't affect your score but surface best practices developers should know about.
+
+8. **Export Results** — Download JSON, Markdown, or HTML report. Expand "Raw HTML debug" to see the actual parsed `<head>` (useful when results seem wrong).
 
 ---
 
@@ -631,6 +663,9 @@ The app will be available at `http://localhost:3000`
 - Copy corrected HTML with one click
 - Export analysis as JSON/Markdown/HTML
 - Image compatibility check across all platforms
+- AI readiness assessment (robots.txt, llms.txt, structured data, etc.)
+- SEO insights panel (10 advisory checks for developers)
+- Smart UX: copy blocks hidden when score is 100% (nothing to fix)
 
 ### Available Scripts
 

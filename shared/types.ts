@@ -95,6 +95,18 @@ export interface MetaTags {
 
   // JSON-LD Structured Data
   structuredData: Array<Record<string, unknown>>;
+
+  // SEO Insights — additional parsed data for advisory checks
+  seoInsights: {
+    charset?: string;
+    hreflangLinks: Array<{ lang: string; href: string }>;
+    preconnectHints: string[];
+    dnsPrefetchHints: string[];
+    h1Tags: string[];
+    duplicates: { title: number; description: number; canonical: number };
+    detectedTech: Array<{ name: string; category: string; evidence: string }>;
+    detectedAnalytics: Array<{ name: string; evidence: string }>;
+  };
 }
 
 /**
@@ -179,6 +191,26 @@ export interface AiReadinessCheck {
 export interface AiReadinessResult {
   verdict: 'ready' | 'partial' | 'not-ready';
   checks: readonly AiReadinessCheck[];
+}
+
+/**
+ * Status of a single SEO insight check (advisory, non-scoring).
+ */
+export interface SeoInsightCheck {
+  id: string;
+  label: string;
+  status: 'pass' | 'info' | 'warn' | 'na';
+  message: string;
+  suggestion?: string;
+  detail?: string;
+}
+
+/**
+ * Complete SEO insights result (informational only — does not affect score).
+ */
+export interface SeoInsightsResult {
+  checks: readonly SeoInsightCheck[];
+  summary: { pass: number; info: number; warn: number; na: number };
 }
 
 /**
