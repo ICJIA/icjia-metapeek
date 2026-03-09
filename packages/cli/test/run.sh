@@ -118,8 +118,8 @@ echo "  Error handling"
 echo "  ──────────────"
 
 assert_exit "no args exits 2" 2 "$METAPEEK"
-assert_stderr_contains "no args shows error" "missing required argument" "$METAPEEK"
-assert_stderr_contains "no args shows help hint" "metapeek --help" "$METAPEEK"
+assert_stdout_contains "no args shows usage" "Usage:" "$METAPEEK"
+assert_stdout_contains "no args shows options" "\-\-help" "$METAPEEK"
 
 assert_exit "ftp:// URL exits 2" 2 "$METAPEEK" "ftp://bad"
 assert_stderr_contains "ftp:// URL shows protocol error" "only http and https" "$METAPEEK" "ftp://bad"

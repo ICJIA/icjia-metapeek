@@ -333,17 +333,66 @@ curl "https://metapeek.icjia.app/api/analyze?url=https://thissitedoesnotexist123
 
 ## CLI Tool
 
-A **command-line interface (CLI) version** of MetaPeek is available for developers who want to analyze meta tags directly from the terminal or integrate analysis into build scripts and CI/CD pipelines.
+A **command-line interface (CLI)** is included in this monorepo at `packages/cli/`. It provides core meta tag analysis directly from the terminal with a **reduced feature set** compared to the web app.
 
-**GitHub:** [https://github.com/ICJIA/icjia-metapeek-cli](https://github.com/ICJIA/icjia-metapeek-cli)
+**What the CLI includes:**
+- 7-category weighted scoring (same scale and grading as the web app)
+- Colored terminal output, Markdown, and JSON formats
+- OG image dimension detection (PNG, JPEG, GIF, WebP)
+- Diagnostics with actionable fix suggestions
+- LLM-ready copy block for pasting into AI assistants
 
-The CLI tool provides the same powerful analysis as the web app:
-- Analyze any URL from the command line
-- Output results as JSON, Markdown, or human-readable text
-- Integrate into automated workflows and testing pipelines
-- Perfect for developers, DevOps teams, and CI/CD automation
+**What the CLI does not include:**
+- AI readiness checks (robots.txt, llms.txt analysis)
+- Social media preview rendering (Google, Facebook, LinkedIn, X, WhatsApp, Slack, iMessage)
+- Extended tag extraction (Facebook, article, Pinterest, Apple, Microsoft meta tags)
+- Image analysis with per-platform crop previews
+- Code generator with editable HTML output
+- Export as HTML report
 
-For installation and usage instructions, visit the CLI repository.
+**Requirements:** Python 3.6+ and `jq` (install via `brew install python3 jq` on macOS).
+
+### Setup
+
+Add an alias to your shell configuration so you can run `metapeek` from anywhere:
+
+**zsh** (`~/.zshrc`):
+```bash
+alias metapeek='/path/to/icjia-metapeek/packages/cli/metapeek'
+```
+
+**bash** (`~/.bashrc`):
+```bash
+alias metapeek='/path/to/icjia-metapeek/packages/cli/metapeek'
+```
+
+Then reload your shell:
+```bash
+source ~/.zshrc   # or source ~/.bashrc
+```
+
+Alternatively, symlink it into your PATH:
+```bash
+ln -s /path/to/icjia-metapeek/packages/cli/metapeek /usr/local/bin/metapeek
+```
+
+### Usage
+
+```bash
+# Analyze a URL
+metapeek https://example.com
+
+# JSON output (for scripting/CI)
+metapeek https://example.com --json
+
+# Markdown output
+metapeek https://example.com --format markdown
+
+# Show help
+metapeek --help
+```
+
+The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable for CI/CD quality gates.
 
 ---
 
@@ -428,6 +477,11 @@ A custom, accessible tooltip component built from scratch (no external dependenc
 
 ```
 icjia-metapeek/
+├── packages/
+│   └── cli/                 # CLI meta tag analyzer (bash + Python)
+│       ├── metapeek             # Main executable
+│       ├── package.json
+│       └── test/run.sh          # CLI test suite
 ├── shared/                  # Isomorphic core (browser + Node.js)
 │   ├── types.ts             # All TypeScript interfaces
 │   ├── constants.ts         # Limits, image specs, required tags
@@ -862,16 +916,26 @@ git push origin main
 
 ### SSRF Protection ✅
 
-**Defense in depth approach:**
+**Defense in depth approach (web app):**
 
 - DNS resolution before fetch (blocks private IPs)
 - Private IP range blocking (RFC 1918, loopback, link-local)
+- Full IPv6 normalization and expansion (prevents bypass via fully-expanded IPv4-mapped addresses)
+- IP-literal hostname blocking (rejects bare IPs and bracketed IPv6 in URLs)
 - Cloud metadata endpoint blocking (169.254.169.254)
 - Protocol whitelist (HTTPS only in production, HTTP allowed in dev)
 - URL length limits (2048 chars max)
 - Response size limits (1MB max)
 - Timeout enforcement (10 seconds)
 - Redirect validation (each redirect target is validated)
+- Consistent Bearer token auth across all API endpoints (`/api/fetch`, `/api/analyze`, `/api/ai-check`)
+
+**CLI SSRF protection:**
+
+- Socket-level IP validation using Python `ipaddress` module (blocks private, loopback, link-local, multicast, reserved)
+- Custom redirect handler validates each redirect target before following
+- Host validation on both primary URL fetch and `og:image`/`twitter:image` fetches
+- Protocol whitelist (HTTP/HTTPS only)
 
 **Blocked ranges:**
 
@@ -879,6 +943,7 @@ git push origin main
 - `127.0.0.0/8` (loopback)
 - `169.254.0.0/16` (link-local / cloud metadata)
 - `0.0.0.0/8`, `224.0.0.0/4`, `240.0.0.0/4` (reserved/multicast)
+- IPv6 equivalents: `::1`, `fc00::/7`, `fe80::/10`, `ff00::/8`, IPv4-mapped `::ffff:` addresses
 
 ### Rate Limiting ✅
 
@@ -893,8 +958,11 @@ git push origin main
 - Request body validation (strict schema, reject unexpected fields)
 - URL validation before fetch (format, protocol, length)
 - HTML sanitization (strip dangerous script tags, keep JSON-LD)
+- CSS color value sanitization (whitelist-validated before DOM rendering)
 - No execution of fetched JavaScript
 - Error message sanitization (no internal info leakage)
+- CLI terminal output sanitized against ANSI escape injection
+- CORS `localhost` origin restricted to non-production environments
 
 ### Logging & Monitoring ✅
 

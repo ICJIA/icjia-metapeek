@@ -100,6 +100,22 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
     return { ok: false, reason: "Internal addresses are not allowed" };
   }
 
+  // Block IP-literal hostnames (bare IPs and bracketed IPv6)
+  // These bypass DNS resolution and could reach internal services
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+    if (isPrivateIp(hostname)) {
+      return { ok: false, reason: "Internal addresses are not allowed" };
+    }
+  }
+  if (hostname.startsWith("[") || hostname.includes(":")) {
+    // IPv6 literal in URL (brackets stripped by URL parser)
+    return {
+      ok: false,
+      reason:
+        "IP literal addresses are not allowed. Please use a hostname.",
+    };
+  }
+
   // DNS resolution with private IP check (both IPv4 and IPv6)
   // This prevents DNS rebinding attacks and access to internal services
   let hasValidAddress = false;
@@ -210,61 +226,115 @@ export function isPrivateIp(ip: string): boolean {
  * Blocks: loopback (::1), ULA (fc00::/7), link-local (fe80::/10),
  * multicast (ff00::/8), IPv4-mapped, and unspecified (::).
  */
-export function isPrivateIpv6(ip: string): boolean {
-  const normalized = ip.toLowerCase().trim();
+/**
+ * Fully expands an IPv6 address to 8 colon-separated 4-hex-digit groups.
+ * Handles :: abbreviation, zone identifiers, and CIDR suffixes.
+ *
+ * @param ip - IPv6 address string (e.g., "::1", "fe80::1%eth0")
+ * @returns Expanded form (e.g., "0000:0000:0000:0000:0000:0000:0000:0001") or null if invalid
+ */
+function expandIpv6(ip: string): string | null {
+  // Remove zone identifier and CIDR suffix
+  let addr = ip.toLowerCase().trim().split("%")[0] ?? ip;
+  addr = addr.split("/")[0] ?? addr;
 
-  // ::1 - Loopback
-  if (normalized === "::1" || normalized === "::1/128") {
+  // Handle IPv4-mapped notation (::ffff:1.2.3.4)
+  const v4Mapped = addr.match(/^(.*)::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (v4Mapped) {
+    const parts = v4Mapped[2]!.split(".").map(Number);
+    if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255))
+      return null;
+    const hex1 = ((parts[0]! << 8) | parts[1]!).toString(16).padStart(4, "0");
+    const hex2 = ((parts[2]! << 8) | parts[3]!).toString(16).padStart(4, "0");
+    addr = `${v4Mapped[1] || ""}::ffff:${hex1}:${hex2}`;
+  }
+
+  // Also handle non-abbreviated form: 0000:...:ffff:1.2.3.4
+  const v4Suffix = addr.match(/^(.*):(\d+\.\d+\.\d+\.\d+)$/);
+  if (v4Suffix) {
+    const parts = v4Suffix[2]!.split(".").map(Number);
+    if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255))
+      return null;
+    const hex1 = ((parts[0]! << 8) | parts[1]!).toString(16).padStart(4, "0");
+    const hex2 = ((parts[2]! << 8) | parts[3]!).toString(16).padStart(4, "0");
+    addr = `${v4Suffix[1]}:${hex1}:${hex2}`;
+  }
+
+  // Split on :: to expand
+  const halves = addr.split("::");
+  if (halves.length > 2) return null; // multiple :: not allowed
+
+  let groups: string[];
+  if (halves.length === 2) {
+    const left = halves[0] ? halves[0].split(":") : [];
+    const right = halves[1] ? halves[1].split(":") : [];
+    const fill = 8 - left.length - right.length;
+    if (fill < 0) return null;
+    groups = [
+      ...left,
+      ...Array(fill).fill("0000"),
+      ...right,
+    ];
+  } else {
+    groups = addr.split(":");
+  }
+
+  if (groups.length !== 8) return null;
+
+  return groups
+    .map((g) => g.padStart(4, "0"))
+    .join(":");
+}
+
+export function isPrivateIpv6(ip: string): boolean {
+  const expanded = expandIpv6(ip);
+  if (!expanded) {
+    return true; // Treat unparseable IPv6 as private (block it)
+  }
+
+  // Extract the first two groups for prefix checks
+  const groups = expanded.split(":");
+  const first = groups[0]!;
+  const firstByte = parseInt(first.substring(0, 2), 16);
+
+  // ::1 - Loopback (0000:...:0001)
+  if (expanded === "0000:0000:0000:0000:0000:0000:0000:0001") {
     return true;
   }
 
-  // Remove zone identifier if present (e.g., fe80::1%eth0 -> fe80::1)
-  const withoutZone = normalized.split("%")[0] ?? normalized;
-
-  // Expand IPv6 address for easier checking
-  // This is a simplified check - we'll check prefixes
+  // :: - Unspecified (all zeros)
+  if (expanded === "0000:0000:0000:0000:0000:0000:0000:0000") {
+    return true;
+  }
 
   // fc00::/7 - Unique Local Addresses (ULA) - private IPv6
-  // This includes fc00::/8 and fd00::/8
-  if (withoutZone.startsWith("fc") || withoutZone.startsWith("fd")) {
+  if (firstByte >= 0xfc && firstByte <= 0xfd) {
     return true;
   }
 
   // fe80::/10 - Link-local addresses
-  if (
-    withoutZone.startsWith("fe8") ||
-    withoutZone.startsWith("fe9") ||
-    withoutZone.startsWith("fea") ||
-    withoutZone.startsWith("feb")
-  ) {
+  if (first.startsWith("fe8") || first.startsWith("fe9") ||
+      first.startsWith("fea") || first.startsWith("feb")) {
     return true;
   }
 
   // ff00::/8 - Multicast
-  if (withoutZone.startsWith("ff")) {
+  if (firstByte === 0xff) {
     return true;
   }
 
-  // ::ffff:0:0/96 - IPv4-mapped IPv6 addresses
-  // Format: ::ffff:192.168.1.1 or ::ffff:c0a8:0101
-  if (withoutZone.includes("::ffff:")) {
-    // Extract the IPv4 part and check if it's private
-    const ipv4Part = withoutZone.split("::ffff:")[1];
-
-    // Check if it's in dotted notation (192.168.1.1)
-    if (ipv4Part && ipv4Part.includes(".")) {
-      return isPrivateIp(ipv4Part);
-    }
-
-    // Check if it's in hex notation (c0a8:0101 = 192.168.1.1)
-    // For simplicity, we'll block all IPv4-mapped addresses
-    // since they're often used in SSRF attacks
-    return true;
-  }
-
-  // ::/128 - Unspecified address (like 0.0.0.0)
-  if (normalized === "::" || normalized === "::/128") {
-    return true;
+  // ::ffff:0:0/96 - IPv4-mapped IPv6 addresses (fully expanded)
+  // 0000:0000:0000:0000:0000:ffff:XXXX:XXXX
+  if (
+    groups[0] === "0000" && groups[1] === "0000" &&
+    groups[2] === "0000" && groups[3] === "0000" &&
+    groups[4] === "0000" && groups[5] === "ffff"
+  ) {
+    // Convert the last two groups back to IPv4 and check
+    const hi = parseInt(groups[6]!, 16);
+    const lo = parseInt(groups[7]!, 16);
+    const ipv4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+    return isPrivateIp(ipv4);
   }
 
   return false;

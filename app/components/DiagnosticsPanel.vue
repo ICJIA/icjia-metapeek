@@ -188,6 +188,15 @@ const hasStructuredData = computed(
   () => props.tags?.structuredData && props.tags.structuredData.length > 0,
 );
 
+// Sanitize CSS color values to prevent CSS injection
+const sanitizeCssColor = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  // Allow only safe color formats: hex, named colors, rgb/rgba, hsl/hsla
+  const safePattern =
+    /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,20}|rgba?\(\s*\d{1,3}[\s,]+\d{1,3}[\s,]+\d{1,3}([\s,/]+[\d.]+%?)?\s*\)|hsla?\(\s*\d{1,3}[\s,]+[\d.]+%[\s,]+[\d.]+%([\s,/]+[\d.]+%?)?\s*\))$/;
+  return safePattern.test(value.trim()) ? value.trim() : undefined;
+};
+
 // Format structured data for display
 const formatJsonLd = (data: Record<string, unknown>) => {
   return JSON.stringify(data, null, 2);
@@ -626,8 +635,9 @@ const validateStructuredData = (schema: Record<string, unknown>) => {
               >
               <div class="flex items-center gap-2">
                 <div
+                  v-if="sanitizeCssColor(tags.themeColor)"
                   class="w-4 h-4 rounded border border-gray-300"
-                  :style="{ backgroundColor: tags.themeColor }"
+                  :style="{ backgroundColor: sanitizeCssColor(tags.themeColor) }"
                 />
                 <span
                   class="text-sm font-mono text-gray-700 dark:text-gray-300"
@@ -787,8 +797,9 @@ const validateStructuredData = (schema: Record<string, unknown>) => {
               >
               <div class="flex items-center gap-2">
                 <div
+                  v-if="sanitizeCssColor(tags.microsoft.tileColor)"
                   class="w-4 h-4 rounded border border-gray-300"
-                  :style="{ backgroundColor: tags.microsoft.tileColor }"
+                  :style="{ backgroundColor: sanitizeCssColor(tags.microsoft.tileColor) }"
                 />
                 <span
                   class="text-sm font-mono text-gray-700 dark:text-gray-300"

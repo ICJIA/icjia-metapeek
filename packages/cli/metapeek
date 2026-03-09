@@ -199,6 +199,9 @@ if [[ ! "$URL" =~ ^https?:// ]]; then
   URL="https://$URL"
 fi
 
+# Sanitize URL for terminal display (strip control/escape characters)
+DISPLAY_URL=$(printf '%s' "$URL" | LC_ALL=C tr -d '\000-\037\177')
+
 # ── Sanitize helper ──────────────────────────────────────────────────────────
 # Strip ASCII control characters (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F, 0x7F)
 # from API response strings to prevent ANSI injection from untrusted data.
@@ -239,7 +242,7 @@ start_spinner() {
   (
     while true; do
       for (( i=0; i<${#chars}; i++ )); do
-        printf "\r  %s Analyzing %s..." "${chars:$i:1}" "$URL" >&2
+        printf "\r  %s Analyzing %s..." "${chars:$i:1}" "$DISPLAY_URL" >&2
         sleep 0.08
       done
     done
@@ -263,15 +266,51 @@ trap stop_spinner EXIT
 analyze_url() {
   local url="$1"
   python3 - "$url" "$VERSION" <<'PYEOF'
-import sys, json, time, struct
-from urllib.request import Request, urlopen
+import sys, json, time, struct, socket, ipaddress
+from urllib.request import Request, urlopen, build_opener, HTTPRedirectHandler
 from urllib.error import URLError, HTTPError
+from urllib.parse import urlparse
 from html.parser import HTMLParser
 
 url = sys.argv[1]
 version = sys.argv[2]
 
 MAX_BYTES = 1_048_576  # 1 MB
+
+# ── SSRF Protection ─────────────────────────────────────────────────────
+
+def is_private_ip(addr_str):
+    """Check if an IP address is private, loopback, link-local, or reserved."""
+    try:
+        addr = ipaddress.ip_address(addr_str)
+        return (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_multicast or addr.is_reserved or addr.is_unspecified)
+    except ValueError:
+        return True  # Block unparseable addresses
+
+def validate_host(hostname):
+    """Resolve hostname and verify all addresses are public."""
+    try:
+        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise URLError(f"Could not resolve hostname: {hostname}")
+
+    for family, _, _, _, sockaddr in results:
+        ip = sockaddr[0]
+        if is_private_ip(ip):
+            raise URLError("URL resolves to a private or reserved address")
+    return True
+
+class SafeRedirectHandler(HTTPRedirectHandler):
+    """Redirect handler that validates each redirect target against SSRF."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urlparse(newurl)
+        if parsed.scheme not in ("http", "https"):
+            raise URLError(f"Redirect to disallowed scheme: {parsed.scheme}")
+        validate_host(parsed.hostname)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+safe_opener = build_opener(SafeRedirectHandler)
 
 class MetaParser(HTMLParser):
     def __init__(self):
@@ -336,11 +375,13 @@ class MetaParser(HTMLParser):
             self.done = True
 
 def fetch(url):
+    parsed = urlparse(url)
+    validate_host(parsed.hostname)
     req = Request(url, headers={
         "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
         "Accept-Encoding": "identity"
     })
-    resp = urlopen(req, timeout=10)
+    resp = safe_opener.open(req, timeout=10)
     return resp.read(MAX_BYTES).decode("utf-8", errors="replace")
 
 def parse_png(data):
@@ -404,11 +445,13 @@ IMG_MAX_BYTES = 65536  # 64 KB — enough for image headers
 
 def fetch_image_bytes(url):
     try:
+        parsed = urlparse(url)
+        validate_host(parsed.hostname)
         req = Request(url, headers={
             "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
             "Accept-Encoding": "identity"
         })
-        resp = urlopen(req, timeout=4)
+        resp = safe_opener.open(req, timeout=4)
         return resp.read(IMG_MAX_BYTES)
     except Exception:
         return None

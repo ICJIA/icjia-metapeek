@@ -1,5 +1,11 @@
 // metapeek.config.ts
 
+// CORS origins: localhost only allowed in non-production
+const corsOrigins: string[] = ["https://metapeek.icjia.app"];
+if (process.env.NODE_ENV !== "production") {
+  corsOrigins.push("http://localhost:3000");
+}
+
 const metapeekConfig = {
   // ── Identity ──────────────────────────────────────────────
   site: {
@@ -34,8 +40,8 @@ const metapeekConfig = {
   // ── CORS ──────────────────────────────────────────────────
   cors: {
     // Origins allowed to call /api/fetch. The site URL is always included.
-    // Add localhost origins for development.
-    allowedOrigins: ["https://metapeek.icjia.app", "http://localhost:3000"],
+    // Localhost is only included in non-production environments.
+    allowedOrigins: corsOrigins,
     allowedMethods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
   },

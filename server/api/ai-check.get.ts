@@ -9,9 +9,10 @@
  * @module server/api/ai-check.get
  */
 
-import { defineEventHandler, getQuery, createError } from "h3";
+import { defineEventHandler, getQuery, getHeader, createError } from "h3";
 import { validateUrl } from "../utils/proxy";
 import { pinnedFetch } from "../utils/fetcher";
+import { safeEqual } from "../utils/auth";
 import metapeekConfig from "../../metapeek.config";
 
 export default defineEventHandler(async (event) => {
@@ -30,6 +31,22 @@ export default defineEventHandler(async (event) => {
       statusCode: 400,
       message: `URL exceeds maximum length of ${metapeekConfig.proxy.maxUrlLength} characters`,
     });
+  }
+
+  // Optional: Bearer token authentication (same as /api/analyze and /api/fetch)
+  const API_KEY = process.env.METAPEEK_API_KEY;
+  if (API_KEY) {
+    const authHeader = getHeader(event, "authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : "";
+
+    if (!token || !safeEqual(token, API_KEY)) {
+      throw createError({
+        statusCode: 401,
+        message: "Unauthorized. Invalid or missing API key.",
+      });
+    }
   }
 
   // Validate URL and SSRF protection

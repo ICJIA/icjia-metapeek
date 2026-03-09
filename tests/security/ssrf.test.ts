@@ -133,8 +133,8 @@ describe("SSRF Protection", () => {
       // but the actual IPv6 address ::1 is blocked in BLOCKED_HOSTNAMES
       const result = await validateUrl("http://[::1]:3000");
       expect(result.ok).toBe(false);
-      // Either blocked as internal hostname or DNS resolution fails
-      expect(result.reason).toMatch(/Internal|Could not resolve/);
+      // Blocked as internal hostname, IP literal, or DNS resolution fails
+      expect(result.reason).toMatch(/Internal|Could not resolve|IP literal/);
     });
 
     it("blocks metadata.google.internal", async () => {
