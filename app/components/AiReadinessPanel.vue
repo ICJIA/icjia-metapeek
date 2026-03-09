@@ -128,6 +128,10 @@ const statusColor = (status: string) => {
           <p class="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
             {{ check.message }}
           </p>
+          <pre
+            v-if="check.detail"
+            class="mt-2 p-3 rounded-md bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 font-mono whitespace-pre-wrap break-all overflow-x-auto max-h-48 overflow-y-auto"
+          >{{ check.detail }}</pre>
           <p
             v-if="check.suggestion"
             class="text-xs text-gray-500 dark:text-gray-400 mt-1"

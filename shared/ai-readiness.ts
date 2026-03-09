@@ -92,6 +92,10 @@ function getJsonLdValue(
 function checkJsonLd(tags: MetaTags): AiReadinessCheck {
   const id = "json-ld";
   const label = "JSON-LD Structured Data";
+  const detail =
+    tags.structuredData.length > 0
+      ? JSON.stringify(tags.structuredData, null, 2)
+      : undefined;
 
   if (tags.structuredData.length === 0) {
     return {
@@ -121,6 +125,7 @@ function checkJsonLd(tags: MetaTags): AiReadinessCheck {
       label,
       status: "warn",
       message: "JSON-LD present but missing @type.",
+      detail,
       suggestion:
         "Add an @type property (e.g. \"Article\", \"WebPage\") so AI systems can identify the content type.",
     };
@@ -131,6 +136,7 @@ function checkJsonLd(tags: MetaTags): AiReadinessCheck {
     label,
     status: "pass",
     message: "JSON-LD with @type found.",
+    detail,
   };
 }
 
@@ -145,6 +151,7 @@ function checkAuthorship(tags: MetaTags): AiReadinessCheck {
       label,
       status: "pass",
       message: "Author found in meta tags.",
+      detail: `<meta name="author" content="${tags.author}">`,
     };
   }
 
@@ -155,6 +162,7 @@ function checkAuthorship(tags: MetaTags): AiReadinessCheck {
       label,
       status: "pass",
       message: "Author found in article:author.",
+      detail: `<meta property="article:author" content="${tags.article.author}">`,
     };
   }
 
@@ -166,6 +174,7 @@ function checkAuthorship(tags: MetaTags): AiReadinessCheck {
       label,
       status: "pass",
       message: "Author found in JSON-LD structured data.",
+      detail: JSON.stringify({ author: jsonLdAuthor }, null, 2),
     };
   }
 
@@ -200,12 +209,24 @@ function checkFreshness(tags: MetaTags): AiReadinessCheck {
   const hasPublished = !!publishedDate;
   const hasModified = !!modifiedDate;
 
+  // Build detail showing all found date signals
+  const dateLines: string[] = [];
+  if (tags.article.publishedTime) dateLines.push(`article:published_time = "${tags.article.publishedTime}"`);
+  if (tags.article.modifiedTime) dateLines.push(`article:modified_time  = "${tags.article.modifiedTime}"`);
+  if (tags.og.updatedTime) dateLines.push(`og:updated_time        = "${tags.og.updatedTime}"`);
+  const jsonLdPub = getJsonLdValue(tags.structuredData, "datePublished") as string | undefined;
+  const jsonLdMod = getJsonLdValue(tags.structuredData, "dateModified") as string | undefined;
+  if (jsonLdPub) dateLines.push(`JSON-LD datePublished  = "${jsonLdPub}"`);
+  if (jsonLdMod) dateLines.push(`JSON-LD dateModified   = "${jsonLdMod}"`);
+  const detail = dateLines.length > 0 ? dateLines.join("\n") : undefined;
+
   if (hasPublished && hasModified) {
     return {
       id,
       label,
       status: "pass",
       message: "Both published and modified dates found.",
+      detail,
     };
   }
 
@@ -217,6 +238,7 @@ function checkFreshness(tags: MetaTags): AiReadinessCheck {
       message: hasPublished
         ? "Published date found but no modified date."
         : "Modified date found but no published date.",
+      detail,
       suggestion:
         "Add both datePublished and dateModified to help AI assess content freshness.",
     };
@@ -242,6 +264,7 @@ function checkCanonical(tags: MetaTags): AiReadinessCheck {
       label,
       status: "pass",
       message: "Canonical URL present.",
+      detail: `<link rel="canonical" href="${tags.canonical}">`,
     };
   }
 
@@ -260,6 +283,9 @@ function checkLanguage(tags: MetaTags): AiReadinessCheck {
   const label = "Language Declaration";
 
   if (tags.htmlLang || tags.language) {
+    const detail = tags.htmlLang
+      ? `<html lang="${tags.htmlLang}">`
+      : `<meta name="language" content="${tags.language}">`;
     return {
       id,
       label,
@@ -267,6 +293,7 @@ function checkLanguage(tags: MetaTags): AiReadinessCheck {
       message: tags.htmlLang
         ? `Language declared via html lang="${tags.htmlLang}".`
         : "Language declared via meta tag.",
+      detail,
     };
   }
 
@@ -297,12 +324,16 @@ function checkDescriptionQuality(tags: MetaTags): AiReadinessCheck {
     };
   }
 
+  const source = tags.description ? "name=\"description\"" : "property=\"og:description\"";
+  const detail = `<meta ${source} content="${description}">`;
+
   if (description.length >= 80) {
     return {
       id,
       label,
       status: "pass",
       message: `Description is ${description.length} characters.`,
+      detail,
     };
   }
 
@@ -312,6 +343,7 @@ function checkDescriptionQuality(tags: MetaTags): AiReadinessCheck {
       label,
       status: "warn",
       message: `Description is only ${description.length} characters.`,
+      detail,
       suggestion:
         "Aim for at least 80 characters to give AI systems enough context to summarize the page.",
     };
@@ -322,6 +354,7 @@ function checkDescriptionQuality(tags: MetaTags): AiReadinessCheck {
     label,
     status: "fail",
     message: `Description is too short (${description.length} characters).`,
+    detail,
     suggestion:
       "Expand the description to at least 80 characters for meaningful AI summarization.",
   };
@@ -332,6 +365,9 @@ function checkAiCrawlDirectives(tags: MetaTags): AiReadinessCheck {
   const label = "AI Crawl Directives";
 
   const robots = (tags.robots ?? "").toLowerCase();
+  const detail = tags.robots
+    ? `<meta name="robots" content="${tags.robots}">`
+    : undefined;
 
   if (robots.includes("noai") || robots.includes("noimageai")) {
     const directives: string[] = [];
@@ -343,6 +379,7 @@ function checkAiCrawlDirectives(tags: MetaTags): AiReadinessCheck {
       label,
       status: "fail",
       message: `Robots meta contains ${directives.join(", ")}.`,
+      detail,
       suggestion:
         "These directives block AI systems from using your content. Remove them if you want AI visibility.",
     };
@@ -353,6 +390,7 @@ function checkAiCrawlDirectives(tags: MetaTags): AiReadinessCheck {
     label,
     status: "pass",
     message: "No AI-blocking directives found in robots meta.",
+    detail,
   };
 }
 
@@ -369,6 +407,7 @@ function checkRobotsTxt(robotsTxt: string | null): AiReadinessCheck {
     };
   }
 
+  const detail = robotsTxt.trim() || undefined;
   const blocked = AI_BOTS.filter((bot) => isBotBlocked(robotsTxt, bot));
 
   if (blocked.length === 0) {
@@ -377,6 +416,7 @@ function checkRobotsTxt(robotsTxt: string | null): AiReadinessCheck {
       label,
       status: "pass",
       message: "No AI bots blocked in robots.txt.",
+      detail,
     };
   }
 
@@ -386,6 +426,7 @@ function checkRobotsTxt(robotsTxt: string | null): AiReadinessCheck {
       label,
       status: "fail",
       message: `All ${AI_BOTS.length} AI bots are blocked in robots.txt.`,
+      detail,
       suggestion:
         "Remove Disallow rules for AI bots if you want your content to appear in AI-generated answers.",
     };
@@ -396,6 +437,7 @@ function checkRobotsTxt(robotsTxt: string | null): AiReadinessCheck {
     label,
     status: "warn",
     message: `${blocked.length} of ${AI_BOTS.length} AI bots blocked: ${blocked.join(", ")}.`,
+    detail,
     suggestion:
       "Some AI crawlers are blocked. Review your robots.txt if you want broader AI coverage.",
   };
@@ -421,6 +463,7 @@ function checkLlmsTxt(llmsTxt: string | null): AiReadinessCheck {
     label,
     status: "pass",
     message: "llms.txt found and non-empty.",
+    detail: llmsTxt.trim(),
   };
 }
 

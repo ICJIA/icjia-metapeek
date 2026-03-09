@@ -169,6 +169,8 @@ export interface AiReadinessCheck {
   status: 'pass' | 'warn' | 'fail' | 'na';
   message: string;
   suggestion?: string;
+  /** Source data for this check (displayed in the UI for transparency) */
+  detail?: string;
 }
 
 /**

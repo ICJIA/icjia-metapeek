@@ -17,7 +17,8 @@
     "test:accessibility": "playwright test --reporter=list",
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "clean": "nuxt cleanup"
   },
   "dependencies": {
     "@nuxt/ui": "^4.4.0",

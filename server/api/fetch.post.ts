@@ -128,7 +128,7 @@ export default defineEventHandler(async (event) => {
   // ═══════════════════════════════════════════════════════════
 
   try {
-    const result = await fetchWithRedirects(body.url);
+    const result = await fetchWithRedirects(body.url, validation.resolvedAddresses!);
 
     // ═══════════════════════════════════════════════════════════
     // 5. EXTRACT AND SANITIZE HTML

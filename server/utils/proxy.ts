@@ -11,6 +11,17 @@ import dns from "node:dns/promises";
 import metapeekConfig from "../../metapeek.config";
 
 /**
+ * Public IP addresses resolved during validation, used for DNS pinning.
+ * Prevents TOCTOU/DNS rebinding attacks by reusing validated addresses.
+ */
+export interface ResolvedAddresses {
+  /** Public IPv4 addresses that the hostname resolved to */
+  ipv4: string[];
+  /** Public IPv6 addresses that the hostname resolved to */
+  ipv6: string[];
+}
+
+/**
  * Result of URL validation. Contains success flag and optional failure reason.
  */
 export interface ValidationResult {
@@ -18,6 +29,8 @@ export interface ValidationResult {
   ok: boolean;
   /** Human-readable reason when validation fails */
   reason?: string;
+  /** Resolved public IP addresses, available when validation succeeds (used for DNS pinning) */
+  resolvedAddresses?: ResolvedAddresses;
 }
 
 /**
@@ -90,6 +103,7 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
   // DNS resolution with private IP check (both IPv4 and IPv6)
   // This prevents DNS rebinding attacks and access to internal services
   let hasValidAddress = false;
+  const resolved: ResolvedAddresses = { ipv4: [], ipv6: [] };
 
   // Check IPv4 addresses
   try {
@@ -100,9 +114,11 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
       if (isPrivateIp(addr)) {
         return {
           ok: false,
-          reason: `URL resolves to a private IP address (${addr}). MetaPeek can only fetch public URLs.`,
+          reason:
+            "URL resolves to a private or reserved address. MetaPeek can only fetch public URLs.",
         };
       }
+      resolved.ipv4.push(addr);
     }
   } catch (_err) {
     // IPv4 resolution failed - might be IPv6-only, continue checking
@@ -117,9 +133,11 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
       if (isPrivateIpv6(addr)) {
         return {
           ok: false,
-          reason: `URL resolves to a private IPv6 address (${addr}). MetaPeek can only fetch public URLs.`,
+          reason:
+            "URL resolves to a private or reserved address. MetaPeek can only fetch public URLs.",
         };
       }
+      resolved.ipv6.push(addr);
     }
   } catch (_err) {
     // IPv6 resolution failed - might be IPv4-only
@@ -133,8 +151,8 @@ export async function validateUrl(input: string): Promise<ValidationResult> {
     };
   }
 
-  // All checks passed
-  return { ok: true };
+  // All checks passed — return resolved addresses for DNS pinning
+  return { ok: true, resolvedAddresses: resolved };
 }
 
 /**

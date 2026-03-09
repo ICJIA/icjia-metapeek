@@ -97,7 +97,7 @@ export default defineEventHandler(async (event) => {
   // ═══════════════════════════════════════════════════════════
 
   try {
-    const result = await fetchWithRedirects(url);
+    const result = await fetchWithRedirects(url, validation.resolvedAddresses!);
 
     // Parse meta tags from full HTML
     const meta = parseMetaTags(result.html);

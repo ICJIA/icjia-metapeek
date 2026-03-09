@@ -10,8 +10,8 @@
  */
 
 import { defineEventHandler, getQuery, createError } from "h3";
-import { ofetch } from "ofetch";
 import { validateUrl } from "../utils/proxy";
+import { pinnedFetch } from "../utils/fetcher";
 import metapeekConfig from "../../metapeek.config";
 
 export default defineEventHandler(async (event) => {
@@ -58,18 +58,18 @@ export default defineEventHandler(async (event) => {
 
   const fetchText = async (targetUrl: string): Promise<string | null> => {
     try {
-      const response = await ofetch(targetUrl, {
+      const response = await pinnedFetch(targetUrl, {
         headers: {
           "User-Agent": metapeekConfig.proxy.userAgent,
         },
         timeout: 5000,
-        redirect: "manual",
-        responseType: "text",
+        maxBytes: MAX_TEXT_SIZE,
+        resolvedAddresses: validation.resolvedAddresses!,
       });
-      if (typeof response !== "string") return null;
-      return response.length > MAX_TEXT_SIZE
-        ? response.slice(0, MAX_TEXT_SIZE)
-        : response;
+      if (response.status < 200 || response.status >= 300) return null;
+      return response.data.length > MAX_TEXT_SIZE
+        ? response.data.slice(0, MAX_TEXT_SIZE)
+        : response.data;
     } catch {
       return null;
     }

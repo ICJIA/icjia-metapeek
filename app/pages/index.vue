@@ -44,9 +44,10 @@ onMounted(() => {
 });
 
 // Input mode: 'html' for paste HTML, 'url' for fetch URL
-const inputMode = ref<"html" | "url">("html");
+const inputMode = ref<"html" | "url">("url");
 const inputHtml = ref("");
 const inputUrl = ref("");
+const httpsPrefixAdded = ref(false);
 const parsedTags = ref<MetaTags | null>(null);
 const diagnostics = ref<Diagnostics | null>(null);
 const hasAnalyzed = ref(false);
@@ -120,9 +121,11 @@ watch(inputMode, () => {
   diagnostics.value = null;
   hasAnalyzed.value = false;
   imageAnalysisResult.value = undefined;
+  httpsPrefixAdded.value = false;
   fetchStatus.reset();
   resetAi();
 });
+
 
 // Sample HTML
 const sampleHtml = `<!DOCTYPE html>
@@ -169,6 +172,7 @@ const loadSample = () => {
 const resetAll = () => {
   inputHtml.value = "";
   inputUrl.value = "";
+  httpsPrefixAdded.value = false;
   parsedTags.value = null;
   diagnostics.value = null;
   hasAnalyzed.value = false;
@@ -186,6 +190,21 @@ const resetAll = () => {
  */
 const handleFetchUrl = async () => {
   if (!inputUrl.value.trim()) return;
+
+  // Auto-add https:// if the user entered a bare domain (e.g. "example.com")
+  httpsPrefixAdded.value = false;
+  const trimmed = inputUrl.value.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    inputUrl.value = `https://${trimmed}`;
+    httpsPrefixAdded.value = true;
+    toast.add({
+      title: "https:// prefix added",
+      description: `Fetching ${inputUrl.value}`,
+      icon: "i-heroicons-information-circle",
+      color: "info",
+      duration: 3000,
+    });
+  }
 
   try {
     // Set fetching state
@@ -513,6 +532,7 @@ const generateExportData = () => {
             status: c.status,
             message: c.message,
             suggestion: c.suggestion || null,
+            detail: c.detail || null,
           })),
         }
       : null,
@@ -1493,13 +1513,17 @@ const exportAsHtml = () => {
     >
       <div class="max-w-6xl mx-auto px-4 sm:px-6">
         <div class="flex items-center justify-between h-20 sm:h-24">
-          <div class="flex items-center gap-4">
+          <button
+            class="flex items-center gap-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-1 -m-1"
+            aria-label="Reset MetaPeek"
+            @click="resetAll"
+          >
             <img
               src="~/assets/images/icjia-logo.png"
               alt="ICJIA Logo"
               class="h-12 sm:h-14 w-auto"
             >
-            <div>
+            <div class="text-left">
               <div class="flex items-center gap-2">
                 <span class="text-2xl sm:text-3xl font-extrabold tracking-tight"
                   >MetaPeek</span
@@ -1514,7 +1538,7 @@ const exportAsHtml = () => {
                 >Open Graph & Social Sharing Meta Tag Analyzer</span
               >
             </div>
-          </div>
+          </button>
           <div class="flex items-center gap-1">
             <ClientOnly>
               <button
@@ -1657,17 +1681,6 @@ const exportAsHtml = () => {
             <button
               :class="[
                 'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-                inputMode === 'html'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
-              ]"
-              @click="inputMode = 'html'"
-            >
-              📋 Paste HTML
-            </button>
-            <button
-              :class="[
-                'px-4 py-2 rounded-md text-sm font-medium transition-colors',
                 inputMode === 'url'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -1675,6 +1688,17 @@ const exportAsHtml = () => {
               @click="inputMode = 'url'"
             >
               🌐 Fetch URL
+            </button>
+            <button
+              :class="[
+                'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                inputMode === 'html'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
+              ]"
+              @click="inputMode = 'html'"
+            >
+              📋 Paste HTML
             </button>
           </div>
         </div>
@@ -1720,6 +1744,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               type="url"
               placeholder="https://example.com"
               class="w-full px-4 py-3 pr-32 rounded-xl border-0 bg-white dark:bg-gray-900 ring-1 ring-gray-200 dark:ring-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-shadow duration-150 shadow-sm"
+              @input="httpsPrefixAdded = false"
               @keyup.enter="handleFetchUrl"
             >
             <div class="absolute right-2 top-1/2 -translate-y-1/2">
@@ -1741,6 +1766,24 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               </UButton>
             </div>
           </div>
+
+          <!-- https:// prefix notice -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-1"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-1"
+          >
+            <p
+              v-if="httpsPrefixAdded"
+              class="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-300"
+            >
+              <UIcon name="i-heroicons-information-circle" class="w-3.5 h-3.5 flex-shrink-0" />
+              <span><code class="font-semibold">https://</code> was automatically added to your URL.</span>
+            </p>
+          </Transition>
 
           <!-- Status Bar (during fetch) -->
           <div
@@ -2184,74 +2227,52 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
           </div>
         </div>
 
-        <!-- Category Breakdown -->
+        <!-- Category Breakdown (compact two-column grid) -->
         <div
           class="bg-white dark:bg-gray-900 rounded-xl border border-indigo-200 dark:border-indigo-800 p-6 mb-6"
         >
-          <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">
+          <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-3">
             Category Breakdown
           </h3>
-          <div class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <template
               v-for="(category, key) in metaScore.categories"
               :key="key"
             >
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="font-medium text-gray-900 dark:text-white text-sm"
-                    >
-                      {{ category.name }}
-                    </span>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                      ({{ category.weight }}% weight)
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span
-                      :class="[
-                        'text-sm font-semibold',
-                        category.status === 'pass' &&
-                          'text-emerald-600 dark:text-emerald-400',
-                        category.status === 'warning' &&
-                          'text-amber-600 dark:text-amber-400',
-                        category.status === 'fail' &&
-                          'text-red-600 dark:text-red-400',
-                      ]"
-                    >
-                      {{ category.score }}/{{ category.maxScore }}
-                    </span>
-                    <UIcon
-                      :name="
-                        category.status === 'pass'
-                          ? 'i-heroicons-check-circle-solid'
-                          : category.status === 'warning'
-                            ? 'i-heroicons-exclamation-circle-solid'
-                            : 'i-heroicons-x-circle-solid'
-                      "
-                      :class="[
-                        'w-5 h-5',
-                        category.status === 'pass' && 'text-emerald-500',
-                        category.status === 'warning' && 'text-amber-500',
-                        category.status === 'fail' && 'text-red-500',
-                      ]"
-                    />
-                  </div>
-                </div>
-                <div
-                  class="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"
+              <div
+                class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
+              >
+                <UIcon
+                  :name="
+                    category.status === 'pass'
+                      ? 'i-heroicons-check-circle-solid'
+                      : category.status === 'warning'
+                        ? 'i-heroicons-exclamation-circle-solid'
+                        : 'i-heroicons-x-circle-solid'
+                  "
+                  :class="[
+                    'w-4 h-4 flex-shrink-0',
+                    category.status === 'pass' && 'text-emerald-500',
+                    category.status === 'warning' && 'text-amber-500',
+                    category.status === 'fail' && 'text-red-500',
+                  ]"
+                />
+                <span class="text-sm text-gray-900 dark:text-white font-medium flex-1 truncate">
+                  {{ category.name }}
+                </span>
+                <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                  {{ category.weight }}%
+                </span>
+                <span
+                  :class="[
+                    'text-sm font-semibold tabular-nums flex-shrink-0',
+                    category.status === 'pass' && 'text-emerald-600 dark:text-emerald-400',
+                    category.status === 'warning' && 'text-amber-600 dark:text-amber-400',
+                    category.status === 'fail' && 'text-red-600 dark:text-red-400',
+                  ]"
                 >
-                  <div
-                    :class="[
-                      'absolute left-0 top-0 h-full transition-all duration-500',
-                      category.status === 'pass' && 'bg-emerald-500',
-                      category.status === 'warning' && 'bg-amber-500',
-                      category.status === 'fail' && 'bg-red-500',
-                    ]"
-                    :style="{ width: `${category.score}%` }"
-                  />
-                </div>
+                  {{ category.score }}
+                </span>
               </div>
             </template>
           </div>
