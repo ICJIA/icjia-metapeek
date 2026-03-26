@@ -63,6 +63,19 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.10.0] - 2026-03-26
+
+### Added
+
+- JSON-LD structured data (`WebApplication` schema with author, dates, license, pricing)
+- Author meta tag (`Illinois Criminal Justice Information Authority`)
+- Content freshness meta tags (`article:published_time`, `article:modified_time`)
+- Auto-fetch on "Load Example" in URL mode (no need to click "Fetch" separately)
+
+### Changed
+
+- Description lengthened from 63 to 123 characters for better AI summarization
+
 ## [0.9.0] - 2026-03-26
 
 ### Security

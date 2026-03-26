@@ -838,12 +838,22 @@ The `@nuxtjs/seo` module uses `site` config in `nuxt.config.ts` for sitemap, rob
 site: {
   url: 'https://metapeek.icjia.app',
   name: 'MetaPeek',
-  description: 'Inspect, preview, and fix HTML meta tags and Open Graph markup.',
+  description: 'Inspect, preview, and fix HTML meta tags and Open Graph markup for 7 social platforms. Free, open-source, no login required.',
   defaultLocale: 'en'
 }
 ```
 
 The OG image (`public/og-image-v2.png`) is referenced via `defineOgImage()` in `app/pages/index.vue`.
+
+### AI Readiness (MetaPeek's Own Page)
+
+MetaPeek practices what it preaches — the site itself includes:
+
+- **JSON-LD structured data** — `WebApplication` schema with author, dates, license, and pricing
+- **Author attribution** — `<meta name="author">` + JSON-LD author pointing to ICJIA
+- **Content freshness** — `article:published_time` and `article:modified_time` meta tags
+- **llms.txt** — AI crawler discoverability file at site root
+- **Description** — 123 characters for adequate AI summarization context
 
 ### MetaPeek Config
 
