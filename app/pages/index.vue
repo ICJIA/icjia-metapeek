@@ -2824,7 +2824,12 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             No tracking · No ads · No account
           </p>
           <p class="flex items-center gap-2">
-            <span>v0.8.0</span>
+            <a
+              href="https://github.com/ICJIA/icjia-metapeek/blob/main/CHANGELOG.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+            >v0.8.0</a>
             <span>·</span>
             <a
               href="https://github.com/ICJIA/icjia-metapeek"
