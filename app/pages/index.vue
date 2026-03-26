@@ -247,11 +247,16 @@ const handleFetchUrl = async () => {
     assessFromUrl(tags, inputUrl.value);
     assessSeoFromUrl(tags);
 
-    // SPA detection: if no title AND no og:title found, this is likely a JS-rendered page
+    // SPA detection heuristic: suggest JS rendering when the page appears to be
+    // a client-side rendered app with incomplete meta tags.
+    // Triggers when: no OG tags at all, OR no title+description, OR body contains
+    // classic SPA shell patterns (div#app with no real content).
     renderedWithJs.value = false;
     const hasTitle = !!(tags.title || tags.og.title);
     const hasDescription = !!(tags.description || tags.og.description);
-    showSpaHint.value = !hasTitle && !hasDescription;
+    const hasOgTags = !!(tags.og.title || tags.og.description || tags.og.image);
+    const bodyLooksLikeSpa = (response.bodySnippet || "").length < 100;
+    showSpaHint.value = (!hasTitle && !hasDescription) || (!hasOgTags && bodyLooksLikeSpa) || !hasOgTags;
 
     // Complete
     fetchStatus.setComplete(response.timing);
@@ -1947,12 +1952,12 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
               <div class="flex-1 min-w-0">
                 <p class="font-medium text-amber-900 dark:text-amber-100 mb-1">
-                  This looks like a JavaScript-rendered page (SPA)
+                  Missing Open Graph tags — this may be a JavaScript-rendered page
                 </p>
                 <p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
-                  No title or description was found in the static HTML. This site likely uses a framework
-                  (Vue, React, Angular) that renders meta tags with JavaScript. Try re-analyzing with a
-                  headless browser to see the full rendered output.
+                  No Open Graph meta tags (og:title, og:image, etc.) were found in the static HTML.
+                  If this site uses a framework like Vue, React, or Angular, the meta tags may be
+                  injected by JavaScript at runtime. Try re-analyzing with a headless browser.
                 </p>
                 <UButton
                   size="sm"
