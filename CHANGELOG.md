@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - iMessage preview domain text contrast on dark backgrounds
 - Accessibility tests updated for URL-default input mode
 
-## [0.7.0] - 2026-03-26
+## [0.7.0] - 2026-03-09
 
 ### Added
 
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Hardened SSRF, IPv6, authentication timing, CSS injection, and CLI protections
 
-## [0.6.0] - 2026-03-25
+## [0.6.0] - 2026-02-23
 
 ### Added
 
@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened XSS, SSRF, authentication timing, and HTTP headers
 - Preserve `<html>` tag in `extractHead` for safer parsing
 
-## [0.5.0] - 2026-03-24
+## [0.5.0] - 2026-02-12
 
 ### Added
 
@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Background color consistency across sections
 - Reset button placement
 
-## [0.4.0] - 2026-03-23
+## [0.4.0] - 2026-02-04
 
 ### Added
 
@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rate limiting implementation
 
-## [0.3.0] - 2026-03-22
+## [0.3.0] - 2026-02-02
 
 ### Added
 
@@ -106,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CORS errors for external image analysis
 - Tooltip viewport boundary handling
 
-## [0.2.0] - 2026-03-21
+## [0.2.0] - 2026-02-01
 
 ### Added
 
@@ -127,7 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UNotifications provider placement in `app.vue`
 - ARIA live region landmark structure for accessibility
 
-## [0.1.0] - 2026-03-20
+## [0.1.0] - 2026-02-01
 
 ### Added
 
