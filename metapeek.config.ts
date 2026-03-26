@@ -12,7 +12,7 @@ const metapeekConfig = {
     name: "MetaPeek",
     url: "https://metapeek.icjia.app", // canonical URL — used in CORS, User-Agent, og:url
     description:
-      "Inspect, preview, and fix HTML meta tags and Open Graph markup.",
+      "Inspect, preview, and fix HTML meta tags and Open Graph markup for 7 social platforms. Free, open-source, no login required.",
   },
 
   // ── Proxy ─────────────────────────────────────────────────
