@@ -5,13 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+---
+
+## Security Audit Summary
+
+A full red team / blue team security audit was performed on 2026-03-26. See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete report.
+
+**Overall Posture: GOOD** — substantially above-average security for a URL-fetching proxy.
+
+| Severity | Count | Key Findings |
+|----------|-------|-------------|
+| Critical | 0 | None |
+| High | 3 | Content-Length bypass via chunked encoding, CSP `unsafe-inline`, body snippet raw HTML leakage |
+| Medium | 5 | CORS first-origin-only, no Content-Type validation, `Math.random()` request IDs, error oracle, `img-src *` |
+| Low | 4 | Cookie header no-op, edge-only rate limiting, regex edge cases, log param case sensitivity |
+| Info | 3 | All properly mitigated (IPv4-mapped IPv6, parameter pollution, timing-safe auth) |
+
+**Blue Team Highlights:**
+- DNS pinning SSRF protection — EXCELLENT
+- IPv4 + IPv6 private IP blocking — EXCELLENT
+- Redirect re-validation on each hop — EXCELLENT
+- Timing-safe authentication — EXCELLENT
+- Structured logging with sensitive data redaction — GOOD
+- Security headers (HSTS, CSP, X-Frame-Options) — GOOD
+
+---
+
+## Accessibility Audit Summary
+
+A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 using Playwright + @axe-core/playwright across multiple page states (initial load, analyzed content, code editor, keyboard navigation).
+
+**Result: 0 violations** — all issues found during the audit were fixed in v0.8.0.
+
+| Category | Status | Details |
+|----------|--------|---------|
+| Color contrast (WCAG 1.4.3) | PASS | Fixed 7+ elements: export buttons, char count, image text, iMessage preview |
+| Keyboard accessibility (WCAG 2.1.1) | PASS | All interactive elements reachable; scrollable regions now focusable |
+| Skip navigation (WCAG 2.4.1) | PASS | Skip link present and functional |
+| Focus order (WCAG 2.4.3) | PASS | 32 focusable elements in logical tab order |
+| ARIA landmarks | PASS | Live regions properly nested in landmarks |
+
+**Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
+
+---
+
 ## [0.8.0] - 2026-03-26
 
 ### Added
 
-- Security audit document (SECURITY-AUDIT.md) with red/blue team findings
-- Changelog (CHANGELOG.md) following Keep a Changelog format
-- GitHub link and version number in footer
+- Security audit document ([SECURITY-AUDIT.md](SECURITY-AUDIT.md)) with red/blue team findings
+- Changelog ([CHANGELOG.md](CHANGELOG.md)) following Keep a Changelog format
+- GitHub link and version number in footer (version links to changelog)
 
 ### Fixed
 

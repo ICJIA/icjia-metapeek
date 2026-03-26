@@ -548,7 +548,8 @@ icjia-metapeek/
 ├── server/
 │   ├── api/
 │   │   ├── fetch.post.ts    # POST /api/fetch — raw HTML proxy ✅
-│   │   └── analyze.get.ts   # GET /api/analyze — full analysis JSON ✅
+│   │   ├── analyze.get.ts   # GET /api/analyze — full analysis JSON ✅
+│   │   └── ai-check.get.ts  # GET /api/ai-check — robots.txt/llms.txt ✅
 │   └── utils/
 │       ├── fetcher.ts       # Shared fetch-with-redirects logic ✅
 │       ├── proxy.ts         # URL validation & security utilities ✅
@@ -582,6 +583,8 @@ icjia-metapeek/
 │   ├── og-image-v2.png      # Open Graph social share image (1200×630)
 │   ├── icjia-logo.png
 │   └── screenshot-*.png
+├── SECURITY-AUDIT.md        # Red/blue team security audit report
+├── CHANGELOG.md             # Version history and audit summaries
 ├── metapeek.config.ts       # Central configuration (single source of truth)
 ├── nuxt.config.ts           # Nuxt configuration
 ├── package.json
@@ -949,6 +952,8 @@ git push origin main
 
 ## Security
 
+> **Full audit available:** See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete red team / blue team security assessment (0 critical, 3 high, 5 medium findings — overall posture rated GOOD).
+
 ### SSRF Protection ✅
 
 **Defense in depth approach (web app):**
@@ -1007,7 +1012,7 @@ git push origin main
 - Sensitive data redaction (tokens, keys in URLs)
 - Netlify function logs for debugging
 
-See `documentation/security-testing-guide.md` for comprehensive test cases.
+See `documentation/security-testing-guide.md` for comprehensive test cases and [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the full audit report.
 
 ---
 
@@ -1030,6 +1035,11 @@ Complete documentation is in the `documentation/` folder:
 - **[Phase 3 Implementation Status](documentation/phase-3-implementation-status.md)** — Polish & power features
 - **[Security Testing Guide](documentation/security-testing-guide.md)** — Comprehensive security test cases
 - **[Logging & Monitoring](documentation/logging-and-monitoring.md)** — Production logging strategy
+
+**Reports:**
+
+- **[Security Audit](SECURITY-AUDIT.md)** — Red/blue team security assessment with findings and remediation
+- **[Changelog](CHANGELOG.md)** — Version history with security and accessibility audit summaries
 
 **Reference:**
 
