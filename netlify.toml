@@ -6,6 +6,16 @@
   NODE_VERSION = "22"
   NITRO_PRESET = "netlify"
 
+# Standalone Netlify functions (separate from Nitro server routes)
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# SPA renderer function — needs extra memory and timeout for headless Chromium
+[functions.fetch-spa]
+  external_node_modules = ["@sparticuz/chromium"]
+  included_files = ["node_modules/@sparticuz/chromium/bin/**"]
+
 # Headers for security and caching
 [[headers]]
   for = "/*"

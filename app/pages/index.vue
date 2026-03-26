@@ -53,6 +53,12 @@ const parsedTags = ref<MetaTags | null>(null);
 const diagnostics = ref<Diagnostics | null>(null);
 const hasAnalyzed = ref(false);
 const activeTab = ref("diagnostics");
+/** Whether the last fetch result looks like an SPA (poor meta tags from static HTML) */
+const showSpaHint = ref(false);
+/** Whether an SPA render is in progress */
+const spaRendering = ref(false);
+/** Whether results came from SPA renderer */
+const renderedWithJs = ref(false);
 const imageAnalysisResult = ref<ImageAnalysisResult | undefined>(undefined);
 /** Raw HTML that was parsed (from proxy head or pasted HTML) — for debug view */
 const rawHeadHtml = ref<string>("");
@@ -125,6 +131,9 @@ watch(inputMode, () => {
   hasAnalyzed.value = false;
   imageAnalysisResult.value = undefined;
   httpsPrefixAdded.value = false;
+  showSpaHint.value = false;
+  spaRendering.value = false;
+  renderedWithJs.value = false;
   fetchStatus.reset();
   resetAi();
   resetSeo();
@@ -184,6 +193,9 @@ const resetAll = () => {
   hasAnalyzed.value = false;
   imageAnalysisResult.value = undefined;
   rawHeadHtml.value = "";
+  showSpaHint.value = false;
+  spaRendering.value = false;
+  renderedWithJs.value = false;
   fetchStatus.reset();
   resetAi();
   resetSeo();
@@ -235,6 +247,12 @@ const handleFetchUrl = async () => {
     assessFromUrl(tags, inputUrl.value);
     assessSeoFromUrl(tags);
 
+    // SPA detection: if no title AND no og:title found, this is likely a JS-rendered page
+    renderedWithJs.value = false;
+    const hasTitle = !!(tags.title || tags.og.title);
+    const hasDescription = !!(tags.description || tags.og.description);
+    showSpaHint.value = !hasTitle && !hasDescription;
+
     // Complete
     fetchStatus.setComplete(response.timing);
   } catch (error: unknown) {
@@ -251,6 +269,76 @@ const handleFetchUrl = async () => {
     hasAnalyzed.value = false;
     imageAnalysisResult.value = undefined;
     rawHeadHtml.value = "";
+    showSpaHint.value = false;
+  }
+};
+
+/**
+ * Re-fetches the current URL using headless Chromium to render JavaScript.
+ * Called when user clicks "Render with JavaScript" after SPA detection.
+ */
+const handleFetchSpa = async () => {
+  if (!inputUrl.value.trim()) return;
+
+  spaRendering.value = true;
+  showSpaHint.value = false;
+
+  try {
+    fetchStatus.setFetching(inputUrl.value);
+
+    const response = await $fetch<{
+      ok: boolean;
+      url: string;
+      finalUrl: string;
+      head: string;
+      bodySnippet: string;
+      renderedWith: string;
+      timing: number;
+      error?: string;
+    }>("/api/fetch-spa", {
+      method: "POST",
+      body: { url: inputUrl.value },
+    });
+
+    if (!response.ok || !response.head) {
+      throw new Error(response.error || "SPA render failed");
+    }
+
+    fetchStatus.setParsing();
+
+    const tags = parseMetaTags(response.head);
+    parsedTags.value = tags;
+    diagnostics.value = generateDiagnostics(tags, imageAnalysisResult.value);
+    hasAnalyzed.value = true;
+    rawHeadHtml.value = response.head;
+    renderedWithJs.value = true;
+
+    // Trigger AI readiness check (non-blocking)
+    assessFromUrl(tags, inputUrl.value);
+    assessSeoFromUrl(tags);
+
+    fetchStatus.setComplete(response.timing);
+
+    toast.add({
+      title: "Rendered with JavaScript",
+      description: `Page rendered via headless Chromium in ${response.timing}ms`,
+      icon: "i-heroicons-code-bracket",
+      color: "success",
+      duration: 4000,
+    });
+  } catch (error: unknown) {
+    const err = error as { data?: { error?: string }; message?: string };
+    const message = err.data?.error || err.message || "SPA rendering failed";
+    fetchStatus.setError(0, message);
+    toast.add({
+      title: "SPA Render Failed",
+      description: message,
+      icon: "i-heroicons-exclamation-triangle",
+      color: "error",
+      duration: 5000,
+    });
+  } finally {
+    spaRendering.value = false;
   }
 };
 
@@ -1843,7 +1931,42 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             class="flex items-center gap-2 px-4 py-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-sm"
           >
             <UIcon name="i-heroicons-check-circle" class="w-5 h-5" />
-            <span>Fetched in {{ fetchStatus.state.value.timing }}ms</span>
+            <span>
+              Fetched in {{ fetchStatus.state.value.timing }}ms
+              <span v-if="renderedWithJs" class="ml-1 font-medium">(rendered with JavaScript)</span>
+            </span>
+          </div>
+
+          <!-- SPA Detection Banner -->
+          <div
+            v-if="showSpaHint && hasAnalyzed"
+            role="alert"
+            class="px-4 py-4 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800"
+          >
+            <div class="flex items-start gap-3">
+              <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                  This looks like a JavaScript-rendered page (SPA)
+                </p>
+                <p class="text-sm text-amber-700 dark:text-amber-300 mb-3">
+                  No title or description was found in the static HTML. This site likely uses a framework
+                  (Vue, React, Angular) that renders meta tags with JavaScript. Try re-analyzing with a
+                  headless browser to see the full rendered output.
+                </p>
+                <UButton
+                  size="sm"
+                  color="warning"
+                  variant="solid"
+                  icon="i-heroicons-code-bracket"
+                  :loading="spaRendering"
+                  :disabled="spaRendering"
+                  @click="handleFetchSpa"
+                >
+                  {{ spaRendering ? "Rendering..." : "Render with JavaScript" }}
+                </UButton>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2831,7 +2954,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               target="_blank"
               rel="noopener noreferrer"
               class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-            >v0.10.0</a>
+            >v0.11.0</a>
             <span>·</span>
             <a
               href="https://github.com/ICJIA/icjia-metapeek"

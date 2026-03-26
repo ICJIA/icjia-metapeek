@@ -63,6 +63,24 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.11.0] - 2026-03-26
+
+### Added
+
+- SPA rendering support via headless Chromium (`@sparticuz/chromium` + `puppeteer-core`)
+- Standalone Netlify function (`/api/fetch-spa`) with isolated Chromium binary bundle
+- SPA auto-detection — banner appears when static HTML has no title or description
+- "Render with JavaScript" button to re-analyze using headless browser
+- Success state shows "(rendered with JavaScript)" when SPA renderer was used
+
+### Security
+
+- Chromium DNS restricted to target hostname only (`--host-resolver-rules`) to prevent in-page JS from reaching internal IPs
+- SSRF validation runs before Chromium launch (mirrors existing `validateUrl` logic)
+- Timing-safe bearer token auth on SPA endpoint
+- Request interception blocks images, media, fonts, WebSockets during render (reduced attack surface)
+- Tighter rate limiting (3/min vs 10/min for standard fetch)
+
 ## [0.10.0] - 2026-03-26
 
 ### Added

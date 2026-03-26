@@ -1,6 +1,6 @@
 {
   "name": "icjia-metapeek",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -26,10 +26,12 @@
   "dependencies": {
     "@nuxt/ui": "^4.4.0",
     "@nuxtjs/seo": "^3.4.0",
+    "@sparticuz/chromium": "^143.0.4",
     "@vueuse/core": "^14.2.0",
     "@vueuse/nuxt": "^14.2.0",
     "cheerio": "^1.2.0",
     "nuxt": "^4.3.0",
+    "puppeteer-core": "^24.40.0",
     "vue": "^3.5.27"
   },
   "devDependencies": {

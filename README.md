@@ -185,6 +185,18 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 6. **Trailing Slash Validation** — Catches SEO-harming inconsistencies between canonical and og:url (e.g., `/page` vs `/page/`). Includes educational explanations about why this matters for search engine ranking.
 
+### Phase 5 — SPA Support (Headless Rendering) ✅ Complete
+
+- ✅ Headless Chromium rendering for JavaScript-rendered pages (Vue, React, Angular SPAs)
+- ✅ Standalone Netlify function with `@sparticuz/chromium` + `puppeteer-core`
+- ✅ Auto-detection: banner appears when static HTML has no title or description
+- ✅ "Render with JavaScript" button re-analyzes via headless browser
+- ✅ Chromium-level DNS restriction (`--host-resolver-rules`) blocks in-page SSRF
+- ✅ Request interception blocks images/media/fonts for faster rendering
+- ✅ Tighter rate limiting (3/min) for resource-intensive SPA renders
+- ✅ Full SSRF validation before Chromium launch
+- ✅ Results feed into existing parsing pipeline (zero changes to analysis logic)
+
 ### Phase 3 — Polish & Power Features ✅ Complete
 
 - ✅ Export as JSON/Markdown/HTML with complete analysis and scores
@@ -583,6 +595,9 @@ icjia-metapeek/
 │   ├── og-image-v2.png      # Open Graph social share image (1200×630)
 │   ├── icjia-logo.png
 │   └── screenshot-*.png
+├── netlify/
+│   └── functions/
+│       └── fetch-spa.mjs    # Standalone SPA renderer (headless Chromium)
 ├── SECURITY-AUDIT.md        # Red/blue team security audit report
 ├── CHANGELOG.md             # Version history and audit summaries
 ├── metapeek.config.ts       # Central configuration (single source of truth)
