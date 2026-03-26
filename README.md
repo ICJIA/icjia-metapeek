@@ -952,7 +952,38 @@ git push origin main
 
 ## Security
 
-> **Full audit available:** See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete red team / blue team security assessment (0 critical, 3 high, 5 medium findings — overall posture rated GOOD).
+> **Full audit available:** See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete red team / blue team security assessment with proof-of-concept code and remediation guidance. A summary of all findings is also included at the top of the [CHANGELOG.md](CHANGELOG.md).
+
+### Audit Results (2026-03-26)
+
+**Overall Posture: GOOD** — 0 critical vulnerabilities. The application implements substantially above-average security controls for a URL-fetching proxy.
+
+| ID | Severity | Finding | Status |
+|----|----------|---------|--------|
+| RT-01 | High | Chunked encoding bypasses Content-Length size check | Open |
+| RT-02 | High | CSP allows `unsafe-inline` for scripts | Accepted (required by Nuxt/Vue; no XSS vectors exist) |
+| RT-03 | High | Body snippet returns unsanitized HTML from target sites | Open |
+| RT-04 | Medium | CORS only sets first origin from array | Accepted (dev-only; production unaffected) |
+| RT-05 | Medium | No Content-Type validation on fetched responses | Open |
+| RT-06 | Medium | Request IDs use `Math.random()` instead of crypto | Open |
+| RT-07 | Medium | Error messages reveal network topology | Accepted (helps users; rate limiting mitigates) |
+| RT-08 | Medium | `img-src *` in CSP allows arbitrary image loading | Accepted (by design — app previews OG images) |
+| RT-09 | Low | Redundant `Cookie: ""` header | Open |
+| RT-10 | Low | Rate limiting is Netlify-edge-only | Accepted (current deployment) |
+| RT-11 | Low | `extractHead` regex lazy match edge case | Accepted (low impact) |
+| RT-12 | Low | No server-side CORS enforcement | Accepted (API is intentionally public) |
+
+**Blue Team — What's Well-Defended:**
+
+| Defense | Rating |
+|---------|--------|
+| DNS pinning (TOCTOU prevention) | EXCELLENT |
+| IPv4 + IPv6 private IP blocking | EXCELLENT |
+| Redirect re-validation per hop | EXCELLENT |
+| Timing-safe auth comparison | EXCELLENT |
+| Script stripping in head extraction | GOOD |
+| Structured logging with redaction | GOOD |
+| Security headers (HSTS, CSP, X-Frame-Options) | GOOD |
 
 ### SSRF Protection ✅
 

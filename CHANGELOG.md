@@ -9,25 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Security Audit Summary
 
-A full red team / blue team security audit was performed on 2026-03-26. See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete report.
+A full red team / blue team security audit was performed on 2026-03-26. See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete report with proof-of-concept code and remediation guidance.
 
-**Overall Posture: GOOD** — substantially above-average security for a URL-fetching proxy.
+**Overall Posture: GOOD** — 0 critical vulnerabilities. The application implements substantially above-average security controls for a URL-fetching proxy, including DNS pinning, IPv4/IPv6 private IP blocking, redirect re-validation, and timing-safe authentication — all rated EXCELLENT by the blue team assessment.
 
-| Severity | Count | Key Findings |
-|----------|-------|-------------|
-| Critical | 0 | None |
-| High | 3 | Content-Length bypass via chunked encoding, CSP `unsafe-inline`, body snippet raw HTML leakage |
-| Medium | 5 | CORS first-origin-only, no Content-Type validation, `Math.random()` request IDs, error oracle, `img-src *` |
-| Low | 4 | Cookie header no-op, edge-only rate limiting, regex edge cases, log param case sensitivity |
-| Info | 3 | All properly mitigated (IPv4-mapped IPv6, parameter pollution, timing-safe auth) |
+### Findings and Status
 
-**Blue Team Highlights:**
-- DNS pinning SSRF protection — EXCELLENT
-- IPv4 + IPv6 private IP blocking — EXCELLENT
-- Redirect re-validation on each hop — EXCELLENT
-- Timing-safe authentication — EXCELLENT
-- Structured logging with sensitive data redaction — GOOD
-- Security headers (HSTS, CSP, X-Frame-Options) — GOOD
+| ID | Severity | Finding | Risk | Status |
+|----|----------|---------|------|--------|
+| RT-01 | High | **Chunked encoding bypasses Content-Length size check** — server downloads full response into memory before rejecting oversized payloads | Attacker could exhaust server memory with concurrent large requests | Open — requires streaming size validation refactor |
+| RT-02 | High | **CSP allows `unsafe-inline` for scripts** — weakens XSS protection | If any future XSS vector appears, CSP will not block it | Accepted — required by Nuxt/Vue inline scripts; no current XSS vectors exist (Vue auto-escapes all template interpolation) |
+| RT-03 | High | **Body snippet returns unsanitized HTML** — first 1024 chars of `<body>` forwarded raw, could contain CSRF tokens or API keys from target sites | Information disclosure of target site data to MetaPeek users | Open — fix is to strip HTML tags or remove script tags from body snippet (~30 min) |
+| RT-04 | Medium | **CORS only sets first origin from array** — `localhost` origin is added but never used in the header | Dev-only — production works correctly with single origin | Accepted — no production impact; dev uses same-origin requests |
+| RT-05 | Medium | **No Content-Type validation on responses** — binary files (PDF, ZIP) downloaded and parsed as HTML | Wastes server resources on non-HTML responses | Open — add `text/html` check before processing (~15 min) |
+| RT-06 | Medium | **Request IDs use `Math.random()`** — predictable, not cryptographically secure | Log correlation IDs could be forged if attacker has log access | Open — replace with `crypto.randomUUID()` (~5 min) |
+| RT-07 | Medium | **Error messages reveal network topology** — distinct messages for DNS failure vs connection refused vs timeout | Attacker could use MetaPeek as a network reconnaissance oracle | Accepted — specific errors help legitimate users debug; rate limiting mitigates scanning |
+| RT-08 | Medium | **`img-src *` in CSP** — allows loading images from any origin | By design — MetaPeek previews OG images from arbitrary domains; user's browser connects directly to image hosts | Accepted — inherent to the application's purpose |
+| RT-09 | Low | **`Cookie: ""` header is a no-op** — `credentials: "omit"` already prevents cookies | No security impact; redundant header | Open — trivial cleanup (~5 min) |
+| RT-10 | Low | **Rate limiting is Netlify-edge-only** — no fallback if deployed elsewhere | No impact on current Netlify deployment | Accepted — add app-level fallback if deployment target changes |
+| RT-11 | Low | **`extractHead` regex lazy match** — premature `</head>` in comments truncates parsing | Edge case affecting parsing accuracy, not security; cheerio parser handles this correctly in `/api/analyze` | Accepted — low impact, only affects `/api/fetch` route |
+| RT-12 | Low | **No server-side CORS enforcement** — headers instruct browsers, but non-browser clients bypass CORS | API is intentionally public; non-browser access is expected | Accepted — activate `METAPEEK_API_KEY` env var if access control needed |
+
+### What's Already Well-Defended
+
+| Defense | Rating | What It Stops |
+|---------|--------|---------------|
+| DNS pinning (TOCTOU prevention) | EXCELLENT | DNS rebinding attacks where IP changes between validation and fetch |
+| IPv4 + IPv6 private IP blocking | EXCELLENT | SSRF to internal services, cloud metadata (169.254.169.254), loopback |
+| Redirect re-validation per hop | EXCELLENT | SSRF via open redirect chains (public URL → internal IP) |
+| Timing-safe auth comparison | EXCELLENT | Timing side-channel attacks on API key |
+| Script stripping in head extraction | GOOD | XSS from forwarded JavaScript in fetched HTML |
+| Structured logging with redaction | GOOD | Sensitive data (tokens, keys) leaking into logs |
+| Security headers (HSTS, CSP, X-Frame-Options) | GOOD | Clickjacking, MIME sniffing, protocol downgrade |
+| Parameter pollution rejection | GOOD | Unexpected fields influencing server behavior |
 
 ---
 
