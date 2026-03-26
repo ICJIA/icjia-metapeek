@@ -63,13 +63,19 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.12.0] - 2026-03-26
+
+### Fixed
+
+- SPA detection heuristic broadened — now triggers when Open Graph tags are missing (not just when title/description are absent), catching sites like `icjia.illinois.gov` that have basic meta tags but rely on JavaScript to inject OG tags
+
 ## [0.11.0] - 2026-03-26
 
 ### Added
 
 - SPA rendering support via headless Chromium (`@sparticuz/chromium` + `puppeteer-core`)
 - Standalone Netlify function (`/api/fetch-spa`) with isolated Chromium binary bundle
-- SPA auto-detection — banner appears when static HTML has no title or description
+- SPA auto-detection — banner appears when Open Graph tags are missing from static HTML
 - "Render with JavaScript" button to re-analyze using headless browser
 - Success state shows "(rendered with JavaScript)" when SPA renderer was used
 

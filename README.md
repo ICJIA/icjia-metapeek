@@ -189,7 +189,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 - ✅ Headless Chromium rendering for JavaScript-rendered pages (Vue, React, Angular SPAs)
 - ✅ Standalone Netlify function with `@sparticuz/chromium` + `puppeteer-core`
-- ✅ Auto-detection: banner appears when static HTML has no title or description
+- ✅ Auto-detection: banner appears when Open Graph tags are missing from static HTML
 - ✅ "Render with JavaScript" button re-analyzes via headless browser
 - ✅ Chromium-level DNS restriction (`--host-resolver-rules`) blocks in-page SSRF
 - ✅ Request interception blocks images/media/fonts for faster rendering

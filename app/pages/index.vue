@@ -2959,7 +2959,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               target="_blank"
               rel="noopener noreferrer"
               class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-            >v0.11.0</a>
+            >v0.12.0</a>
             <span>·</span>
             <a
               href="https://github.com/ICJIA/icjia-metapeek"
