@@ -163,12 +163,14 @@ const sampleHtml = `<!DOCTYPE html>
 </body>
 </html>`;
 
-/** Loads sample HTML (GitHub) or sample URL based on current input mode. */
-const loadSample = () => {
+/** Loads sample HTML (GitHub) or sample URL based on current input mode. Auto-fetches. */
+const loadSample = async () => {
   if (inputMode.value === "html") {
     inputHtml.value = sampleHtml;
   } else {
     inputUrl.value = "https://github.com";
+    await nextTick();
+    handleFetchUrl();
   }
 };
 
