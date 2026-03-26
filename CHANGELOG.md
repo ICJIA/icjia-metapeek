@@ -17,15 +17,15 @@ A full red team / blue team security audit was performed on 2026-03-26. See [SEC
 
 | ID | Severity | Finding | Risk | Status |
 |----|----------|---------|------|--------|
-| RT-01 | High | **Chunked encoding bypasses Content-Length size check** — server downloads full response into memory before rejecting oversized payloads | Attacker could exhaust server memory with concurrent large requests | Open — requires streaming size validation refactor |
+| RT-01 | High | **Chunked encoding bypasses Content-Length size check** — server downloads full response into memory before rejecting oversized payloads | Attacker could exhaust server memory with concurrent large requests | **Fixed in v0.9.0** — replaced `ofetch` with streaming `undici.request()` that counts bytes during download and aborts immediately when limit exceeded |
 | RT-02 | High | **CSP allows `unsafe-inline` for scripts** — weakens XSS protection | If any future XSS vector appears, CSP will not block it | Accepted — required by Nuxt/Vue inline scripts; no current XSS vectors exist (Vue auto-escapes all template interpolation) |
-| RT-03 | High | **Body snippet returns unsanitized HTML** — first 1024 chars of `<body>` forwarded raw, could contain CSRF tokens or API keys from target sites | Information disclosure of target site data to MetaPeek users | Open — fix is to strip HTML tags or remove script tags from body snippet (~30 min) |
+| RT-03 | High | **Body snippet returns unsanitized HTML** — first 1024 chars of `<body>` forwarded raw, could contain CSRF tokens or API keys from target sites | Information disclosure of target site data to MetaPeek users | **Fixed in v0.9.0** — `extractBodySnippet` now strips all HTML tags, scripts, and styles, returning text-only content |
 | RT-04 | Medium | **CORS only sets first origin from array** — `localhost` origin is added but never used in the header | Dev-only — production works correctly with single origin | Accepted — no production impact; dev uses same-origin requests |
-| RT-05 | Medium | **No Content-Type validation on responses** — binary files (PDF, ZIP) downloaded and parsed as HTML | Wastes server resources on non-HTML responses | Open — add `text/html` check before processing (~15 min) |
-| RT-06 | Medium | **Request IDs use `Math.random()`** — predictable, not cryptographically secure | Log correlation IDs could be forged if attacker has log access | Open — replace with `crypto.randomUUID()` (~5 min) |
+| RT-05 | Medium | **No Content-Type validation on responses** — binary files (PDF, ZIP) downloaded and parsed as HTML | Wastes server resources on non-HTML responses | **Fixed in v0.9.0** — rejects responses that are not `text/html` or `application/xhtml+xml` with a 422 error |
+| RT-06 | Medium | **Request IDs use `Math.random()`** — predictable, not cryptographically secure | Log correlation IDs could be forged if attacker has log access | **Fixed in v0.9.0** — replaced with `crypto.randomUUID()` |
 | RT-07 | Medium | **Error messages reveal network topology** — distinct messages for DNS failure vs connection refused vs timeout | Attacker could use MetaPeek as a network reconnaissance oracle | Accepted — specific errors help legitimate users debug; rate limiting mitigates scanning |
 | RT-08 | Medium | **`img-src *` in CSP** — allows loading images from any origin | By design — MetaPeek previews OG images from arbitrary domains; user's browser connects directly to image hosts | Accepted — inherent to the application's purpose |
-| RT-09 | Low | **`Cookie: ""` header is a no-op** — `credentials: "omit"` already prevents cookies | No security impact; redundant header | Open — trivial cleanup (~5 min) |
+| RT-09 | Low | **`Cookie: ""` header is a no-op** — `credentials: "omit"` already prevents cookies | No security impact; redundant header | **Fixed in v0.9.0** — removed redundant header |
 | RT-10 | Low | **Rate limiting is Netlify-edge-only** — no fallback if deployed elsewhere | No impact on current Netlify deployment | Accepted — add app-level fallback if deployment target changes |
 | RT-11 | Low | **`extractHead` regex lazy match** — premature `</head>` in comments truncates parsing | Edge case affecting parsing accuracy, not security; cheerio parser handles this correctly in `/api/analyze` | Accepted — low impact, only affects `/api/fetch` route |
 | RT-12 | Low | **No server-side CORS enforcement** — headers instruct browsers, but non-browser clients bypass CORS | API is intentionally public; non-browser access is expected | Accepted — activate `METAPEEK_API_KEY` env var if access control needed |
@@ -62,6 +62,17 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
 
 ---
+
+## [0.9.0] - 2026-03-26
+
+### Security
+
+- **RT-01 FIXED:** Streaming response size validation — replaced `ofetch` buffered download with `undici.request()` streaming that counts bytes during download and aborts immediately when the 5MB limit is exceeded, preventing memory exhaustion from chunked-encoding responses
+- **RT-03 FIXED:** Body snippet sanitization — `extractBodySnippet` now strips all HTML tags, `<script>`, and `<style>` elements, returning text-only content to prevent leaking CSRF tokens, API keys, or session data from target sites
+- **RT-05 FIXED:** Content-Type validation — rejects non-HTML responses (`application/pdf`, `image/*`, etc.) with a 422 error before processing, preventing wasted resources on binary files
+- **RT-06 FIXED:** Cryptographic request IDs — replaced `Math.random()` with `crypto.randomUUID()` for unpredictable log correlation IDs
+- **RT-09 FIXED:** Removed redundant `Cookie: ""` header from fetch requests (already handled by `credentials: "omit"`)
+- **BD-08 FIXED:** Log URL sanitization now uses case-insensitive parameter matching (catches `Token`, `API_KEY`, `SECRET`, etc.)
 
 ## [0.8.0] - 2026-03-26
 

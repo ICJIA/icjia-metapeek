@@ -1,6 +1,8 @@
 // server/utils/logger.ts
 // Structured logging for proxy requests
 
+import { randomUUID } from "node:crypto";
+
 /**
  * Log levels for different types of events
  */
@@ -31,7 +33,7 @@ export interface ProxyLogEntry {
  * Generate a unique request ID for correlation
  */
 export function generateRequestId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return randomUUID();
 }
 
 /**
@@ -63,9 +65,10 @@ export function sanitizeUrlForLogging(url: string): string {
       "oauth",
     ];
 
-    for (const param of sensitiveParams) {
-      if (parsed.searchParams.has(param)) {
-        parsed.searchParams.set(param, "[REDACTED]");
+    // Case-insensitive match: redact "Token", "API_KEY", "SECRET", etc.
+    for (const [key] of parsed.searchParams) {
+      if (sensitiveParams.includes(key.toLowerCase())) {
+        parsed.searchParams.set(key, "[REDACTED]");
       }
     }
 

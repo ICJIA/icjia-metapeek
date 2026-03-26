@@ -7,8 +7,7 @@
  */
 
 import { createError } from "h3";
-import { ofetch } from "ofetch";
-import { Agent } from "undici";
+import { Agent, request } from "undici";
 import {
   validateUrl,
   sanitizeErrorMessage,
@@ -88,7 +87,9 @@ function createPinnedDispatcher(addresses: ResolvedAddresses): Agent {
 
 /**
  * Fetches a URL using pre-resolved DNS addresses to prevent TOCTOU/DNS rebinding.
- * Uses ofetch with an undici dispatcher that pins DNS to validated addresses.
+ * Uses undici.request() with streaming body consumption to enforce size limits
+ * during download — aborts immediately when maxBytes is exceeded, preventing
+ * memory exhaustion from chunked-encoding responses that lack Content-Length.
  *
  * @param url - The URL to fetch
  * @param options - Fetch options including pinned DNS addresses
@@ -106,41 +107,58 @@ export async function pinnedFetch(
   const dispatcher = createPinnedDispatcher(options.resolvedAddresses);
 
   try {
-    const response = await ofetch.raw(url, {
+    const { statusCode, headers, body } = await request(url, {
+      method: "GET",
       headers: options.headers,
-      timeout: options.timeout,
-      redirect: "manual",
-      responseType: "text",
       dispatcher,
-      onRequest({ options: reqOptions }) {
-        reqOptions.credentials = "omit";
-      },
+      maxRedirections: 0, // We handle redirects manually
+      headersTimeout: options.timeout,
+      bodyTimeout: options.timeout,
     });
 
-    // Check response size
-    const contentLength = response.headers.get("content-length");
-    if (
-      contentLength &&
-      parseInt(contentLength) > options.maxBytes
-    ) {
+    // Early reject if Content-Length exceeds limit (before reading body)
+    const contentLength = headers["content-length"];
+    if (contentLength && parseInt(String(contentLength)) > options.maxBytes) {
+      // Drain and discard the body to avoid resource leak
+      body.destroy();
       throw Object.assign(
         new Error(`Response exceeds ${options.maxBytes} bytes`),
         { code: "ERR_RESPONSE_TOO_LARGE" },
       );
     }
 
-    const data = response._data as string;
-    if (data && data.length > options.maxBytes) {
-      throw Object.assign(
-        new Error("Response too large to process"),
-        { code: "ERR_RESPONSE_TOO_LARGE" },
-      );
+    // Stream the body with byte counting — abort if limit exceeded mid-download
+    // This prevents memory exhaustion from chunked-encoding responses
+    const chunks: Buffer[] = [];
+    let receivedBytes = 0;
+
+    for await (const chunk of body) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > options.maxBytes) {
+        body.destroy();
+        throw Object.assign(
+          new Error("Response too large to process"),
+          { code: "ERR_RESPONSE_TOO_LARGE" },
+        );
+      }
+      chunks.push(Buffer.from(chunk));
     }
 
+    const data = Buffer.concat(chunks).toString("utf-8");
+
+    // Wrap headers in a Map-like interface for compatibility
+    const headerMap = {
+      get(name: string): string | null {
+        const val = headers[name.toLowerCase()];
+        if (val === undefined) return null;
+        return Array.isArray(val) ? val[0] ?? null : String(val);
+      },
+    };
+
     return {
-      status: response.status,
-      headers: response.headers,
-      data: data ?? "",
+      status: statusCode,
+      headers: headerMap,
+      data,
     };
   } finally {
     await dispatcher.close();
@@ -170,7 +188,6 @@ export async function fetchWithRedirects(
     let currentResponse = await pinnedFetch(currentUrl, {
       headers: {
         "User-Agent": metapeekConfig.proxy.userAgent,
-        Cookie: "",
       },
       timeout: metapeekConfig.proxy.fetchTimeoutMs,
       maxBytes: metapeekConfig.proxy.maxResponseBytes,
@@ -217,7 +234,6 @@ export async function fetchWithRedirects(
       currentResponse = await pinnedFetch(nextUrl, {
         headers: {
           "User-Agent": metapeekConfig.proxy.userAgent,
-          Cookie: "",
         },
         timeout: metapeekConfig.proxy.fetchTimeoutMs,
         maxBytes: metapeekConfig.proxy.maxResponseBytes,
@@ -230,7 +246,23 @@ export async function fetchWithRedirects(
     const finalUrl = currentUrl;
     const statusCode = currentResponse.status;
     const contentType =
-      currentResponse.headers.get("content-type") || "text/html";
+      currentResponse.headers.get("content-type") || "";
+
+    // RT-05: Validate Content-Type is HTML before processing.
+    // Reject binary files (PDF, ZIP, images) and non-HTML text formats
+    // to avoid wasting resources parsing non-HTML responses.
+    if (
+      contentType &&
+      !contentType.includes("text/html") &&
+      !contentType.includes("application/xhtml+xml")
+    ) {
+      const shortType = contentType.split(";")[0]?.trim() || "unknown";
+      throw createError({
+        statusCode: 422,
+        message: `URL returned "${shortType}" instead of HTML. MetaPeek can only analyze HTML pages.`,
+      });
+    }
+
     const html = currentResponse.data;
 
     return {

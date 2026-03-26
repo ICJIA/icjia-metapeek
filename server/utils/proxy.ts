@@ -389,7 +389,18 @@ export function extractBodySnippet(
   if (!bodyMatch) return "";
 
   const body = bodyMatch[1] ?? "";
-  return body.substring(0, maxLength);
+
+  // Strip all HTML tags and return text-only content.
+  // Prevents leaking sensitive data (CSRF tokens, API keys, session IDs)
+  // that may appear in HTML attributes or inline scripts within <body>.
+  const textOnly = body
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ") // Remove scripts first (may contain sensitive data)
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")   // Remove styles
+    .replace(/<[^>]*>/g, " ")                            // Strip remaining HTML tags
+    .replace(/\s+/g, " ")                                // Collapse whitespace
+    .trim();
+
+  return textOnly.substring(0, maxLength);
 }
 
 /**

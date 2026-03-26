@@ -71,14 +71,15 @@ describe("Proxy Utilities", () => {
   });
 
   describe("extractBodySnippet", () => {
-    it("extracts body content up to maxLength", () => {
+    it("extracts body text content with HTML tags stripped", () => {
       const html = `
         <body>
           <div id="app">Content here</div>
         </body>
       `;
       const result = extractBodySnippet(html, 1024);
-      expect(result).toContain('id="app"');
+      expect(result).not.toContain('id="app"');
+      expect(result).not.toContain("<div");
       expect(result).toContain("Content here");
     });
 

@@ -960,15 +960,15 @@ git push origin main
 
 | ID | Severity | Finding | Status |
 |----|----------|---------|--------|
-| RT-01 | High | Chunked encoding bypasses Content-Length size check | Open |
+| RT-01 | High | Chunked encoding bypasses Content-Length size check | **Fixed v0.9.0** — streaming size validation |
 | RT-02 | High | CSP allows `unsafe-inline` for scripts | Accepted (required by Nuxt/Vue; no XSS vectors exist) |
-| RT-03 | High | Body snippet returns unsanitized HTML from target sites | Open |
+| RT-03 | High | Body snippet returns unsanitized HTML from target sites | **Fixed v0.9.0** — tags stripped, text-only |
 | RT-04 | Medium | CORS only sets first origin from array | Accepted (dev-only; production unaffected) |
-| RT-05 | Medium | No Content-Type validation on fetched responses | Open |
-| RT-06 | Medium | Request IDs use `Math.random()` instead of crypto | Open |
+| RT-05 | Medium | No Content-Type validation on fetched responses | **Fixed v0.9.0** — rejects non-HTML |
+| RT-06 | Medium | Request IDs use `Math.random()` instead of crypto | **Fixed v0.9.0** — uses `crypto.randomUUID()` |
 | RT-07 | Medium | Error messages reveal network topology | Accepted (helps users; rate limiting mitigates) |
 | RT-08 | Medium | `img-src *` in CSP allows arbitrary image loading | Accepted (by design — app previews OG images) |
-| RT-09 | Low | Redundant `Cookie: ""` header | Open |
+| RT-09 | Low | Redundant `Cookie: ""` header | **Fixed v0.9.0** — removed |
 | RT-10 | Low | Rate limiting is Netlify-edge-only | Accepted (current deployment) |
 | RT-11 | Low | `extractHead` regex lazy match edge case | Accepted (low impact) |
 | RT-12 | Low | No server-side CORS enforcement | Accepted (API is intentionally public) |
