@@ -259,7 +259,7 @@ const cropSpecs = [
         <p class="font-medium text-gray-700 dark:text-gray-300">
           {{ imageInfo.error }}
         </p>
-        <p class="text-xs text-gray-500 dark:text-gray-500 mt-2 font-mono">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2 font-mono">
           {{ imageUrl?.substring(0, 60) }}...
         </p>
       </div>
@@ -309,7 +309,7 @@ const cropSpecs = [
               </span>
             </div>
 
-            <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Recommended: 1200 × 630 px or larger (1.91:1 aspect ratio)
             </p>
           </div>

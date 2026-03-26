@@ -44,9 +44,12 @@ test.describe('Accessibility Audit - WCAG 2.1 AA Compliance', () => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
     
+    console.log('  → Switching to Paste HTML mode...')
+    await page.click('button:has-text("Paste HTML")')
+
     console.log('  → Clicking "Load Example" button...')
     await page.click('button:has-text("Load Example")')
-    
+
     console.log('  → Waiting for analysis to complete...')
     await page.waitForSelector('text=Analyzed', { timeout: 5000 })
     console.log('  → Preview cards rendered, running axe-core scan...')
@@ -80,10 +83,13 @@ test.describe('Accessibility Audit - WCAG 2.1 AA Compliance', () => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
     
+    console.log('  → Switching to Paste HTML mode...')
+    await page.click('button:has-text("Paste HTML")')
+
     console.log('  → Loading sample HTML...')
     await page.click('button:has-text("Load Example")')
     await page.waitForSelector('text=Analyzed', { timeout: 5000 })
-    
+
     console.log('  → Switching to Code tab...')
     await page.click('button:has-text("Code")')
     
@@ -149,6 +155,9 @@ test.describe('Keyboard Navigation - WCAG 2.1.1 Keyboard Accessible', () => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
     
+    console.log('  → Switching to Paste HTML mode...')
+    await page.click('button:has-text("Paste HTML")')
+
     console.log('  → Loading sample to show all interactive elements...')
     await page.click('button:has-text("Load Example")')
     await page.waitForSelector('text=Analyzed', { timeout: 5000 })

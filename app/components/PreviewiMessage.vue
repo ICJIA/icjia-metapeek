@@ -68,7 +68,7 @@ const handleImageError = () => {
           v-else
           class="aspect-video bg-gray-200 dark:bg-gray-700 flex items-center justify-center"
         >
-          <UIcon name="i-heroicons-photo" class="w-8 h-8 text-gray-400 dark:text-gray-500" />
+          <UIcon name="i-heroicons-photo" class="w-8 h-8 text-gray-400 dark:text-gray-400" />
         </div>
 
         <!-- Content -->
@@ -76,7 +76,7 @@ const handleImageError = () => {
           <p class="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-0.5 line-clamp-2">
             {{ truncatedTitle }}
           </p>
-          <p class="text-[10px] text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+          <p class="text-[10px] text-gray-600 dark:text-gray-300 uppercase tracking-wider">
             {{ displayUrl }}
           </p>
         </div>

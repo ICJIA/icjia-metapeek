@@ -1727,7 +1727,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
           <div
             class="absolute bottom-3 right-3 flex items-center gap-3 text-xs"
           >
-            <span class="text-gray-400 dark:text-gray-500 tabular-nums">
+            <span class="text-gray-400 dark:text-gray-400 tabular-nums">
               {{ inputHtml.length.toLocaleString() }} chars
             </span>
             <span
@@ -2186,6 +2186,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                   Paste this into ChatGPT, Claude, or another LLM to get help implementing fixes.
                 </p>
                 <pre
+                  tabindex="0"
                   class="p-4 rounded-lg bg-gray-900 dark:bg-gray-950 text-gray-100 text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-words mb-3"
                 >{{ generateLlmIssuesContent() }}</pre>
                 <div class="flex flex-wrap items-center gap-3">
@@ -2489,6 +2490,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             Paste this into ChatGPT, Claude, or another LLM to get help improving your AI readiness.
           </p>
           <pre
+            tabindex="0"
             class="p-4 rounded-lg bg-gray-900 dark:bg-gray-950 text-gray-100 text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-words mb-3"
           >{{ generateAiReadinessLlmContent() }}</pre>
           <div class="flex flex-wrap items-center gap-3">
@@ -2611,7 +2613,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 <UButton
                   size="lg"
                   variant="solid"
-                  class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white"
+                  class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800 text-white"
                   icon="i-heroicons-code-bracket"
                   @click="exportAsJson"
                 >
@@ -2625,7 +2627,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 <UButton
                   size="lg"
                   variant="solid"
-                  class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
+                  class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-700 dark:hover:bg-violet-800 text-white"
                   icon="i-heroicons-document-text"
                   @click="exportAsMarkdown"
                 >
@@ -2639,7 +2641,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 <UButton
                   size="lg"
                   variant="solid"
-                  class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white"
+                  class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-800 text-white"
                   icon="i-heroicons-globe-alt"
                   @click="exportAsHtml"
                 >
@@ -2741,6 +2743,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 The actual <code>&lt;head&gt;</code> content that was parsed. Useful for debugging when results seem wrong.
               </p>
               <pre
+                tabindex="0"
                 class="text-xs font-mono text-gray-300 overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all"
               >{{ rawHeadHtml }}</pre>
             </div>
@@ -2755,7 +2758,7 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               variant="solid"
               icon="i-heroicons-arrow-path"
               aria-label="Reset and start over"
-              class="font-semibold shadow-lg bg-violet-600 hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600 text-white"
+              class="font-semibold shadow-lg bg-violet-600 hover:bg-violet-700 dark:bg-violet-700 dark:hover:bg-violet-800 text-white"
               @click="resetAll"
             >
               Reset & Start Over
@@ -2819,6 +2822,19 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
           <p class="flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             No tracking · No ads · No account
+          </p>
+          <p class="flex items-center gap-2">
+            <span>v0.8.0</span>
+            <span>·</span>
+            <a
+              href="https://github.com/ICJIA/icjia-metapeek"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors inline-flex items-center gap-1 py-2"
+            >
+              <UIcon name="i-simple-icons-github" class="w-3.5 h-3.5" />
+              GitHub
+            </a>
           </p>
         </div>
       </footer>
