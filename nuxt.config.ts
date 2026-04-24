@@ -84,8 +84,11 @@ export default defineNuxtConfig({
     },
   },
 
-  // CORS configuration for Phase 2 proxy endpoint
+  // Prerender the landing page at build time — served as static HTML from
+  // Netlify's CDN, no Netlify Function cold start on first visit.
+  // CORS configuration for the /api/* proxy endpoints (SSR/serverless).
   routeRules: {
+    "/": { prerender: true },
     "/api/**": {
       cors: true,
       headers: {

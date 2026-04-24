@@ -63,6 +63,21 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.13.0] - 2026-04-24
+
+### Fixed
+
+- `app.vue` was at the project root but Nuxt 4's default `srcDir` is `app/`, so the custom root component was silently ignored in favor of Nuxt's built-in default template. `<UToaster />` never mounted, meaning toast notifications from `useToast()` were not displayed. Moved to `app/app.vue`.
+
+### Added
+
+- Full-screen centered "Loading" indicator, rendered in SSR output and faded out after client hydration. Accessible (`role="status"`, `aria-live="polite"`), respects `prefers-reduced-motion`. Matches the dark theme used by the existing `spa-loading-template.html`.
+- `<NuxtLoadingIndicator>` progress bar for client-side route transitions.
+
+### Performance
+
+- Landing page (`/`) now prerendered at build time via `routeRules: { "/": { prerender: true } }`. Served as static HTML from Netlify's CDN — eliminates the ~1–3 s Netlify Function cold start for first-time visitors. `/api/*` routes continue to run as serverless functions.
+
 ## [0.12.0] - 2026-03-26
 
 ### Fixed
