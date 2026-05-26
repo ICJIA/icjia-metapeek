@@ -832,7 +832,7 @@ All three phases are complete. For ongoing development:
 
 - **Unit tests:** 139 tests covering composables and utilities (> 85% coverage for security)
 - **E2E accessibility:** 5 Playwright tests with axe-core (zero WCAG 2.1 AA violations)
-- **Lighthouse:** Accessibility score must be 100
+- **Lighthouse:** Accessibility score must be 100; Performance score must be ≥ 98 on mobile
 - **Manual testing:** Keyboard-only navigation must work
 - **Screen reader:** Test with NVDA or VoiceOver
 - **Linting:** Zero ESLint errors or warnings

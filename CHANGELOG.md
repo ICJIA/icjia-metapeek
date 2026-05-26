@@ -63,6 +63,33 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.13.1] - 2026-05-26
+
+### Performance
+
+- Enabled Nuxt 4's `features.inlineStyles` so the prerendered landing
+  page no longer waits on the 200 KB `entry.css` round-trip before
+  first paint. The page's used CSS is inlined directly into the SSR'd
+  HTML; the external CSS bundle shrinks to 743 B (only dynamic chunks
+  remain). HTML grows from ~30 KB to ~228 KB (~45 KB gzipped) but the
+  saved roundtrip dominates on mobile latency.
+
+### Fixed
+
+- Header ICJIA logo had no explicit `width`/`height` attributes,
+  contributing to Cumulative Layout Shift. Added `width="250"
+  height="175"` (the PNG's natural size); CSS classes
+  (`h-12 sm:h-14 w-auto`) continue to control display size.
+
+### Verified
+
+- Mobile Lighthouse Performance: **93 → 100** ✓
+- Mobile Lighthouse Accessibility: **100** ✓
+- Desktop Lighthouse Performance / Accessibility: **100 / 100** ✓
+- axe-core WCAG 2.1 AA: **0 violations** ✓
+
+---
+
 ## CLI [2.3.0] - 2026-05-26
 
 ### Added
