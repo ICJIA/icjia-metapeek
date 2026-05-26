@@ -107,11 +107,13 @@ export async function pinnedFetch(
   const dispatcher = createPinnedDispatcher(options.resolvedAddresses);
 
   try {
+    // undici's request() does not auto-follow redirects (we handle them
+    // manually in fetchWithRedirects to re-validate each hop), so no
+    // maxRedirections option is needed.
     const { statusCode, headers, body } = await request(url, {
       method: "GET",
       headers: options.headers,
       dispatcher,
-      maxRedirections: 0, // We handle redirects manually
       headersTimeout: options.timeout,
       bodyTimeout: options.timeout,
     });

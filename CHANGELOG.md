@@ -9,6 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Security Audit Summary
 
+The most recent red team / blue team audit was performed on **2026-05-26**. The previous audit ran on 2026-03-26 and most of its priority-1 findings were resolved in v0.9.0; this round focuses on supply-chain CVEs, security-header baselines, and tooling. See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the full report.
+
+### 2026-05-26 Audit — What changed
+
+| ID | Severity | Finding | Status |
+|----|----------|---------|--------|
+| RT-13 | High | **undici 7.21.0 has 3 WebSocket DoS CVEs** (CVE-2026-1528 / 1526 / 2229) — undici is our direct HTTP client | **Fixed in v0.14.0** — `pnpm.overrides` pin undici to `>=7.24.0`. We don't use WebSockets, but hygiene matters |
+| RT-14 | High | **h3 1.15.5 SSE injection** (CVE-2026-33128) — newlines in SSE field values escape the wire format | **Fixed in v0.14.0** — override pins h3 to `>=1.15.6`. We don't use h3 SSE either |
+| RT-15 | Critical | **fast-xml-parser entity-expansion bypass** — incomplete fix for CVE-2026-26278, transitive via `@nuxtjs/seo > sitemap` | **Fixed in v0.14.0** — override pins to `>=5.5.6`; `fast-xml-builder` pinned to `>=1.1.7` |
+| RT-16 | Medium | **CSP missing baseline directives** — no `base-uri`, `form-action`, `object-src`, `upgrade-insecure-requests` | **Fixed in v0.14.0** — added all four to `netlify.toml`. Blocks `<base>` injection, off-origin form posts, legacy plugins, and mixed-content downgrades |
+| RT-17 | Medium | **Missing cross-origin isolation headers** — no COOP / CORP | **Fixed in v0.14.0** — `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site` |
+| RT-18 | Low | **Permissions-Policy disabled only 4 features** — camera, microphone, geolocation, payment | **Fixed in v0.14.0** — expanded to 20+ features (USB, serial, bluetooth, midi, accelerometer, gyroscope, magnetometer, autoplay, display-capture, encrypted-media, picture-in-picture, screen-wake-lock, sync-xhr, web-share, xr-spatial-tracking, publickey-credentials-get) |
+| RT-19 | Low | **Missing X-Permitted-Cross-Domain-Policies / X-DNS-Prefetch-Control** | **Fixed in v0.14.0** — `none` and `off` added to defend against legacy Flash/Acrobat policies and reduce passive network leak |
+| RT-20 | Info | **Build still uses yarn 1 (classic)** — slower, no content-addressable store, weak workspace support | **Fixed in v0.14.0** — migrated to pnpm 10.33.0; lockfile regenerated, Netlify build command updated, `[dev]` block added for prod-parity local dev |
+| RT-21 | Moderate | **nuxt-og-image transitive vulns** (CVE GHSA-pqhr / mg36 / c7xp) — SSRF, reflected XSS, DoS in dynamic OG image rendering | **Accepted** — we don't generate OG images at request time; the app uses static `public/og-image-v2.png`. Override attempted but breaks Nuxt's prerender (unhead 2.1.15 ABI conflict). Will revisit when @nuxtjs/seo 5.x stabilizes with Nuxt 4.4 |
+
+### Previously-resolved findings (from 2026-03-26 audit) — confirmed in v0.14.0
+
+| ID | Severity | Resolution |
+|----|----------|------------|
+| RT-01 | High | Streaming size check via `pinnedFetch` (for-await loop, byte counter, mid-download abort) — verified in `server/utils/fetcher.ts` |
+| RT-03 | High | `extractBodySnippet` strips scripts, styles, and HTML tags — text-only output |
+| RT-05 | Medium | Content-Type validation rejects non-HTML with 422 |
+| RT-06 | Medium | `crypto.randomUUID()` for request IDs |
+| RT-09 | Low | Redundant `Cookie: ""` header removed |
+| BD-08 gap | — | Sensitive-param redaction in logs is now case-insensitive |
+
+### Still accepted (from 2026-03-26 audit)
+
+- **RT-02** (CSP `'unsafe-inline'` for scripts) — removing requires per-request nonce integration with Nuxt 4. Vue's template interpolation auto-escapes, so no current XSS vector exists. Deferred to a dedicated CSP hardening sprint.
+- **RT-04** (CORS `allowedOrigins[0]` only) — production single-origin works correctly; localhost dev uses same-origin so unaffected.
+- **RT-07** (Network errors discriminate ENOTFOUND / ECONNREFUSED / ETIMEDOUT) — kept because the messages help legitimate users debug; edge rate limiting mitigates scanning abuse.
+- **RT-08** (`img-src *` in CSP) — required by design; users analyze OG images on arbitrary domains.
+- **RT-10** (Rate limiting is Netlify-edge-only) — no immediate plan to deploy elsewhere; app-level fallback in `metapeek.config.ts` is wired up but not enabled.
+- **RT-11** (`extractHead` regex lazy match) — only affects the lightweight `/api/fetch` route; `/api/analyze` uses cheerio.
+- **RT-12** (No server-side CORS enforcement) — API is intentionally public; `METAPEEK_API_KEY` opts in to bearer-token auth.
+
+### Audit status — TL;DR
+
+- `pnpm audit --prod --audit-level high` → **0 findings**
+- `pnpm audit --prod --audit-level moderate` → 3 (all `nuxt-og-image`, not exploitable in our usage)
+- `pnpm audit --audit-level high` → 1 (`js-cookie` via `@vue/test-utils`, **dev-only**)
+- 139 unit + security tests pass
+- Local production build succeeds with Nitro netlify preset
+
 A full red team / blue team security audit was performed on 2026-03-26. See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete report with proof-of-concept code and remediation guidance.
 
 **Overall Posture: GOOD** — 0 critical vulnerabilities. The application implements substantially above-average security controls for a URL-fetching proxy, including DNS pinning, IPv4/IPv6 private IP blocking, redirect re-validation, and timing-safe authentication — all rated EXCELLENT by the blue team assessment.
@@ -60,6 +105,73 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 | ARIA landmarks | PASS | Live regions properly nested in landmarks |
 
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
+
+---
+
+## [0.14.0] - 2026-05-26
+
+### Security
+
+- **Supply-chain CVE patches** — pinned undici `>=7.24.0`, h3 `>=1.15.6`,
+  fast-xml-parser `>=5.5.6`, fast-xml-builder `>=1.1.7` via
+  `pnpm.overrides`. Resolves CVE-2026-1528 / 1526 / 2229 (undici
+  WebSocket DoS), CVE-2026-33128 (h3 SSE injection), and the
+  fast-xml-parser entity-expansion bypass (incomplete fix for
+  CVE-2026-26278).
+- **CSP hardening** — added `base-uri 'self'`, `form-action 'self'`,
+  `object-src 'none'`, and `upgrade-insecure-requests` to the
+  `Content-Security-Policy` header. Blocks `<base>` injection,
+  off-origin form posts, legacy plugin loading, and mixed-content
+  downgrades.
+- **Cross-origin isolation** — added `Cross-Origin-Opener-Policy:
+  same-origin` and `Cross-Origin-Resource-Policy: same-site`.
+- **Expanded Permissions-Policy** — from 4 disabled features to 20+
+  (camera, microphone, geolocation, payment, USB, serial, bluetooth,
+  midi, accelerometer, gyroscope, magnetometer, autoplay,
+  display-capture, encrypted-media, picture-in-picture,
+  screen-wake-lock, sync-xhr, web-share, xr-spatial-tracking,
+  publickey-credentials-get, fullscreen=self).
+- **Additional defense-in-depth headers** —
+  `X-Permitted-Cross-Domain-Policies: none` (blocks legacy
+  Flash/Acrobat cross-domain) and `X-DNS-Prefetch-Control: off`
+  (reduces passive network leak).
+- **Dependency upgrade** — Nuxt 4.3.0 → 4.4.6 (closes navigateTo
+  reflected-XSS advisory GHSA-fx6j-w5w5-h468).
+
+### Changed
+
+- **Package manager: yarn 1 → pnpm 10.33.0.** `yarn.lock` removed,
+  `pnpm-lock.yaml` committed. `packageManager` field added to
+  `package.json` so Corepack installs the exact version on every
+  machine and in CI. `pnpm-workspace.yaml` replaces the
+  `package.json:workspaces` field. Disk usage is much smaller
+  (content-addressable store) and installs are faster.
+- **Netlify build command:** `yarn build` → `pnpm build`.
+  `PNPM_FLAGS = "--shamefully-hoist"` added to `[build.environment]`
+  per Netlify's documented Nuxt + pnpm requirement so SSR modules
+  (unhead, `@nuxtjs/seo`) resolve consistently. `.npmrc` mirrors this
+  locally with `shamefully-hoist=true`.
+
+### Added
+
+- **`pnpm start-dev-server`** — kills stale `nuxt dev` / `netlify dev` /
+  `vite` / `nitro` processes (and frees ports 3000 / 8888), then runs
+  `netlify dev` so the local environment mirrors prod: `/api/*` hits
+  the Nitro server, `/.netlify/functions/fetch-spa` hits the standalone
+  Chromium lambda, and the `netlify.toml` headers/redirects apply at
+  the edge. Script at `scripts/start-dev-server.sh`.
+- **`[dev]` block in `netlify.toml`** — explicit `targetPort = 3000`,
+  `port = 8888`, `framework = "#auto"`, `autoLaunch = false` so
+  `netlify dev` behaves deterministically.
+- **`pnpm audit` script** — wraps `pnpm audit --prod --audit-level high`
+  for CI/local checks.
+
+### Verified
+
+- `pnpm audit --prod --audit-level high`: **0 vulnerabilities**
+- `pnpm test`: **139 / 139 pass** (unit + security)
+- `pnpm build`: succeeds with Nitro `netlify` preset
+- See full audit table above for status of every previous + new finding
 
 ---
 

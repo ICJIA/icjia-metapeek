@@ -1,10 +1,29 @@
 [build]
-  command = "yarn build"
+  command = "pnpm build"
   publish = "dist"
 
 [build.environment]
   NODE_VERSION = "22"
   NITRO_PRESET = "netlify"
+  # Required for Nuxt + pnpm on Netlify — flattens deps so SSR modules
+  # (unhead, @nuxtjs/seo, etc.) resolve consistently.
+  # https://docs.netlify.com/build/configure-builds/manage-dependencies
+  PNPM_FLAGS = "--shamefully-hoist"
+  # Corepack reads `packageManager` in package.json. Strict mode rejects
+  # mismatched versions; "0" lets Netlify use the pinned version.
+  COREPACK_ENABLE_STRICT = "0"
+
+# Local dev — `netlify dev` (or `pnpm start-dev-server`) routes
+# /api/* to the Nitro server and /.netlify/functions/* to standalone
+# functions, applying these headers/redirects at the edge so local
+# matches prod.
+[dev]
+  command = "pnpm dev"
+  targetPort = 3000
+  port = 8888
+  publish = ".output/public"
+  framework = "#auto"
+  autoLaunch = false
 
 # Standalone Netlify functions (separate from Nitro server routes)
 [functions]
@@ -16,16 +35,37 @@
   external_node_modules = ["@sparticuz/chromium"]
   included_files = ["node_modules/@sparticuz/chromium/bin/**"]
 
-# Headers for security and caching
+# ═══════════════════════════════════════════════════════════════════
+# Security headers
+#
+# CSP notes:
+# - `'unsafe-inline'` on script-src/style-src is retained because Nuxt 4
+#   inlines runtime scripts and we use `features.inlineStyles`. Removing
+#   it requires per-render nonce integration (tracked as RT-02, accepted).
+# - `img-src *` is intentional — MetaPeek previews OG images from
+#   arbitrary user-supplied domains (RT-08, accepted).
+# - `base-uri`, `form-action`, `object-src`, `upgrade-insecure-requests`
+#   added 2026-05-26 to defend against base-tag injection, off-origin
+#   form posting, legacy plugin loading, and mixed-content downgrades.
+#
+# Cross-Origin-*: added 2026-05-26 to opt into cross-origin isolation.
+# `same-site` (not `same-origin`) for CORP so the apex domain can still
+# fetch its own static assets from the Netlify CDN subdomain.
+# ═══════════════════════════════════════════════════════════════════
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
+    X-Permitted-Cross-Domain-Policies = "none"
+    X-DNS-Prefetch-Control = "off"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Resource-Policy = "same-site"
+    Permissions-Policy = "accelerometer=(), autoplay=(), bluetooth=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=()"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src * data:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; upgrade-insecure-requests"
 
 [[headers]]
   for = "/_nuxt/*"

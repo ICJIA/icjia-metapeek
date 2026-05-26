@@ -326,8 +326,8 @@ function checkDetectedTech(tags: MetaTags): SeoInsightCheck {
   if (tech.length > 0) {
     const grouped: Record<string, string[]> = {};
     for (const t of tech) {
-      if (!grouped[t.category]) grouped[t.category] = [];
-      grouped[t.category].push(t.name);
+      const bucket = grouped[t.category] ?? (grouped[t.category] = []);
+      bucket.push(t.name);
     }
     const detail = tech
       .map((t) => `${t.name} (${t.category}) — ${t.evidence}`)

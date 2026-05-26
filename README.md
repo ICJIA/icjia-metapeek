@@ -268,7 +268,7 @@ When no key is set, the endpoint is open (rate-limited).
 
 ### Examples (Development)
 
-Start the dev server with `yarn dev`, then:
+Start the dev server with `pnpm dev` (or `pnpm start-dev-server` for full prod parity), then:
 
 ```bash
 # Basic analysis
@@ -447,10 +447,12 @@ The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable
 
 ### Core Framework
 
-- **[Nuxt 4](https://nuxt.com/)** (v4.3.0) — Full-stack Vue framework with SSR
-- **[Vue 3](https://vuejs.org/)** (v3.5.27) — Progressive JavaScript framework
-- **[TypeScript](https://www.typescriptlang.org/)** (v5.7) — Type safety throughout
+- **[Nuxt 4](https://nuxt.com/)** (v4.4.6) — Full-stack Vue framework with SSR
+- **[Vue 3](https://vuejs.org/)** (v3.5) — Progressive JavaScript framework
+- **[TypeScript](https://www.typescriptlang.org/)** (v5.9) — Type safety throughout
 - **[VueUse](https://vueuse.org/)** (v14.2) — Essential Vue Composition Utilities
+- **[pnpm](https://pnpm.io/)** (v10.33) — Fast, disk-efficient package manager (migrated from yarn in v0.14.0)
+- **Node.js 22 LTS** — Runtime, pinned via `.nvmrc` and `netlify.toml`
 
 ### UI & Components
 
@@ -466,8 +468,8 @@ The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable
 ### Server & Deployment
 
 - **[Nitro](https://nitro.unjs.io/)** — Nuxt's server engine for API routes
-- **[Netlify](https://www.netlify.com/)** — Serverless functions + edge deployment
-- **[ofetch](https://github.com/unjs/ofetch)** — HTTP client for proxy requests
+- **[Netlify](https://www.netlify.com/)** — Serverless functions + edge deployment, edge rate limiting
+- **[undici](https://undici.nodejs.org/)** (v7.24+) — Streaming HTTP client with DNS pinning for SSRF protection
 
 ### Parsing & Data
 
@@ -488,6 +490,30 @@ The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable
 - Screen reader tested (NVDA, JAWS, VoiceOver)
 - 4.5:1 minimum contrast ratio
 - No color-only status indicators
+
+### Security
+
+MetaPeek runs a server-side proxy that fetches arbitrary user-supplied URLs, so SSRF is the defining attack surface. The application implements defense-in-depth:
+
+- **DNS pinning** — IPs resolved during validation are reused for the fetch via an `undici` dispatcher (prevents TOCTOU / DNS rebinding)
+- **IPv4 + IPv6 private range blocking** — RFC 1918, loopback, link-local (cloud metadata), ULA, multicast all rejected
+- **Per-redirect re-validation** — every hop in the redirect chain is validated against the same blocklist
+- **Streaming size enforcement** — `pinnedFetch` aborts mid-download if `maxBytes` is exceeded (no memory exhaustion via chunked encoding)
+- **Content-Type validation** — only `text/html` / `application/xhtml+xml` responses are parsed
+- **Body snippet sanitization** — `extractBodySnippet` returns text-only content (no CSRF tokens or API keys leak through)
+- **Script stripping** — fetched `<head>` has all scripts removed except `application/ld+json`
+- **Headless renderer isolation** — `fetch-spa` Chromium lambda uses `--host-resolver-rules` to block in-page DNS for everything except the target hostname
+- **Timing-safe auth** — `crypto.timingSafeEqual` with length-normalized comparison
+- **Crypto-strong request IDs** — `crypto.randomUUID()` for log correlation
+- **Edge rate limiting** — Netlify edge: 10 req/min per IP for `/api/fetch` + `/api/analyze` + `/api/ai-check`; 3 req/min for `/api/fetch-spa` (Chromium cost)
+- **Strict CSP** — `default-src 'self'`, `base-uri 'self'`, `form-action 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `upgrade-insecure-requests`
+- **Cross-origin isolation** — `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site`
+- **Wide-permissions denial** — `Permissions-Policy` disables 20+ browser features (USB, serial, bluetooth, midi, geo, camera, mic, etc.)
+- **HSTS preload-eligible** — `max-age=63072000; includeSubDomains; preload`
+
+**Last audit:** 2026-05-26 (red team + blue team). See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for findings and [CHANGELOG.md](CHANGELOG.md) for the summary table. `pnpm audit --prod --audit-level high` returns clean — undici 7.24+, h3 1.15.6+, fast-xml-parser 5.5.6+ pinned via `pnpm.overrides`.
+
+**Reporting a vulnerability:** Email security details to the ICJIA contact in the repo — do not file public issues.
 
 ### Custom Components
 
@@ -639,11 +665,17 @@ cd icjia-metapeek
 # Use correct Node version (if using nvm)
 nvm use
 
-# Install dependencies
-yarn install
+# Install pnpm (one-time) — Corepack ships with Node 22 so this enables it
+corepack enable
 
-# Start development server
-yarn dev
+# Install dependencies (pnpm reads `packageManager` in package.json and uses the pinned version)
+pnpm install
+
+# Start development server — Nuxt only (fast inner loop)
+pnpm dev
+
+# OR: full prod parity (Netlify edge headers, /api/* + /.netlify/functions/* lambdas)
+pnpm start-dev-server
 ```
 
 The app will be available at `http://localhost:3000`
@@ -702,31 +734,36 @@ The app will be available at `http://localhost:3000`
 
 ```bash
 # Development
-yarn dev             # Start development server
-yarn build           # Build for production
-yarn generate        # Generate static site
-yarn preview         # Preview production build
+pnpm dev               # Start Nuxt dev server (port 3000)
+pnpm start-dev-server  # Kill stale servers, launch `netlify dev` so /api/* +
+                       # /.netlify/functions/* + headers match prod (port 8888)
+pnpm build             # Build for production
+pnpm generate          # Generate static site
+pnpm preview           # Preview production build
 
 # Testing
-yarn test            # Run unit + security tests (verbose output)
-yarn test:all        # Run ALL tests (unit + security + accessibility)
-yarn test:unit       # Run unit tests only
-yarn test:security   # Run security tests only (SSRF, proxy utilities)
-yarn test:watch      # Run tests in watch mode
-yarn test:coverage   # Generate coverage report
-yarn test:accessibility  # Run Playwright accessibility tests
+pnpm test              # Run unit + security tests (verbose output)
+pnpm test:all          # Run ALL tests (unit + security + accessibility)
+pnpm test:unit         # Run unit tests only
+pnpm test:security     # Run security tests only (SSRF, proxy utilities)
+pnpm test:watch        # Run tests in watch mode
+pnpm test:coverage     # Generate coverage report
+pnpm test:accessibility # Run Playwright accessibility tests
 
 # Type Checking
-yarn typecheck       # Check TypeScript types
+pnpm typecheck         # Check TypeScript types
 
 # Linting
-yarn lint            # Run ESLint on all files
-yarn lint:fix        # Auto-fix linting issues
+pnpm lint              # Run ESLint on all files
+pnpm lint:fix          # Auto-fix linting issues
+
+# Security
+pnpm audit             # Production CVE audit (high+critical only)
 ```
 
 ### Test Output
 
- Running `yarn test:all` produces verbose output showing each test:
+ Running `pnpm test:all` produces verbose output showing each test:
 
 **Unit & Security Tests (139 tests)** — Vitest with verbose reporter
 
@@ -760,38 +797,33 @@ The accessibility tests verify:
 
 ### Native Binding Errors (oxc-parser, lightningcss, rollup)
 
-**Problem:** When running `yarn dev` or `yarn install`, you may see errors like:
+**Problem:** When running `pnpm dev` or `pnpm install`, you may see errors like:
 
 ```
-Cannot find native binding. npm has a bug related to optional dependencies
+Cannot find native binding
 Error: Cannot find module '@oxc-parser/binding-darwin-arm64'
 Error: Cannot find module '../lightningcss.darwin-arm64.node'
 Error: Cannot find module '@rollup/rollup-darwin-arm64'
 ```
 
-**Cause:** This typically happens when:
-
-1. A `.yarnrc` file contains `--ignore-optional true`, which prevents native bindings from being installed
-2. The `node_modules` folder was installed with a different Node.js version or package manager
+**Cause:** A stale `node_modules` left over from a different Node.js version, OS, or package manager.
 
 **Solution:**
 
 ```bash
-# 1. Check for and remove problematic .yarnrc
-cat .yarnrc  # If it contains "--ignore-optional true", remove it
-rm .yarnrc
+# 1. Clean install
+rm -rf node_modules .nuxt
 
-# 2. Clean install
-rm -rf node_modules yarn.lock .nuxt
+# 2. Reinstall
+pnpm install
 
-# 3. Reinstall (without ignore-optional flag)
-yarn install
-
-# 4. Start dev server
-yarn dev
+# 3. Start dev server
+pnpm dev
 ```
 
-**Prevention:** Never add `--ignore-optional true` to `.yarnrc` when working with Nuxt 4, as it relies on native bindings for:
+**Note:** `.npmrc` has `shamefully-hoist=true` — required for Nuxt 4 + pnpm so SSR modules (unhead, `@nuxtjs/seo`, etc.) resolve consistently. Don't remove it without testing a full `pnpm build`.
+
+**Native bindings required by Nuxt 4:**
 
 - `oxc-parser`, `oxc-transform`, `oxc-minify` (TypeScript/JavaScript parsing)
 - `lightningcss` (CSS processing)
@@ -804,7 +836,7 @@ yarn dev
 **Solution:** Ensure `@vueuse/nuxt` is installed and added to `nuxt.config.ts`:
 
 ```bash
-yarn add @vueuse/core @vueuse/nuxt
+pnpm add @vueuse/core @vueuse/nuxt
 ```
 
 ```typescript
@@ -837,7 +869,7 @@ All three phases are complete. For ongoing development:
 - **Screen reader:** Test with NVDA or VoiceOver
 - **Linting:** Zero ESLint errors or warnings
 
-Run `yarn test:all` to execute the complete test suite (144 tests).
+Run `pnpm test:all` to execute the complete test suite (139 unit/security + 5 accessibility = 144 tests).
 
 ### Accessibility Standards
 

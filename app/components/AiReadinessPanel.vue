@@ -28,6 +28,7 @@ const verdictConfig = computed(() => {
         text: "text-amber-700 dark:text-amber-300",
       };
     case "not-ready":
+    default:
       return {
         label: "Not AI Ready",
         icon: "i-heroicons-x-circle-solid",

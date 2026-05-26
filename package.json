@@ -1,13 +1,12 @@
 {
   "name": "icjia-metapeek",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "packageManager": "pnpm@10.33.0",
   "type": "module",
   "scripts": {
     "dev": "nuxt dev",
+    "start-dev-server": "./scripts/start-dev-server.sh",
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
@@ -21,7 +20,8 @@
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "clean": "nuxt cleanup"
+    "clean": "nuxt cleanup",
+    "audit": "pnpm audit --prod --audit-level high"
   },
   "dependencies": {
     "@nuxt/ui": "^4.4.0",
@@ -30,7 +30,7 @@
     "@vueuse/core": "^14.2.0",
     "@vueuse/nuxt": "^14.2.0",
     "cheerio": "^1.2.0",
-    "nuxt": "^4.3.0",
+    "nuxt": "^4.4.6",
     "puppeteer-core": "^24.40.0",
     "vue": "^3.5.27"
   },
@@ -48,5 +48,24 @@
     "typescript": "^5.7.2",
     "vitest": "^3.2.0",
     "vue-tsc": "^3.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici@<7.24.0": ">=7.24.0",
+      "h3@<1.15.6": ">=1.15.6",
+      "fast-xml-parser@<5.5.6": ">=5.5.6",
+      "fast-xml-builder@<1.1.7": ">=1.1.7"
+    },
+    "auditConfig": {
+      "ignoreCves": []
+    },
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@sparticuz/chromium",
+      "esbuild",
+      "puppeteer-core",
+      "sharp",
+      "vue-demi"
+    ]
   }
 }
