@@ -47,7 +47,7 @@ export default defineNuxtConfig({
         { name: "viewport", content: "width=device-width, initial-scale=1" },
         { name: "author", content: "Illinois Criminal Justice Information Authority (ICJIA)" },
         { property: "article:published_time", content: "2026-02-01T00:00:00Z" },
-        { property: "article:modified_time", content: "2026-03-26T00:00:00Z" },
+        { property: "article:modified_time", content: "2026-05-26T00:00:00Z" },
       ],
       script: [
         {
@@ -71,7 +71,7 @@ export default defineNuxtConfig({
               "url": "https://icjia.illinois.gov",
             },
             "datePublished": "2026-02-01",
-            "dateModified": "2026-03-26",
+            "dateModified": "2026-05-26",
             "license": "https://opensource.org/licenses/MIT",
             "isAccessibleForFree": true,
           }),

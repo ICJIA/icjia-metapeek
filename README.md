@@ -367,12 +367,15 @@ curl "https://metapeek.icjia.app/api/analyze?url=https://thissitedoesnotexist123
 
 ## CLI Tool
 
-A **command-line interface (CLI)** is included in this monorepo at `packages/cli/`. It provides core meta tag analysis directly from the terminal with a **reduced feature set** compared to the web app.
+A **command-line interface (CLI)** is included in this monorepo at `packages/cli/`. It provides core meta tag analysis directly from the terminal with a **reduced feature set** compared to the web app. Versioned independently — see [packages/cli/CHANGELOG.md](packages/cli/CHANGELOG.md).
 
 **What the CLI includes:**
 - 7-category weighted scoring (same scale and grading as the web app)
 - Colored terminal output, Markdown, and JSON formats
 - OG image dimension detection (PNG, JPEG, GIF, WebP)
+- OG image **accessibility** scoring — fails when the image URL is present but unreachable (CSP / hotlink protection / 4xx / DNS failure)
+- `--sitemap <url>` — analyze every URL in a sitemap.xml in one pass (best for small sites)
+- `--html-file <path>` — analyze HTML on disk instead of fetching a live URL (useful for pre-deploy checks and CI)
 - Diagnostics with actionable fix suggestions
 - LLM-ready copy block for pasting into AI assistants
 
@@ -416,8 +419,15 @@ ln -s /path/to/icjia-metapeek/packages/cli/metapeek /usr/local/bin/metapeek
 # Analyze a URL
 metapeek https://example.com
 
+# Crawl every URL in a sitemap and aggregate the results
+metapeek --sitemap https://example.com/sitemap.xml
+
+# Analyze local HTML (e.g. pre-deploy)
+metapeek --html-file ./dist/index.html https://example.com
+
 # JSON output (for scripting/CI)
 metapeek https://example.com --json
+metapeek --sitemap https://example.com/sitemap.xml --json | jq '.summary'
 
 # Markdown output
 metapeek https://example.com --format markdown
@@ -426,7 +436,7 @@ metapeek https://example.com --format markdown
 metapeek --help
 ```
 
-The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable for CI/CD quality gates.
+The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable for CI/CD quality gates. In sitemap mode, exit `0` requires every URL to pass.
 
 ---
 

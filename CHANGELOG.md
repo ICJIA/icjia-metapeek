@@ -63,6 +63,35 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## CLI [2.2.0] - 2026-05-26
+
+The bundled CLI tool at `packages/cli/` is versioned independently. The
+standalone [icjia-metapeek-cli](https://github.com/ICJIA/icjia-metapeek-cli)
+repository has been archived; this monorepo is now the single source of
+truth. See [packages/cli/CHANGELOG.md](packages/cli/CHANGELOG.md) for the
+full CLI changelog.
+
+### Added
+
+- `--sitemap <url>` — crawl every URL in a sitemap.xml in one pass; emits
+  per-URL summary, markdown table, or aggregated JSON.
+- `--html-file <path>` — analyze HTML on disk instead of fetching a live
+  URL. Mutually exclusive with `--sitemap`.
+
+### Fixed
+
+- og:image scoring no longer awards 100 when the image URL is unreachable
+  (CSP/hotlink/4xx/DNS). Failed fetches now score 0/fail; unrecognized
+  formats now score 60/warning.
+
+### Tests
+
+- 13 new test cases backed by two HTML fixtures. The broken-og:image
+  fixture uses an RFC 6761 `.test` TLD so tests stay deterministic and
+  fully offline. Suite: 92 pass / 0 fail.
+
+---
+
 ## [0.13.0] - 2026-04-24
 
 ### Fixed
