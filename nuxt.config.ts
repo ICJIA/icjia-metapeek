@@ -16,6 +16,14 @@ export default defineNuxtConfig({
 
   ssr: true, // MetaPeek practices what it preaches
 
+  // Inline used CSS into SSR'd HTML so the landing page doesn't wait on the
+  // 200 KB entry.css to render. Tradeoff: slightly larger prerendered HTML
+  // in exchange for eliminating render-blocking CSS — a clear win because
+  // `/` is prerendered at build time and served from the Netlify CDN.
+  features: {
+    inlineStyles: true,
+  },
+
   compatibilityDate: "2026-02-01",
 
   typescript: {

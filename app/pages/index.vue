@@ -1622,6 +1622,8 @@ const exportAsHtml = () => {
             <img
               src="~/assets/images/icjia-logo.png"
               alt="ICJIA Logo"
+              width="250"
+              height="175"
               class="h-12 sm:h-14 w-auto"
             >
             <div class="text-left">
