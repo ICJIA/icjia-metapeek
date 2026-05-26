@@ -590,18 +590,23 @@ def analyze(html, page_url):
     elif og_image and not og_image.startswith(("http://", "https://")):
         cats["ogImage"] = {"score": 60, "status": "warning", "issues": ["og:image uses a relative URL"]}
         diags["ogImage"] = {"message": "og:image is a relative URL", "suggestion": "Use an absolute URL (starting with https://) for og:image."}
-    else:
-        if og_image_dims and og_image_dims.get("width") is not None and og_image_dims.get("height") is not None:
-            w, h = og_image_dims["width"], og_image_dims["height"]
-            if w < 1200 or h < 630:
-                cats["ogImage"] = {"score": 60, "status": "warning", "issues": [f"og:image is {w}x{h}, below recommended 1200x630"]}
-                diags["ogImage"] = {"message": f"og:image is {w}x{h}", "suggestion": "Use an image at least 1200x630 pixels for best social sharing previews."}
-            else:
-                cats["ogImage"] = {"score": 100, "status": "pass", "issues": []}
-                diags["ogImage"] = {"message": f"og:image is present and absolute ({w}x{h})", "suggestion": None}
+    elif og_image_dims and og_image_dims.get("width") is not None and og_image_dims.get("height") is not None:
+        w, h = og_image_dims["width"], og_image_dims["height"]
+        if w < 1200 or h < 630:
+            cats["ogImage"] = {"score": 60, "status": "warning", "issues": [f"og:image is {w}x{h}, below recommended 1200x630"]}
+            diags["ogImage"] = {"message": f"og:image is {w}x{h}", "suggestion": "Use an image at least 1200x630 pixels for best social sharing previews."}
         else:
             cats["ogImage"] = {"score": 100, "status": "pass", "issues": []}
-            diags["ogImage"] = {"message": "og:image is present and absolute (dimensions unavailable)", "suggestion": None}
+            diags["ogImage"] = {"message": f"og:image is present and absolute ({w}x{h})", "suggestion": None}
+    elif og_image_dims and og_image_dims.get("error") == "fetch failed":
+        cats["ogImage"] = {"score": 0, "status": "fail", "issues": ["og:image URL is not reachable"]}
+        diags["ogImage"] = {"message": "og:image could not be fetched", "suggestion": "Ensure the og:image URL returns a valid image (status 200, no auth required, no CSP/CORS or hotlink protection blocking it)."}
+    elif og_image_dims and og_image_dims.get("error") == "unrecognized format":
+        cats["ogImage"] = {"score": 60, "status": "warning", "issues": ["og:image format is unrecognized"]}
+        diags["ogImage"] = {"message": "og:image was fetched but the format is not recognized", "suggestion": "Use a standard image format (PNG, JPEG, GIF, or WebP) for og:image."}
+    else:
+        cats["ogImage"] = {"score": 100, "status": "pass", "issues": []}
+        diags["ogImage"] = {"message": "og:image is present and absolute (dimensions unavailable)", "suggestion": None}
 
     # 5. Twitter Card
     has_og = bool(og_title or og_desc or og_image)
