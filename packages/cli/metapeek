@@ -2,7 +2,7 @@
 set -euo pipefail
 
 VERSION="2.1.0"
-REPO_URL="https://github.com/ICJIA/icjia-metapeek-cli.git"
+REPO_URL="https://github.com/ICJIA/icjia-metapeek.git"
 UPDATE_CACHE_DIR="${HOME}/.cache/metapeek"
 UPDATE_CACHE_FILE="${UPDATE_CACHE_DIR}/latest_version"
 UPDATE_CACHE_MAX_AGE=86400  # 24 hours
@@ -78,7 +78,7 @@ check_for_update() {
     if [[ -n "$cached_version" ]] && version_gt "$cached_version" "$VERSION"; then
       echo "" >&2
       printf '  %s⬆ Update available: %s → %s%s\n' "$YELLOW" "$VERSION" "$cached_version" "$RESET" >&2
-      printf '  %sRun: cd <metapeek-cli dir> && git pull%s\n' "$DIM" "$RESET" >&2
+      printf '  %sRun: cd <icjia-metapeek dir> && git pull%s\n' "$DIM" "$RESET" >&2
     fi
   fi
 
@@ -425,7 +425,7 @@ def fetch(url):
     parsed = urlparse(url)
     validate_host(parsed.hostname)
     req = Request(url, headers={
-        "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
+        "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek)",
         "Accept-Encoding": "identity"
     })
     resp = safe_opener.open(req, timeout=10)
@@ -495,7 +495,7 @@ def fetch_image_bytes(url):
         parsed = urlparse(url)
         validate_host(parsed.hostname)
         req = Request(url, headers={
-            "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
+            "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek)",
             "Accept-Encoding": "identity"
         })
         resp = safe_opener.open(req, timeout=4)
@@ -789,7 +789,7 @@ try:
     parsed = urlparse(sitemap_url)
     validate_host(parsed.hostname)
     req = Request(sitemap_url, headers={
-        "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
+        "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek)",
         "Accept-Encoding": "identity"
     })
     resp = opener.open(req, timeout=10)
