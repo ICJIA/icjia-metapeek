@@ -111,11 +111,13 @@ usage() {
   banner
   cat <<'USAGE'
   Usage: metapeek <url> [options]
+         metapeek --sitemap <sitemap-url> [options]
 
   Options:
     --json              Output raw JSON
     --format <type>     Output format: terminal (default) or markdown
     --full              Show all extracted metadata (default)
+    --sitemap <url>     Analyze every URL in a sitemap.xml (small sites)
     --no-color          Disable colored output
     --no-spinner        Disable loading spinner
     --tests             Run test suite
@@ -131,6 +133,7 @@ USAGE
 # ── Argument parsing ─────────────────────────────────────────────────────────
 
 URL=""
+SITEMAP_URL=""
 JSON_MODE=false
 FORMAT="terminal"
 FULL_MODE=true
@@ -159,6 +162,9 @@ while [[ $# -gt 0 ]]; do
     --format)
       [[ $# -lt 2 ]] && { echo "Error: --format requires an argument" >&2; exit 2; }
       FORMAT="$2"; shift 2 ;;
+    --sitemap)
+      [[ $# -lt 2 ]] && { echo "Error: --sitemap requires an argument" >&2; exit 2; }
+      SITEMAP_URL="$2"; shift 2 ;;
     --no-color)   NO_COLOR=true; shift ;;
     --no-spinner) NO_SPINNER=true; shift ;;
     -*)
@@ -176,7 +182,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$URL" ]]; then
+if [[ -n "$SITEMAP_URL" && -n "$URL" ]]; then
+  echo "Error: --sitemap and a positional URL cannot be combined" >&2
+  exit 2
+fi
+
+if [[ -z "$URL" && -z "$SITEMAP_URL" ]]; then
   usage
   exit 2
 fi
@@ -188,19 +199,28 @@ fi
 
 # ── URL normalization & validation ───────────────────────────────────────────
 
-# Reject non-http(s) protocols
-if [[ "$URL" =~ ^[a-zA-Z]+:// && ! "$URL" =~ ^https?:// ]]; then
-  echo "Error: invalid URL \"$URL\" (only http and https are supported)" >&2
-  exit 2
+# normalize_url <var-name>  →  validates and rewrites the named variable
+normalize_url() {
+  local var="$1"
+  local val="${!var}"
+  if [[ "$val" =~ ^[a-zA-Z]+:// && ! "$val" =~ ^https?:// ]]; then
+    echo "Error: invalid URL \"$val\" (only http and https are supported)" >&2
+    exit 2
+  fi
+  if [[ ! "$val" =~ ^https?:// ]]; then
+    val="https://$val"
+  fi
+  printf -v "$var" '%s' "$val"
+}
+
+if [[ -n "$URL" ]]; then
+  normalize_url URL
+  DISPLAY_URL=$(printf '%s' "$URL" | LC_ALL=C tr -d '\000-\037\177')
 fi
 
-# Prepend https:// if no protocol
-if [[ ! "$URL" =~ ^https?:// ]]; then
-  URL="https://$URL"
+if [[ -n "$SITEMAP_URL" ]]; then
+  normalize_url SITEMAP_URL
 fi
-
-# Sanitize URL for terminal display (strip control/escape characters)
-DISPLAY_URL=$(printf '%s' "$URL" | LC_ALL=C tr -d '\000-\037\177')
 
 # ── Sanitize helper ──────────────────────────────────────────────────────────
 # Strip ASCII control characters (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F, 0x7F)
@@ -229,6 +249,33 @@ setup_colors() {
 }
 
 setup_colors
+
+color_grade() {
+  case "$1" in
+    A|B) printf '%s%s%s' "$GREEN" "$1" "$RESET" ;;
+    C)   printf '%s%s%s' "$YELLOW" "$1" "$RESET" ;;
+    *)   printf '%s%s%s' "$RED" "$1" "$RESET" ;;
+  esac
+}
+
+color_score() {
+  local s=$1
+  if [[ "$s" -eq 100 ]]; then
+    printf '%s%s%s' "$GREEN" "$s" "$RESET"
+  elif [[ "$s" -ge 60 ]]; then
+    printf '%s%s%s' "$YELLOW" "$s" "$RESET"
+  else
+    printf '%s%s%s' "$RED" "$s" "$RESET"
+  fi
+}
+
+status_icon() {
+  case "$1" in
+    pass)    printf '%s✓%s' "$GREEN" "$RESET" ;;
+    warning) printf '%s⚠%s' "$YELLOW" "$RESET" ;;
+    fail)    printf '%s✗%s' "$RED" "$RESET" ;;
+  esac
+}
 
 # ── Spinner ──────────────────────────────────────────────────────────────────
 
@@ -689,9 +736,284 @@ except Exception as e:
 PYEOF
 }
 
+# ── Sitemap parsing ─────────────────────────────────────────────────────────
+
+parse_sitemap() {
+  local sitemap_url="$1"
+  python3 - "$sitemap_url" "$VERSION" <<'PYEOF'
+import sys, socket, ipaddress
+import xml.etree.ElementTree as ET
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.error import URLError, HTTPError
+from urllib.parse import urlparse
+
+sitemap_url = sys.argv[1]
+version = sys.argv[2]
+
+MAX_BYTES = 10_485_760  # 10 MB
+
+def is_private_ip(addr_str):
+    try:
+        addr = ipaddress.ip_address(addr_str)
+        return (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_multicast or addr.is_reserved or addr.is_unspecified)
+    except ValueError:
+        return True
+
+def validate_host(hostname):
+    try:
+        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise URLError(f"Could not resolve hostname: {hostname}")
+    for family, _, _, _, sockaddr in results:
+        ip = sockaddr[0]
+        if is_private_ip(ip):
+            raise URLError("URL resolves to a private or reserved address")
+
+class SafeRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urlparse(newurl)
+        if parsed.scheme not in ("http", "https"):
+            raise URLError(f"Redirect to disallowed scheme: {parsed.scheme}")
+        validate_host(parsed.hostname)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+opener = build_opener(SafeRedirectHandler)
+
+try:
+    parsed = urlparse(sitemap_url)
+    validate_host(parsed.hostname)
+    req = Request(sitemap_url, headers={
+        "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek-cli)",
+        "Accept-Encoding": "identity"
+    })
+    resp = opener.open(req, timeout=10)
+    data = resp.read(MAX_BYTES).decode("utf-8", errors="replace")
+except HTTPError as e:
+    sys.stderr.write(f"Error: failed to fetch sitemap: HTTP {e.code}\n")
+    sys.exit(2)
+except URLError as e:
+    reason = str(e.reason) if hasattr(e, "reason") else str(e)
+    sys.stderr.write(f"Error: failed to fetch sitemap: {reason}\n")
+    sys.exit(2)
+
+try:
+    root = ET.fromstring(data)
+except ET.ParseError as e:
+    sys.stderr.write(f"Error: sitemap is not valid XML: {e}\n")
+    sys.exit(2)
+
+NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+tag = root.tag
+
+if tag == f"{NS}sitemapindex" or tag.endswith("sitemapindex"):
+    sys.stderr.write(
+        "Error: this is a sitemap index, not a urlset. "
+        "Pass one of the child sitemap URLs instead.\n"
+    )
+    sys.exit(2)
+
+if tag != f"{NS}urlset" and not tag.endswith("urlset"):
+    sys.stderr.write(f"Error: expected <urlset>, got <{tag}>\n")
+    sys.exit(2)
+
+urls = []
+for url_el in root.findall(f"{NS}url"):
+    loc = url_el.find(f"{NS}loc")
+    if loc is not None and loc.text:
+        urls.append(loc.text.strip())
+
+if not urls:
+    for url_el in root.findall("url"):
+        loc = url_el.find("loc")
+        if loc is not None and loc.text:
+            urls.append(loc.text.strip())
+
+urls = [u for u in urls if u.startswith(("http://", "https://"))]
+
+if not urls:
+    sys.stderr.write("Error: no URLs found in sitemap\n")
+    sys.exit(2)
+
+for u in urls:
+    print(u)
+PYEOF
+}
+
+now_ms() {
+  python3 -c 'import time; print(int(time.time()*1000))'
+}
+
+# ── Sitemap mode ────────────────────────────────────────────────────────────
+
+run_sitemap_mode() {
+  check_deps
+
+  if [[ "$JSON_MODE" != true && -t 2 ]]; then
+    printf '  Fetching sitemap %s...' "$SITEMAP_URL" >&2
+  fi
+  local urls_raw
+  urls_raw=$(parse_sitemap "$SITEMAP_URL") || exit $?
+  if [[ "$JSON_MODE" != true && -t 2 ]]; then
+    printf '\r\033[K' >&2
+  fi
+
+  local -a URLS=()
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && URLS+=("$line")
+  done <<< "$urls_raw"
+
+  local total=${#URLS[@]}
+  local pass_count=0 fail_count=0 error_count=0
+  local results_json="[]"
+  local t_start t_end timing
+  t_start=$(now_ms)
+
+  local idx
+  for (( idx=0; idx<total; idx++ )); do
+    local url="${URLS[$idx]}"
+
+    if [[ "$JSON_MODE" != true && -t 2 ]]; then
+      printf '\r\033[K  [%d/%d] %s' "$((idx+1))" "$total" "$url" >&2
+    fi
+
+    local one
+    set +e
+    one=$(analyze_url "$url")
+    set -e
+
+    local is_ok grade
+    is_ok=$(echo "$one" | jq -r '.ok' 2>/dev/null || echo false)
+    if [[ "$is_ok" != "true" ]]; then
+      error_count=$((error_count + 1))
+      one=$(echo "$one" | jq --arg u "$url" '. + {url: $u}')
+    else
+      grade=$(echo "$one" | jq -r '.score.grade')
+      if [[ "$grade" == "A" || "$grade" == "B" ]]; then
+        pass_count=$((pass_count + 1))
+      else
+        fail_count=$((fail_count + 1))
+      fi
+    fi
+
+    results_json=$(jq --argjson new "$one" '. + [$new]' <<< "$results_json")
+  done
+
+  t_end=$(now_ms)
+  timing=$((t_end - t_start))
+
+  if [[ "$JSON_MODE" != true && -t 2 ]]; then
+    printf '\r\033[K' >&2
+  fi
+
+  if [[ "$JSON_MODE" == true ]]; then
+    jq -n \
+      --arg sitemap "$SITEMAP_URL" \
+      --argjson count "$total" \
+      --argjson pass "$pass_count" \
+      --argjson fail "$fail_count" \
+      --argjson error "$error_count" \
+      --argjson timing "$timing" \
+      --argjson results "$results_json" \
+      '{ok: true, sitemap: $sitemap, count: $count,
+        summary: {pass: $pass, fail: $fail, error: $error},
+        timing: $timing, results: $results}'
+  elif [[ "$FORMAT" == "markdown" ]]; then
+    format_sitemap_markdown "$total" "$pass_count" "$fail_count" "$error_count" "$timing" "$results_json"
+  else
+    format_sitemap_terminal "$total" "$pass_count" "$fail_count" "$error_count" "$timing" "$results_json"
+  fi
+
+  if [[ "$fail_count" -eq 0 && "$error_count" -eq 0 ]]; then
+    return 0
+  fi
+  return 1
+}
+
+format_sitemap_terminal() {
+  local total="$1" pass="$2" fail="$3" err="$4" timing="$5" results="$6"
+
+  printf '%smetapeek%s — %s%s%s\n' "$BOLD" "$RESET" "$CYAN" "$SITEMAP_URL" "$RESET"
+  printf '  %s%d URLs%s analyzed\n' "$DIM" "$total" "$RESET"
+  echo ""
+
+  local i ok grade overall url icon
+  for (( i=0; i<total; i++ )); do
+    ok=$(echo "$results" | jq -r ".[$i].ok")
+    url=$(echo "$results" | jq -r ".[$i].url" | sanitize)
+    if [[ "$ok" != "true" ]]; then
+      local msg
+      msg=$(echo "$results" | jq -r ".[$i].message // \"unknown error\"" | sanitize)
+      printf '  %s✗%s %sERR%s  --   %s  %s(%s)%s\n' \
+        "$RED" "$RESET" "$RED" "$RESET" "$url" "$DIM" "$msg" "$RESET"
+      continue
+    fi
+    grade=$(echo "$results" | jq -r ".[$i].score.grade")
+    overall=$(echo "$results" | jq -r ".[$i].score.overall")
+    case "$grade" in
+      A|B) icon=$(printf '%s✓%s' "$GREEN" "$RESET") ;;
+      C)   icon=$(printf '%s⚠%s' "$YELLOW" "$RESET") ;;
+      *)   icon=$(printf '%s✗%s' "$RED" "$RESET") ;;
+    esac
+    printf '  %s %s   %3s  %s\n' "$icon" "$(color_grade "$grade")" "$overall" "$url"
+  done
+
+  echo ""
+  printf '  %sSummary:%s %d analyzed, %s%d pass%s, %s%d fail%s, %s%d error%s\n' \
+    "$BOLD" "$RESET" "$total" \
+    "$GREEN" "$pass" "$RESET" \
+    "$YELLOW" "$fail" "$RESET" \
+    "$RED" "$err" "$RESET"
+  printf '  %sAnalyzed in %sms%s\n' "$DIM" "$timing" "$RESET"
+  echo ""
+}
+
+format_sitemap_markdown() {
+  local total="$1" pass="$2" fail="$3" err="$4" timing="$5" results="$6"
+
+  printf '# metapeek — sitemap audit\n\n'
+  printf '**Sitemap:** %s\n\n' "$SITEMAP_URL"
+  printf '**Total URLs:** %s\n\n' "$total"
+  echo "| Result | Grade | Score | URL |"
+  echo "|--------|-------|------:|-----|"
+
+  local i ok grade overall url emoji msg
+  for (( i=0; i<total; i++ )); do
+    ok=$(echo "$results" | jq -r ".[$i].ok")
+    url=$(echo "$results" | jq -r ".[$i].url" | sanitize)
+    if [[ "$ok" != "true" ]]; then
+      msg=$(echo "$results" | jq -r ".[$i].message // \"unknown error\"" | sanitize)
+      printf '| ❌ | ERR | -- | %s — %s |\n' "$url" "$msg"
+      continue
+    fi
+    grade=$(echo "$results" | jq -r ".[$i].score.grade")
+    overall=$(echo "$results" | jq -r ".[$i].score.overall")
+    case "$grade" in
+      A|B) emoji="✅" ;;
+      C)   emoji="⚠️" ;;
+      *)   emoji="❌" ;;
+    esac
+    printf '| %s | %s | %s | %s |\n' "$emoji" "$grade" "$overall" "$url"
+  done
+
+  echo ""
+  printf '**Summary:** %d analyzed, %d pass, %d fail, %d error\n\n' "$total" "$pass" "$fail" "$err"
+  printf '*Analyzed in %sms*\n\n' "$timing"
+}
+
 # ── Analysis ────────────────────────────────────────────────────────────────
 
 check_deps
+
+if [[ -n "$SITEMAP_URL" ]]; then
+  setup_colors
+  run_sitemap_mode
+  rc=$?
+  check_for_update
+  exit "$rc"
+fi
+
 start_spinner
 
 RESPONSE=$(analyze_url "$URL") || {
@@ -748,33 +1070,6 @@ diag_key_for() {
 }
 
 # ── Terminal formatter ───────────────────────────────────────────────────────
-
-color_grade() {
-  case "$1" in
-    A|B) printf '%s%s%s' "$GREEN" "$1" "$RESET" ;;
-    C)   printf '%s%s%s' "$YELLOW" "$1" "$RESET" ;;
-    *)   printf '%s%s%s' "$RED" "$1" "$RESET" ;;
-  esac
-}
-
-color_score() {
-  local s=$1
-  if [[ "$s" -eq 100 ]]; then
-    printf '%s%s%s' "$GREEN" "$s" "$RESET"
-  elif [[ "$s" -ge 60 ]]; then
-    printf '%s%s%s' "$YELLOW" "$s" "$RESET"
-  else
-    printf '%s%s%s' "$RED" "$s" "$RESET"
-  fi
-}
-
-status_icon() {
-  case "$1" in
-    pass)    printf '%s✓%s' "$GREEN" "$RESET" ;;
-    warning) printf '%s⚠%s' "$YELLOW" "$RESET" ;;
-    fail)    printf '%s✗%s' "$RED" "$RESET" ;;
-  esac
-}
 
 format_terminal() {
   # Header

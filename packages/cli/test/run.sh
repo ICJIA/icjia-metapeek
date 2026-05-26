@@ -106,6 +106,7 @@ assert_stdout_contains "--help shows --no-color option" "\-\-no-color" "$METAPEE
 assert_stdout_contains "--help shows --full option" "\-\-full" "$METAPEEK" --help
 assert_stdout_contains "--help shows --no-spinner option" "\-\-no-spinner" "$METAPEEK" --help
 assert_stdout_contains "--help shows --tests option" "\-\-tests" "$METAPEEK" --help
+assert_stdout_contains "--help shows --sitemap option" "\-\-sitemap" "$METAPEEK" --help
 
 assert_stdout_contains "--version prints version" "metapeek" "$METAPEEK" --version
 assert_stdout_contains "--version includes semver" "[0-9]\+\.[0-9]\+\.[0-9]\+" "$METAPEEK" --version
@@ -133,6 +134,18 @@ assert_stderr_contains "extra arg shows error" "unexpected argument" "$METAPEEK"
 assert_exit "--format without value exits 2" 2 "$METAPEEK" --format
 assert_exit "--format with invalid value exits 2" 2 "$METAPEEK" --format csv "https://example.com"
 assert_stderr_contains "--format invalid shows error" "unknown format" "$METAPEEK" --format csv "https://example.com"
+
+assert_exit "--sitemap without value exits 2" 2 "$METAPEEK" --sitemap
+assert_stderr_contains "--sitemap without value shows error" "requires an argument" "$METAPEEK" --sitemap
+
+assert_exit "--sitemap with positional URL exits 2" 2 "$METAPEEK" --sitemap "https://example.com/sitemap.xml" "https://example.com"
+assert_stderr_contains "--sitemap with positional URL shows error" "cannot be combined" "$METAPEEK" --sitemap "https://example.com/sitemap.xml" "https://example.com"
+
+assert_exit "--sitemap with ftp:// URL exits 2" 2 "$METAPEEK" --sitemap "ftp://example.com/sitemap.xml"
+assert_stderr_contains "--sitemap ftp:// shows protocol error" "only http and https" "$METAPEEK" --sitemap "ftp://example.com/sitemap.xml"
+
+assert_exit "--sitemap with file:// URL exits 2" 2 "$METAPEEK" --sitemap "file:///etc/passwd"
+assert_exit "--sitemap with javascript: URL exits 2" 2 "$METAPEEK" --sitemap "javascript:alert(1)"
 
 echo ""
 
@@ -464,7 +477,56 @@ fi
 
 echo ""
 
-# ── 10. Security ─────────────────────────────────────────────────────────────
+# ── 10. Sitemap mode ─────────────────────────────────────────────────────────
+
+echo "  Sitemap mode"
+echo "  ────────────"
+
+if [[ "$OFFLINE" == true ]]; then
+  skip "--sitemap analyzes URLs from a real sitemap (requires network)"
+  skip "--sitemap --json emits aggregated JSON (requires network)"
+  skip "--sitemap reports a per-URL summary line (requires network)"
+  skip "--sitemap reports a total count line (requires network)"
+else
+  SITEMAP_URL="https://metapeek.icjia.app/sitemap.xml"
+
+  set +e
+  sm_output=$("$METAPEEK" --no-spinner --no-color --sitemap "$SITEMAP_URL" 2>&1)
+  sm_exit=$?
+  set -e
+
+  if [[ "$sm_exit" -eq 0 ]]; then
+    pass "--sitemap analyzes URLs from a real sitemap"
+  else
+    fail "--sitemap analyzes URLs from a real sitemap" "got exit $sm_exit, output: $sm_output"
+  fi
+
+  if echo "$sm_output" | grep -q "https://metapeek.icjia.app/"; then
+    pass "--sitemap reports a per-URL summary line"
+  else
+    fail "--sitemap reports a per-URL summary line" "missing per-URL row"
+  fi
+
+  if echo "$sm_output" | grep -qiE "(analyzed|summary).*1"; then
+    pass "--sitemap reports a total count line"
+  else
+    fail "--sitemap reports a total count line" "missing summary/count line"
+  fi
+
+  set +e
+  sm_json=$("$METAPEEK" --no-spinner --sitemap "$SITEMAP_URL" --json 2>/dev/null)
+  set -e
+
+  if echo "$sm_json" | jq -e '.ok and (.sitemap | length > 0) and (.results | length > 0)' >/dev/null 2>&1; then
+    pass "--sitemap --json emits aggregated JSON (ok, sitemap, results[])"
+  else
+    fail "--sitemap --json emits aggregated JSON" "missing expected fields"
+  fi
+fi
+
+echo ""
+
+# ── 11. Security ─────────────────────────────────────────────────────────────
 
 echo "  Security"
 echo "  ────────"
