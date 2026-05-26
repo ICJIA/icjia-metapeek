@@ -371,6 +371,7 @@ A **command-line interface (CLI)** is included in this monorepo at `packages/cli
 
 **What the CLI includes:**
 - 7-category weighted scoring (same scale and grading as the web app)
+- **AI readiness assessment** — 9 parallel checks (JSON-LD, authorship, freshness, canonical, language, description quality, AI crawl directives, robots.txt AI-bot access, llms.txt) with a `ready` / `partial` / `not-ready` verdict. Does NOT affect the A-F grade; runs alongside it. Disable with `--no-ai-check`.
 - Colored terminal output, Markdown, and JSON formats
 - OG image dimension detection (PNG, JPEG, GIF, WebP)
 - OG image **accessibility** scoring — fails when the image URL is present but unreachable (CSP / hotlink protection / 4xx / DNS failure)
@@ -380,7 +381,6 @@ A **command-line interface (CLI)** is included in this monorepo at `packages/cli
 - LLM-ready copy block for pasting into AI assistants
 
 **What the CLI does not include:**
-- AI readiness checks (robots.txt, llms.txt analysis)
 - Social media preview rendering (Google, Facebook, LinkedIn, X, WhatsApp, Slack, iMessage)
 - Extended tag extraction (Facebook, article, Pinterest, Apple, Microsoft meta tags)
 - Image analysis with per-platform crop previews
@@ -425,11 +425,14 @@ metapeek --sitemap https://example.com/sitemap.xml
 # Analyze local HTML (e.g. pre-deploy)
 metapeek --html-file ./dist/index.html https://example.com
 
-# JSON output (for scripting/CI)
-metapeek https://example.com --json
+# Skip the AI readiness assessment (faster, fewer HTTP requests)
+metapeek https://example.com --no-ai-check
+
+# JSON output (for scripting/CI) — includes both the A-F score and the AI verdict
+metapeek https://example.com --json | jq '{grade: .score.grade, ai: .aiReadiness.verdict}'
 metapeek --sitemap https://example.com/sitemap.xml --json | jq '.summary'
 
-# Markdown output
+# Markdown output (includes the AI Readiness table)
 metapeek https://example.com --format markdown
 
 # Show help

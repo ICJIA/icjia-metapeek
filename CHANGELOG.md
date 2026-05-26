@@ -63,6 +63,25 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## CLI [2.3.0] - 2026-05-26
+
+### Added
+
+- AI readiness assessment ported from the web app — 9 parallel checks
+  (JSON-LD, authorship, freshness, canonical, language, description
+  quality, AI crawl directives, robots.txt AI-bot access, llms.txt)
+  with a `ready` / `partial` / `not-ready` verdict.
+- `--no-ai-check` to skip the assessment when the two extra HTTP
+  requests aren't wanted.
+
+### Important
+
+- AI readiness is a **parallel verdict** and does NOT affect the A-F
+  weighted score or the exit code — CI pipelines built on 2.2.x keep
+  working unchanged. See [packages/cli/CHANGELOG.md](packages/cli/CHANGELOG.md).
+
+---
+
 ## CLI [2.2.0] - 2026-05-26
 
 The bundled CLI tool at `packages/cli/` is versioned independently. The

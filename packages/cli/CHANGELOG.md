@@ -8,6 +8,57 @@ and the CLI follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.3.0] - 2026-05-26
+
+### Added
+
+- **AI readiness assessment** — the CLI now runs the same 9-check AI
+  readiness assessment as the web app: JSON-LD structured data,
+  authorship, content freshness, canonical URL, language declaration,
+  description quality, AI crawl directives (noai / noimageai),
+  robots.txt AI-bot access (GPTBot, ClaudeBot, Google-Extended, etc.),
+  and llms.txt. Emits a `ready` / `partial` / `not-ready` verdict.
+
+  Runs as a **parallel verdict** — does NOT affect the existing A-F
+  weighted score or the exit code, so CI quality gates built on
+  metapeek 2.2.x keep working unchanged. The 7-category SEO score and
+  the AI verdict are reported side-by-side.
+
+  In `--html-file` mode the robots.txt and llms.txt checks fall back
+  to `n/a` (no live origin to fetch from).
+
+- `--no-ai-check` — skips the entire AI readiness assessment. Useful
+  when the two extra HTTP fetches (`/robots.txt` and `/llms.txt`)
+  matter for total runtime or when running fully offline.
+
+- Terminal output now includes an "AI Readiness" section with a
+  color-coded verdict and per-check status icons.
+- Markdown output includes a "## AI Readiness" table with emoji
+  status indicators.
+- JSON output includes a top-level `aiReadiness` field with
+  `{verdict, checks: [...]}`. Each check has `id`, `label`, `status`
+  (pass/warn/fail/na), `message`, and optionally `suggestion` and
+  `detail`.
+
+### Changed
+
+- Parser now extracts the `<html lang="...">` attribute (exposed as
+  `meta.htmlLang` in JSON) and `article:published_time` /
+  `article:modified_time` / `og:updated_time` (exposed under
+  `meta.article` and `meta.og.updated_time`). These are used by the
+  AI freshness and language checks but are also useful for any
+  consumer of the JSON output.
+
+### Tests
+
+- 12 new test cases covering AI readiness arg parsing, JSON shape,
+  per-check ids and statuses, `n/a` fallback in html-file mode,
+  `--no-ai-check` short-circuit, and terminal-output sections. All
+  offline-safe. Suite: **104 pass / 0 fail / 0 skip** in `--offline`
+  mode.
+
+---
+
 ## [2.2.0] - 2026-05-26
 
 ### Added

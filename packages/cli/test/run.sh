@@ -110,6 +110,7 @@ assert_stdout_contains "--help shows --no-spinner option" "\-\-no-spinner" "$MET
 assert_stdout_contains "--help shows --tests option" "\-\-tests" "$METAPEEK" --help
 assert_stdout_contains "--help shows --sitemap option" "\-\-sitemap" "$METAPEEK" --help
 assert_stdout_contains "--help shows --html-file option" "\-\-html-file" "$METAPEEK" --help
+assert_stdout_contains "--help shows --no-ai-check option" "\-\-no-ai-check" "$METAPEEK" --help
 
 assert_stdout_contains "--version prints version" "metapeek" "$METAPEEK" --version
 assert_stdout_contains "--version includes semver" "[0-9]\+\.[0-9]\+\.[0-9]\+" "$METAPEEK" --version
@@ -560,7 +561,101 @@ fi
 
 echo ""
 
-# ── 12. Sitemap mode ─────────────────────────────────────────────────────────
+# ── 12. AI readiness (offline, html-file mode) ───────────────────────────────
+
+echo "  AI readiness (offline, html-file mode)"
+echo "  ──────────────────────────────────────"
+
+# Use the existing no-ogimage fixture which has a description + canonical
+# but no JSON-LD, no author, no html lang attribute, no published date
+# -> the AI readiness assessment should run and emit a verdict
+set +e
+ai_json=$("$METAPEEK" --no-spinner --json --html-file "$FIXTURE_DIR/no-ogimage.html" "https://example.test/no-og" 2>/dev/null)
+set -e
+
+if echo "$ai_json" | jq -e '.aiReadiness.verdict' >/dev/null 2>&1; then
+  pass "JSON output includes .aiReadiness.verdict"
+else
+  fail "JSON output includes .aiReadiness.verdict" "missing field"
+fi
+
+if echo "$ai_json" | jq -e '.aiReadiness.checks | length == 9' >/dev/null 2>&1; then
+  pass "AI readiness has exactly 9 checks"
+else
+  fail "AI readiness has exactly 9 checks" "wrong number of checks"
+fi
+
+if echo "$ai_json" | jq -e '[.aiReadiness.checks[].id] | contains(["json-ld", "authorship", "freshness", "canonical", "language", "description-quality", "ai-crawl-directives", "robots-txt", "llms-txt"])' >/dev/null 2>&1; then
+  pass "AI readiness includes all 9 expected check ids"
+else
+  fail "AI readiness includes all 9 expected check ids" "missing or renamed check ids"
+fi
+
+# In html-file mode without a real http url to its origin, robots-txt and
+# llms-txt fall back to 'na' (paste-mode equivalent)
+if echo "$ai_json" | jq -e '[.aiReadiness.checks[] | select(.id == "robots-txt").status] | .[0] == "na"' >/dev/null 2>&1; then
+  pass "robots-txt check is n/a in html-file mode (no live origin)"
+else
+  fail "robots-txt check is n/a in html-file mode (no live origin)" "expected status 'na'"
+fi
+
+if echo "$ai_json" | jq -e '[.aiReadiness.checks[] | select(.id == "llms-txt").status] | .[0] == "na"' >/dev/null 2>&1; then
+  pass "llms-txt check is n/a in html-file mode (no live origin)"
+else
+  fail "llms-txt check is n/a in html-file mode (no live origin)" "expected status 'na'"
+fi
+
+# The fixture has no json-ld, no author, no html lang => those should fail
+if echo "$ai_json" | jq -e '[.aiReadiness.checks[] | select(.id == "json-ld").status] | .[0] == "fail"' >/dev/null 2>&1; then
+  pass "json-ld check fails for fixture with no structured data"
+else
+  fail "json-ld check fails for fixture with no structured data" "expected status 'fail'"
+fi
+
+if echo "$ai_json" | jq -e '[.aiReadiness.checks[] | select(.id == "language").status] | .[1] // .[0]' | grep -qE '"pass"|"fail"' ; then
+  pass "language check returns a definite status"
+else
+  fail "language check returns a definite status" "missing language check result"
+fi
+
+# The fixture has a canonical -> should pass
+if echo "$ai_json" | jq -e '[.aiReadiness.checks[] | select(.id == "canonical").status] | .[0] == "pass"' >/dev/null 2>&1; then
+  pass "canonical check passes for fixture with canonical tag"
+else
+  fail "canonical check passes for fixture with canonical tag" "expected status 'pass'"
+fi
+
+# --no-ai-check should omit the aiReadiness field (or set it null)
+set +e
+no_ai_json=$("$METAPEEK" --no-spinner --json --no-ai-check --html-file "$FIXTURE_DIR/no-ogimage.html" "https://example.test/no-og" 2>/dev/null)
+set -e
+
+if echo "$no_ai_json" | jq -e '.aiReadiness == null or (.aiReadiness | not)' >/dev/null 2>&1; then
+  pass "--no-ai-check omits aiReadiness from JSON output"
+else
+  fail "--no-ai-check omits aiReadiness from JSON output" "aiReadiness was still present"
+fi
+
+# Terminal output (no color, no spinner) should mention "AI Readiness" section
+set +e
+ai_term=$("$METAPEEK" --no-spinner --no-color --html-file "$FIXTURE_DIR/no-ogimage.html" "https://example.test/no-og" 2>&1)
+set -e
+
+if echo "$ai_term" | grep -qi "AI Readiness"; then
+  pass "terminal output contains an AI Readiness section"
+else
+  fail "terminal output contains an AI Readiness section" "missing AI Readiness label"
+fi
+
+if echo "$ai_term" | grep -qE "(ready|partial|not-ready)"; then
+  pass "terminal output prints AI verdict (ready/partial/not-ready)"
+else
+  fail "terminal output prints AI verdict (ready/partial/not-ready)" "missing verdict text"
+fi
+
+echo ""
+
+# ── 13. Sitemap mode ─────────────────────────────────────────────────────────
 
 echo "  Sitemap mode"
 echo "  ────────────"

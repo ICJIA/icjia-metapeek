@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="2.2.0"
+VERSION="2.3.0"
 REPO_URL="https://github.com/ICJIA/icjia-metapeek.git"
 UPDATE_CACHE_DIR="${HOME}/.cache/metapeek"
 UPDATE_CACHE_FILE="${UPDATE_CACHE_DIR}/latest_version"
@@ -121,6 +121,10 @@ usage() {
     --html-file <path>  Analyze HTML read from a local file instead of
                         fetching <url> (the URL is used only as a label
                         and to score image dimensions of absolute og:image)
+    --no-ai-check       Skip the parallel AI readiness assessment
+                        (9 checks: JSON-LD, authorship, freshness, canonical,
+                        language, description quality, AI crawl directives,
+                        robots.txt AI-bot access, llms.txt). On by default.
     --no-color          Disable colored output
     --no-spinner        Disable loading spinner
     --tests             Run test suite
@@ -144,6 +148,7 @@ FULL_MODE=true
 
 NO_COLOR=false
 NO_SPINNER=false
+NO_AI_CHECK=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -172,6 +177,7 @@ while [[ $# -gt 0 ]]; do
     --html-file)
       [[ $# -lt 2 ]] && { echo "Error: --html-file requires an argument" >&2; exit 2; }
       HTML_FILE="$2"; shift 2 ;;
+    --no-ai-check) NO_AI_CHECK=true; shift ;;
     --no-color)   NO_COLOR=true; shift ;;
     --no-spinner) NO_SPINNER=true; shift ;;
     -*)
@@ -336,8 +342,9 @@ trap stop_spinner EXIT
 analyze_url() {
   local url="$1"
   local html_file="${2:-}"
-  python3 - "$url" "$VERSION" "$html_file" <<'PYEOF'
-import sys, json, time, struct, socket, ipaddress
+  local no_ai_check="${3:-false}"
+  python3 - "$url" "$VERSION" "$html_file" "$no_ai_check" <<'PYEOF'
+import sys, json, time, struct, socket, ipaddress, re
 from urllib.request import Request, urlopen, build_opener, HTTPRedirectHandler
 from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse
@@ -346,6 +353,7 @@ from html.parser import HTMLParser
 url = sys.argv[1]
 version = sys.argv[2]
 html_file = sys.argv[3] if len(sys.argv) > 3 else ""
+no_ai_check = (sys.argv[4] if len(sys.argv) > 4 else "false") == "true"
 
 MAX_BYTES = 1_048_576  # 1 MB
 
@@ -390,6 +398,7 @@ class MetaParser(HTMLParser):
         self.title = ""
         self.in_title = False
         self.meta = {}          # name/property -> content
+        self.html_lang = ""     # <html lang="..."> attribute
         self.link_canonical = None
         self.links = {}         # rel -> href (favicon, apple-touch-icon, manifest)
         self.structured_data = []  # parsed JSON-LD objects
@@ -401,7 +410,9 @@ class MetaParser(HTMLParser):
         if self.done:
             return
         a = dict(attrs)
-        if tag == "title":
+        if tag == "html":
+            self.html_lang = (a.get("lang") or "").strip()
+        elif tag == "title":
             self.in_title = True
             self.title = ""
         elif tag == "meta":
@@ -536,6 +547,247 @@ def fetch_image_dimensions(url):
     if dims:
         return {"width": dims[0], "height": dims[1]}
     return {"width": None, "height": None, "error": "unrecognized format"}
+
+# ── AI Readiness ─────────────────────────────────────────────────────────
+
+AI_BOTS = [
+    "GPTBot", "ChatGPT-User", "Google-Extended", "Anthropic-AI",
+    "ClaudeBot", "CCBot", "PerplexityBot", "Bytespider",
+]
+
+def fetch_text(target_url, max_bytes=102_400, timeout=5):
+    """Safe text fetch (robots.txt, llms.txt). Returns None on any failure."""
+    try:
+        parsed = urlparse(target_url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return None
+        validate_host(parsed.hostname)
+        req = Request(target_url, headers={
+            "User-Agent": f"metapeek/{version} (CLI; +https://github.com/ICJIA/icjia-metapeek)",
+            "Accept-Encoding": "identity"
+        })
+        resp = safe_opener.open(req, timeout=timeout)
+        if resp.status < 200 or resp.status >= 300:
+            return None
+        body = resp.read(max_bytes).decode("utf-8", errors="replace")
+        # SPAs often return index.html for unknown routes — reject that
+        trimmed = body.lstrip()
+        if trimmed.startswith("<!") or trimmed.lower().startswith("<html"):
+            return None
+        return body
+    except Exception:
+        return None
+
+def is_bot_blocked(robots_txt, bot_name):
+    """True if robots.txt has Disallow: / under a matching User-agent group."""
+    lines = robots_txt.split("\n")
+    current_group_matches = False
+    in_agent_lines = True
+    target = bot_name.lower()
+    for line in lines:
+        trimmed = line.strip()
+        if not trimmed or trimmed.startswith("#"):
+            continue
+        agent_match = re.match(r"^user-agent:\s*(.+)$", trimmed, re.IGNORECASE)
+        if agent_match:
+            if not in_agent_lines:
+                current_group_matches = False
+                in_agent_lines = True
+            agent = agent_match.group(1).strip().lower()
+            if agent == "*" or agent == target:
+                current_group_matches = True
+            continue
+        in_agent_lines = False
+        disallow_match = re.match(r"^disallow:\s*(.*)$", trimmed, re.IGNORECASE)
+        if disallow_match and current_group_matches:
+            if disallow_match.group(1).strip() == "/":
+                return True
+    return False
+
+def get_jsonld_value(structured_data, key):
+    for item in structured_data:
+        if isinstance(item, dict) and key in item:
+            return item[key]
+    return None
+
+def _check(id_, label, status, message, suggestion=None, detail=None):
+    out = {"id": id_, "label": label, "status": status, "message": message}
+    if suggestion is not None:
+        out["suggestion"] = suggestion
+    if detail is not None:
+        out["detail"] = detail
+    return out
+
+def check_json_ld(meta_obj):
+    structured = meta_obj.get("structuredData", [])
+    if not structured:
+        return _check("json-ld", "JSON-LD Structured Data", "fail",
+                      "No JSON-LD structured data found.",
+                      suggestion='Add a <script type="application/ld+json"> block with Schema.org markup (e.g. Article, WebPage).')
+    has_type = False
+    for item in structured:
+        if not isinstance(item, dict):
+            continue
+        if "@type" in item:
+            has_type = True
+            break
+        graph = item.get("@graph")
+        if isinstance(graph, list) and any(isinstance(g, dict) and "@type" in g for g in graph):
+            has_type = True
+            break
+    if not has_type:
+        return _check("json-ld", "JSON-LD Structured Data", "warn",
+                      "JSON-LD present but missing @type.",
+                      suggestion='Add an @type property (e.g. "Article", "WebPage") so AI systems can identify the content type.')
+    return _check("json-ld", "JSON-LD Structured Data", "pass",
+                  "JSON-LD with @type found.")
+
+def check_authorship(meta_obj):
+    if meta_obj.get("author"):
+        return _check("authorship", "Authorship", "pass",
+                      "Author found in meta tags.",
+                      detail=f'<meta name="author" content="{meta_obj["author"]}">')
+    article = meta_obj.get("article", {}) or {}
+    if article.get("author"):
+        return _check("authorship", "Authorship", "pass",
+                      "Author found in article:author.",
+                      detail=f'<meta property="article:author" content="{article["author"]}">')
+    jsonld_author = get_jsonld_value(meta_obj.get("structuredData", []), "author")
+    if jsonld_author:
+        return _check("authorship", "Authorship", "pass",
+                      "Author found in JSON-LD structured data.")
+    return _check("authorship", "Authorship", "fail",
+                  "No authorship information found.",
+                  suggestion='Add <meta name="author" content="..."> or include author in JSON-LD to help AI attribute content.')
+
+def check_freshness(meta_obj):
+    article = meta_obj.get("article", {}) or {}
+    og = meta_obj.get("og", {}) or {}
+    sd = meta_obj.get("structuredData", [])
+    published = article.get("published_time") or get_jsonld_value(sd, "datePublished")
+    modified = (article.get("modified_time")
+                or og.get("updated_time")
+                or get_jsonld_value(sd, "dateModified"))
+    has_pub = bool(published)
+    has_mod = bool(modified)
+    if has_pub and has_mod:
+        return _check("freshness", "Content Freshness", "pass",
+                      "Both published and modified dates found.")
+    if has_pub or has_mod:
+        msg = ("Published date found but no modified date." if has_pub
+               else "Modified date found but no published date.")
+        return _check("freshness", "Content Freshness", "warn", msg,
+                      suggestion="Add both datePublished and dateModified to help AI assess content freshness.")
+    return _check("freshness", "Content Freshness", "fail",
+                  "No published or modified date found.",
+                  suggestion="Add article:published_time / article:modified_time or datePublished / dateModified in JSON-LD.")
+
+def check_canonical_ai(meta_obj):
+    if meta_obj.get("canonical"):
+        return _check("canonical", "Canonical URL", "pass",
+                      "Canonical URL present.",
+                      detail=f'<link rel="canonical" href="{meta_obj["canonical"]}">')
+    return _check("canonical", "Canonical URL", "fail",
+                  "Canonical URL missing.",
+                  suggestion='Add <link rel="canonical" href="..."> so AI systems reference the correct URL.')
+
+def check_language(meta_obj):
+    html_lang = meta_obj.get("htmlLang") or ""
+    language = meta_obj.get("language") or ""
+    if html_lang:
+        return _check("language", "Language Declaration", "pass",
+                      f'Language declared via html lang="{html_lang}".',
+                      detail=f'<html lang="{html_lang}">')
+    if language:
+        return _check("language", "Language Declaration", "pass",
+                      "Language declared via meta tag.",
+                      detail=f'<meta name="language" content="{language}">')
+    return _check("language", "Language Declaration", "fail",
+                  "No language declaration found.",
+                  suggestion='Add lang attribute to the <html> tag (e.g. <html lang="en">) so AI systems know the content language.')
+
+def check_description_quality(meta_obj):
+    desc = meta_obj.get("description") or (meta_obj.get("og") or {}).get("description") or ""
+    if not desc:
+        return _check("description-quality", "Description Quality", "fail",
+                      "No meta description found.",
+                      suggestion="Add a meta description of at least 80 characters to give AI systems a clear page summary.")
+    n = len(desc)
+    if n >= 80:
+        return _check("description-quality", "Description Quality", "pass",
+                      f"Description is {n} characters.")
+    if n >= 50:
+        return _check("description-quality", "Description Quality", "warn",
+                      f"Description is only {n} characters.",
+                      suggestion="Aim for at least 80 characters to give AI systems enough context to summarize the page.")
+    return _check("description-quality", "Description Quality", "fail",
+                  f"Description is too short ({n} characters).",
+                  suggestion="Expand the description to at least 80 characters for meaningful AI summarization.")
+
+def check_ai_crawl_directives(meta_obj):
+    robots_val = (meta_obj.get("robots") or "").lower()
+    if "noai" in robots_val or "noimageai" in robots_val:
+        directives = [d for d in ("noai", "noimageai") if d in robots_val]
+        return _check("ai-crawl-directives", "AI Crawl Directives", "fail",
+                      f"Robots meta contains {', '.join(directives)}.",
+                      suggestion="These directives block AI systems from using your content. Remove them if you want AI visibility.")
+    return _check("ai-crawl-directives", "AI Crawl Directives", "pass",
+                  "No AI-blocking directives found in robots meta.")
+
+def check_robots_txt_ai(robots_txt):
+    if robots_txt is None:
+        return _check("robots-txt", "robots.txt AI Bot Access", "na",
+                      "robots.txt not available.")
+    blocked = [b for b in AI_BOTS if is_bot_blocked(robots_txt, b)]
+    if not blocked:
+        return _check("robots-txt", "robots.txt AI Bot Access", "pass",
+                      "No AI bots blocked in robots.txt.")
+    if len(blocked) == len(AI_BOTS):
+        return _check("robots-txt", "robots.txt AI Bot Access", "fail",
+                      f"All {len(AI_BOTS)} AI bots are blocked in robots.txt.",
+                      suggestion="Remove Disallow rules for AI bots if you want your content to appear in AI-generated answers.")
+    return _check("robots-txt", "robots.txt AI Bot Access", "warn",
+                  f"{len(blocked)} of {len(AI_BOTS)} AI bots blocked: {', '.join(blocked)}.",
+                  suggestion="Some AI crawlers are blocked. Review your robots.txt if you want broader AI coverage.")
+
+def check_llms_txt_ai(llms_txt):
+    if llms_txt is None or not llms_txt.strip():
+        return _check("llms-txt", "llms.txt", "fail",
+                      "No llms.txt found." if llms_txt is None else "llms.txt is empty.",
+                      suggestion="Add a /llms.txt file describing your site for LLM consumption. See llmstxt.org for the specification.")
+    return _check("llms-txt", "llms.txt", "pass",
+                  "llms.txt found and non-empty.")
+
+def compute_ai_verdict(checks):
+    active = [c for c in checks if c["status"] != "na"]
+    fails = sum(1 for c in active if c["status"] == "fail")
+    warns = sum(1 for c in active if c["status"] == "warn")
+    if fails >= 3:
+        return "not-ready"
+    if fails >= 1 or warns >= 2:
+        return "partial"
+    return "ready"
+
+def assess_ai_readiness(meta_obj, robots_txt=None, llms_txt=None, paste_mode=False):
+    """Run all 9 AI readiness checks and return verdict + details."""
+    checks = [
+        check_json_ld(meta_obj),
+        check_authorship(meta_obj),
+        check_freshness(meta_obj),
+        check_canonical_ai(meta_obj),
+        check_language(meta_obj),
+        check_description_quality(meta_obj),
+        check_ai_crawl_directives(meta_obj),
+    ]
+    if paste_mode:
+        checks.append(_check("robots-txt", "robots.txt AI Bot Access", "na",
+                             "Not available in --html-file mode."))
+        checks.append(_check("llms-txt", "llms.txt", "na",
+                             "Not available in --html-file mode."))
+    else:
+        checks.append(check_robots_txt_ai(robots_txt))
+        checks.append(check_llms_txt_ai(llms_txt))
+    return {"verdict": compute_ai_verdict(checks), "checks": checks}
 
 def analyze(html, page_url):
     p = MetaParser()
@@ -698,7 +950,13 @@ def analyze(html, page_url):
         "author": m.get("author", ""),
         "keywords": m.get("keywords", ""),
         "language": m.get("language", "") or m.get("content-language", ""),
+        "htmlLang": p.html_lang,
         "generator": m.get("generator", ""),
+        "article": {
+            "published_time": m.get("article:published_time", ""),
+            "modified_time": m.get("article:modified_time", ""),
+            "author": m.get("article:author", ""),
+        },
         "og": {
             "title": og_title,
             "description": og_desc,
@@ -707,6 +965,7 @@ def analyze(html, page_url):
             "type": m.get("og:type", ""),
             "site_name": m.get("og:site_name", ""),
             "locale": m.get("og:locale", ""),
+            "updated_time": m.get("og:updated_time", ""),
             "image_dimensions": og_image_dims
         },
         "twitter": {
@@ -747,6 +1006,24 @@ try:
     result["ok"] = True
     result["url"] = url
     result["timing"] = elapsed
+
+    if not no_ai_check:
+        paste_mode = bool(html_file)
+        robots_txt = None
+        llms_txt = None
+        if not paste_mode:
+            try:
+                parsed = urlparse(url)
+                if parsed.scheme in ("http", "https") and parsed.netloc:
+                    origin = f"{parsed.scheme}://{parsed.netloc}"
+                    robots_txt = fetch_text(f"{origin}/robots.txt")
+                    llms_txt = fetch_text(f"{origin}/llms.txt")
+            except Exception:
+                pass
+        result["aiReadiness"] = assess_ai_readiness(
+            result["meta"], robots_txt=robots_txt, llms_txt=llms_txt,
+            paste_mode=paste_mode
+        )
 
     json.dump(result, sys.stdout, separators=(",", ":"))
 
@@ -914,7 +1191,7 @@ run_sitemap_mode() {
 
     local one
     set +e
-    one=$(analyze_url "$url")
+    one=$(analyze_url "$url" "" "$NO_AI_CHECK")
     set -e
 
     local is_ok grade
@@ -1052,7 +1329,7 @@ if [[ -z "$HTML_FILE" ]]; then
   start_spinner
 fi
 
-RESPONSE=$(analyze_url "$URL" "$HTML_FILE") || {
+RESPONSE=$(analyze_url "$URL" "$HTML_FILE" "$NO_AI_CHECK") || {
   stop_spinner
   echo "Error: analyzer failed unexpectedly" >&2
   exit 2
@@ -1289,6 +1566,8 @@ format_terminal() {
     echo ""
   fi
 
+  format_ai_readiness_terminal
+
   # Timing + exit hint
   printf '  %sAnalyzed in %sms%s\n' "$DIM" "$TIMING" "$RESET"
 
@@ -1297,6 +1576,47 @@ format_terminal() {
   else
     printf '  %s✗ Fail (exit 1) — grade %s%s\n' "$RED" "$GRADE" "$RESET"
   fi
+  echo ""
+}
+
+ai_status_icon() {
+  case "$1" in
+    pass) printf '%s✓%s' "$GREEN" "$RESET" ;;
+    warn) printf '%s⚠%s' "$YELLOW" "$RESET" ;;
+    fail) printf '%s✗%s' "$RED" "$RESET" ;;
+    na)   printf '%s○%s' "$DIM" "$RESET" ;;
+  esac
+}
+
+ai_verdict_color() {
+  case "$1" in
+    ready)     printf '%s%s%s' "$GREEN"  "$1" "$RESET" ;;
+    partial)   printf '%s%s%s' "$YELLOW" "$1" "$RESET" ;;
+    not-ready) printf '%s%s%s' "$RED"    "$1" "$RESET" ;;
+    *)         printf '%s' "$1" ;;
+  esac
+}
+
+format_ai_readiness_terminal() {
+  local present
+  present=$(echo "$RESPONSE" | jq -r '.aiReadiness // empty')
+  [[ -z "$present" ]] && return 0
+
+  local verdict count
+  verdict=$(echo "$RESPONSE" | jq -r '.aiReadiness.verdict')
+  count=$(echo "$RESPONSE" | jq -r '.aiReadiness.checks | length')
+
+  printf '  %sAI Readiness:%s %s\n' "$BOLD" "$RESET" "$(ai_verdict_color "$verdict")"
+  echo ""
+
+  local i status label message icon
+  for (( i=0; i<count; i++ )); do
+    status=$(echo "$RESPONSE" | jq -r ".aiReadiness.checks[$i].status")
+    label=$(echo "$RESPONSE"  | jq -r ".aiReadiness.checks[$i].label"   | sanitize)
+    message=$(echo "$RESPONSE" | jq -r ".aiReadiness.checks[$i].message" | sanitize)
+    icon=$(ai_status_icon "$status")
+    printf '  %s %-30s %s%s%s\n' "$icon" "$label" "$DIM" "$message" "$RESET"
+  done
   echo ""
 }
 
@@ -1518,6 +1838,8 @@ format_markdown() {
     echo ""
   fi
 
+  format_ai_readiness_markdown
+
   printf '*Analyzed in %sms*\n\n' "$TIMING"
 
   if [[ "$GRADE" == "A" || "$GRADE" == "B" ]]; then
@@ -1525,6 +1847,38 @@ format_markdown() {
   else
     printf '**Result:** Fail (exit 1) — grade %s\n\n' "$GRADE"
   fi
+}
+
+format_ai_readiness_markdown() {
+  local present
+  present=$(echo "$RESPONSE" | jq -r '.aiReadiness // empty')
+  [[ -z "$present" ]] && return 0
+
+  local verdict count
+  verdict=$(echo "$RESPONSE" | jq -r '.aiReadiness.verdict')
+  count=$(echo "$RESPONSE" | jq -r '.aiReadiness.checks | length')
+
+  printf '## AI Readiness — **%s**\n\n' "$verdict"
+  echo "| Check | Status | Message |"
+  echo "|-------|--------|---------|"
+
+  local i status label message emoji
+  for (( i=0; i<count; i++ )); do
+    status=$(echo "$RESPONSE"  | jq -r ".aiReadiness.checks[$i].status")
+    label=$(echo "$RESPONSE"   | jq -r ".aiReadiness.checks[$i].label"   | sanitize)
+    message=$(echo "$RESPONSE" | jq -r ".aiReadiness.checks[$i].message" | sanitize)
+    case "$status" in
+      pass) emoji="✅" ;;
+      warn) emoji="⚠️" ;;
+      fail) emoji="❌" ;;
+      na)   emoji="➖" ;;
+      *)    emoji="" ;;
+    esac
+    # Escape pipes in message for markdown table safety
+    message="${message//|/\\|}"
+    printf '| %s | %s | %s |\n' "$label" "$emoji" "$message"
+  done
+  echo ""
 }
 
 # ── Dispatch formatter ───────────────────────────────────────────────────────
