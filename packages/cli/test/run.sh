@@ -84,6 +84,8 @@ assert_stdout_not_contains() {
 # ── Banner ───────────────────────────────────────────────────────────────────
 
 echo ""
+FIXTURE_DIR="$SCRIPT_DIR/fixtures"
+
 echo "  metapeek test suite"
 echo "  ═══════════════════"
 echo ""
@@ -107,6 +109,7 @@ assert_stdout_contains "--help shows --full option" "\-\-full" "$METAPEEK" --hel
 assert_stdout_contains "--help shows --no-spinner option" "\-\-no-spinner" "$METAPEEK" --help
 assert_stdout_contains "--help shows --tests option" "\-\-tests" "$METAPEEK" --help
 assert_stdout_contains "--help shows --sitemap option" "\-\-sitemap" "$METAPEEK" --help
+assert_stdout_contains "--help shows --html-file option" "\-\-html-file" "$METAPEEK" --help
 
 assert_stdout_contains "--version prints version" "metapeek" "$METAPEEK" --version
 assert_stdout_contains "--version includes semver" "[0-9]\+\.[0-9]\+\.[0-9]\+" "$METAPEEK" --version
@@ -146,6 +149,11 @@ assert_stderr_contains "--sitemap ftp:// shows protocol error" "only http and ht
 
 assert_exit "--sitemap with file:// URL exits 2" 2 "$METAPEEK" --sitemap "file:///etc/passwd"
 assert_exit "--sitemap with javascript: URL exits 2" 2 "$METAPEEK" --sitemap "javascript:alert(1)"
+
+assert_exit "--html-file without value exits 2" 2 "$METAPEEK" --html-file
+assert_stderr_contains "--html-file without value shows error" "requires an argument" "$METAPEEK" --html-file
+assert_exit "--html-file with missing file exits 2" 2 "$METAPEEK" --html-file "/tmp/metapeek-does-not-exist-$$.html" "https://example.com"
+assert_stderr_contains "--html-file missing file shows error" "cannot read" "$METAPEEK" --html-file "/tmp/metapeek-does-not-exist-$$.html" "https://example.com"
 
 echo ""
 
@@ -477,7 +485,82 @@ fi
 
 echo ""
 
-# ── 10. Sitemap mode ─────────────────────────────────────────────────────────
+# ── 10. HTML-file mode (offline) ─────────────────────────────────────────────
+
+echo "  HTML-file mode (offline)"
+echo "  ────────────────────────"
+
+# no-ogimage fixture: no network calls, fully offline
+set +e
+hf_no_og=$("$METAPEEK" --no-spinner --json --html-file "$FIXTURE_DIR/no-ogimage.html" "https://example.test/no-og" 2>/dev/null)
+hf_no_og_exit=$?
+set -e
+
+if echo "$hf_no_og" | jq -e '.ok == true' >/dev/null 2>&1; then
+  pass "--html-file reads HTML from disk (ok=true)"
+else
+  fail "--html-file reads HTML from disk (ok=true)" "ok was not true"
+fi
+
+if echo "$hf_no_og" | jq -e '.score.categories.ogImage.status == "fail" and .score.categories.ogImage.score == 0' >/dev/null 2>&1; then
+  pass "missing og:image scores 0/fail"
+else
+  fail "missing og:image scores 0/fail" "did not get score 0 / status fail"
+fi
+
+if echo "$hf_no_og" | jq -e '.meta.title == "Fixture: no og:image at all"' >/dev/null 2>&1; then
+  pass "--html-file parses title from disk HTML"
+else
+  fail "--html-file parses title from disk HTML" "title mismatch"
+fi
+
+# Exit 1 expected because ogImage failure drops the grade below B
+if [[ "$hf_no_og_exit" -eq 1 ]]; then
+  pass "--html-file exits 1 when grade drops below B"
+else
+  fail "--html-file exits 1 when grade drops below B" "got exit $hf_no_og_exit"
+fi
+
+echo ""
+
+# ── 11. HTML-file mode (broken og:image) ─────────────────────────────────────
+
+echo "  HTML-file mode (broken og:image)"
+echo "  ────────────────────────────────"
+
+# .test TLD is RFC 6761 reserved; getaddrinfo should fail without external DNS
+set +e
+hf_broken=$("$METAPEEK" --no-spinner --json --html-file "$FIXTURE_DIR/broken-ogimage.html" "https://example.test/broken" 2>/dev/null)
+hf_broken_exit=$?
+set -e
+
+if echo "$hf_broken" | jq -e '.meta.og.image_dimensions.error == "fetch failed"' >/dev/null 2>&1; then
+  pass "unreachable og:image surfaces fetch-failed in dimensions"
+else
+  fail "unreachable og:image surfaces fetch-failed in dimensions" "dimensions error was not 'fetch failed'"
+fi
+
+if echo "$hf_broken" | jq -e '.score.categories.ogImage.status == "fail" and .score.categories.ogImage.score == 0' >/dev/null 2>&1; then
+  pass "unreachable og:image scores 0/fail (the actual user-requested fix)"
+else
+  fail "unreachable og:image scores 0/fail" "score/status not 0/fail"
+fi
+
+if echo "$hf_broken" | jq -e '.score.categories.ogImage.issues[0] | contains("not reachable")' >/dev/null 2>&1; then
+  pass "unreachable og:image issue mentions reachability"
+else
+  fail "unreachable og:image issue mentions reachability" "issue text mismatch"
+fi
+
+if echo "$hf_broken" | jq -e '.diagnostics.ogImage.suggestion | contains("CSP")' >/dev/null 2>&1; then
+  pass "unreachable og:image suggestion calls out CSP/hotlinking"
+else
+  fail "unreachable og:image suggestion calls out CSP/hotlinking" "suggestion text mismatch"
+fi
+
+echo ""
+
+# ── 12. Sitemap mode ─────────────────────────────────────────────────────────
 
 echo "  Sitemap mode"
 echo "  ────────────"
