@@ -108,6 +108,20 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.14.1] - 2026-06-06
+
+### Fixed
+
+- **Icons bundled offline; no runtime Iconify API calls.** `@nuxt/icon` was
+  resolving Heroicons from `api.iconify.design` at runtime, which the strict
+  CSP (`connect-src 'self'`) correctly blocked — breaking icons in the browser
+  console. Added `icon.clientBundle.scan` (bundles the 38 statically-used icons
+  from the already-installed `@iconify-json/heroicons` and
+  `@iconify-json/simple-icons` collections into the client) plus
+  `icon.fallbackToApi: "server-only"` (the browser never calls the Iconify API;
+  the server resolves any stray icon from the local collections). The CSP is
+  unchanged. (`nuxt.config.ts`.)
+
 ## [0.14.0] - 2026-05-26
 
 ### Security

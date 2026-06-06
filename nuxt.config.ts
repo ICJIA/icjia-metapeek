@@ -37,6 +37,23 @@ export default defineNuxtConfig({
     fallback: "dark",
   },
 
+  // Bundle every statically-used icon into the client at build time so the app
+  // never calls api.iconify.design at runtime. The strict CSP
+  // (connect-src 'self', netlify.toml) deliberately blocks that external
+  // fetch, and offline bundling is faster anyway. Icon collections
+  // (@iconify-json/heroicons + @iconify-json/simple-icons) are already installed.
+  icon: {
+    clientBundle: {
+      scan: true,
+      sizeLimitKb: 512,
+    },
+    // The browser must never reach out to api.iconify.design — the strict CSP
+    // (connect-src 'self') blocks it by design. All statically-used icons are
+    // bundled into the client above; the API fallback is restricted to the
+    // server, which resolves from the local @iconify-json collections anyway.
+    fallbackToApi: "server-only",
+  },
+
   // Nuxt SEO / Site Config — shared across sitemap, robots, og-image, schema.org
   site: {
     url: "https://metapeek.icjia.app",
