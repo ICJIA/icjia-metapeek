@@ -57,7 +57,7 @@ MetaPeek helps you **find and fix these issues** before they hurt your reach:
 | Image dimension analysis   | ✅ All 7 platforms   | ✅ Yes            | ❌ No               |
 | Actionable code fixes      | ✅ Copy-paste ready  | ❌ Preview only   | ❌ Preview only     |
 | No account required        | ✅ Yes               | ❌ Requires login | ❌ Requires login   |
-| No rate limits             | ✅ Generous (10/min) | ⚠️ Limited        | ⚠️ Limited          |
+| Fair-use rate limits       | ✅ Generous, tiered  | ⚠️ Limited        | ⚠️ Limited          |
 | Works offline (paste mode) | ✅ Yes               | ❌ No             | ❌ No               |
 | Ad-free                    | ✅ Yes               | ⚠️ Meta ecosystem | ⚠️ X ecosystem      |
 
@@ -136,7 +136,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 - ✅ Enter URL and fetch HTML automatically
 - ✅ Netlify serverless function proxy with Nitro
 - ✅ SSRF protection and DNS validation
-- ✅ Rate limiting (10 requests/IP/minute)
+- ✅ Tiered rate limiting (Supabase-backed, enforced in the app — lenient for `*.illinois.gov` targets)
 - ✅ Redirect chain tracking (up to 5 redirects)
 - ✅ Shareable URLs (manual fetch, no auto-trigger)
 - ✅ Progressive status feedback (neutral → amber → red)
@@ -175,7 +175,7 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 
 1. **Quality Scoring System** — Get an overall meta tag quality score (0-100) with letter grades (A-F). Uses weighted categories (Open Graph 25%, OG Image 20%, etc.) with brutal honesty: missing tags = 0 points. Image dimensions are validated and integrated into scoring. Includes Lighthouse-style methodology explanations and specific action items.
 
-2. **Security-First** — Enterprise-grade SSRF protection prevents abuse while maintaining usability. DNS validation, private IP blocking, and rate limiting at the edge.
+2. **Security-First** — Enterprise-grade SSRF protection prevents abuse while maintaining usability. DNS validation, private IP blocking, and application-level tiered rate limiting.
 
 3. **No Account Required** — Unlike platform-specific debuggers (Facebook, Twitter), MetaPeek works without login. Enter any URL and analyze instantly.
 
@@ -188,12 +188,12 @@ Studies show that posts with proper Open Graph images get **2-3x more engagement
 ### Phase 5 — SPA Support (Headless Rendering) ✅ Complete
 
 - ✅ Headless Chromium rendering for JavaScript-rendered pages (Vue, React, Angular SPAs)
-- ✅ Standalone Netlify function with `@sparticuz/chromium` + `puppeteer-core`
+- ✅ Standalone Netlify function with `@sparticuz/chromium-min` + `puppeteer-core` (Chromium pack downloads to `/tmp` on cold start)
 - ✅ Auto-detection: banner appears when Open Graph tags are missing from static HTML
 - ✅ "Render with JavaScript" button re-analyzes via headless browser
 - ✅ Chromium-level DNS restriction (`--host-resolver-rules`) blocks in-page SSRF
 - ✅ Request interception blocks images/media/fonts for faster rendering
-- ✅ Tighter rate limiting (3/min) for resource-intensive SPA renders
+- ✅ Much tighter rate limits for resource-intensive SPA renders (3/min trusted, 1/min default)
 - ✅ Full SSRF validation before Chromium launch
 - ✅ Results feed into existing parsing pipeline (zero changes to analysis logic)
 
@@ -255,6 +255,23 @@ GET /api/analyze?url=<encoded-url>
 ```
 
 Returns complete meta tag analysis including parsed tags, diagnostics, quality score (0–100 with letter grade A–F), and timing.
+
+A missing or unreachable `og:image` **caps the grade at F** (`score.gated: true` with `score.gateReason`) — a share card without a working image is broken regardless of how good the other tags are. The API probes the `og:image` URL server-side, so a tag pointing at a 404 fails the same way it does in the CLI.
+
+### Rate Limits
+
+Limits are tiered by the **target** you ask MetaPeek to analyze, per client IP:
+
+| Target host                      | Standard API (`/api/analyze`, `/api/fetch`, `/api/ai-check`) | SPA render (`/api/fetch-spa`, headless Chromium) |
+| -------------------------------- | ------------------------------------------------------------ | ------------------------------------------------ |
+| `*.illinois.gov`, `*.icjia.app`  | 30/min · 500/day                                             | 3/min · 60/day                                   |
+| Everything else                  | 5/min · 50/day                                               | 1/min · 10/day                                   |
+
+- `429` responses include a `Retry-After` header (seconds) and a JSON body with `retryAfter`.
+- A site-wide daily budget also applies; when exhausted the API returns `503` until the next UTC day.
+- Successful `GET /api/analyze` responses are CDN-cached for 60 seconds per URL — repeat checks of the same URL don't count against your limits.
+- Requests are logged for abuse monitoring (target URL/host, tier, verdict, **hashed** IP, user agent) and purged after 90 days. Raw IPs are never stored.
+- Limits are enforced in the application against a Supabase counter store. Netlify's per-route `rateLimit` function config is not used: Nitro deploys all routes as a single function, so Netlify never reads per-route configs ([nuxt/nuxt#33721](https://github.com/nuxt/nuxt/issues/33721)).
 
 ### Authentication
 
@@ -346,8 +363,9 @@ curl -s "https://metapeek.icjia.app/api/analyze?url=https://r3.illinois.gov" \
 |--------|---------|
 | `400` | Missing/invalid URL, or SSRF blocked |
 | `401` | Invalid API key (when auth is enabled) |
-| `429` | Rate limited (10 requests/min/IP) |
+| `429` | Rate limited — see the tier table above; retry after `Retry-After` seconds |
 | `502` | Target site unreachable |
+| `503` | Site-wide daily budget exhausted — retry next UTC day |
 | `504` | Target site timed out |
 
 ### Error Case Examples
@@ -505,7 +523,7 @@ MetaPeek runs a server-side proxy that fetches arbitrary user-supplied URLs, so 
 - **Headless renderer isolation** — `fetch-spa` Chromium lambda uses `--host-resolver-rules` to block in-page DNS for everything except the target hostname
 - **Timing-safe auth** — `crypto.timingSafeEqual` with length-normalized comparison
 - **Crypto-strong request IDs** — `crypto.randomUUID()` for log correlation
-- **Edge rate limiting** — Netlify edge: 10 req/min per IP for `/api/fetch` + `/api/analyze` + `/api/ai-check`; 3 req/min for `/api/fetch-spa` (Chromium cost)
+- **Application-level rate limiting** — tiered per-IP limits plus a site-wide daily budget, enforced in a Nitro middleware (and inside `fetch-spa`) against Supabase with an in-memory fallback. Deliberately not Netlify edge config: per-route `rateLimit` exports are never read for Nitro routes (nuxt/nuxt#33721)
 - **Strict CSP** — `default-src 'self'`, `base-uri 'self'`, `form-action 'self'`, `object-src 'none'`, `frame-ancestors 'none'`, `upgrade-insecure-requests`
 - **Cross-origin isolation** — `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site`
 - **Wide-permissions denial** — `Permissions-Policy` disables 20+ browser features (USB, serial, bluetooth, midi, geo, camera, mic, etc.)
@@ -695,7 +713,7 @@ The app will be available at `http://localhost:3000`
    - Click "🌐 Fetch URL" toggle
    - Enter any URL (e.g., `https://github.com`)
    - Click "Fetch" to analyze live
-   - Rate limited: 10 requests per minute per IP
+   - Rate limited: tiered per target (see the API section's tier table)
 
 ---
 

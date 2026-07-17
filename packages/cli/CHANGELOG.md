@@ -8,6 +8,17 @@ and the CLI follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.4.0] - 2026-07-17
+
+### Changed
+
+- **Grade gate (parity with the web app/API):** a missing or unreachable
+  `og:image` now caps the overall score at 55 (grade F). The JSON output
+  gains `score.gated` (boolean) and `score.gateReason` (string | null).
+  Previously an imageless page could still score 70/C.
+
+---
+
 ## [2.3.0] - 2026-05-26
 
 ### Added

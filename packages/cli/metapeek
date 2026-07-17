@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="2.3.0"
+VERSION="2.4.0"
 REPO_URL="https://github.com/ICJIA/icjia-metapeek.git"
 UPDATE_CACHE_DIR="${HOME}/.cache/metapeek"
 UPDATE_CACHE_FILE="${UPDATE_CACHE_DIR}/latest_version"
@@ -929,6 +929,15 @@ def analyze(html, page_url):
     overall = sum(cats[k]["score"] * weights[k] for k in weights)
     overall = round(overall)
 
+    # Grade gate (parity with shared/score.ts): a missing or unreachable
+    # og:image breaks the share card outright, so it caps the score below
+    # passing regardless of how good everything else is.
+    gated = cats["ogImage"]["status"] == "fail"
+    gate_reason = None
+    if gated:
+        overall = min(overall, 55)
+        gate_reason = "A working og:image is required for social previews — score capped at F until it is fixed."
+
     if   overall >= 90: grade = "A"
     elif overall >= 80: grade = "B"
     elif overall >= 70: grade = "C"
@@ -986,6 +995,8 @@ def analyze(html, page_url):
         "score": {
             "overall": overall,
             "grade": grade,
+            "gated": gated,
+            "gateReason": gate_reason,
             "totalIssues": total_issues,
             "categories": cats
         },

@@ -138,7 +138,7 @@ export function computeScore(diagnostics: Diagnostics): MetaScore {
     },
   };
 
-  const overall = Math.round(
+  let overall = Math.round(
     (categories.title.score * WEIGHTS.title +
       categories.description.score * WEIGHTS.description +
       categories.openGraph.score * WEIGHTS.openGraph +
@@ -148,6 +148,18 @@ export function computeScore(diagnostics: Diagnostics): MetaScore {
       categories.robots.score * WEIGHTS.robots) /
       100,
   );
+
+  // Grade gate: a missing or unreachable og:image breaks the share card
+  // outright — the one thing this tool exists to prevent. Weighted math
+  // alone would still hand out a C (70), so a red ogImage caps the score
+  // below passing.
+  const gated = ogImageResult.result === "fail";
+  let gateReason: string | undefined;
+  if (gated) {
+    overall = Math.min(overall, 55);
+    gateReason =
+      "A working og:image is required for social previews — score capped at F until it is fixed.";
+  }
 
   const totalIssues = Object.values(categories).reduce(
     (sum, cat) => sum + cat.issues.length,
@@ -159,5 +171,7 @@ export function computeScore(diagnostics: Diagnostics): MetaScore {
     categories,
     totalIssues,
     grade: getGrade(overall),
+    gated,
+    gateReason,
   };
 }

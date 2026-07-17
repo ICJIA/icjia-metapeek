@@ -1,6 +1,6 @@
 {
   "name": "icjia-metapeek",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "type": "module",
@@ -26,7 +26,7 @@
   "dependencies": {
     "@nuxt/ui": "^4.4.0",
     "@nuxtjs/seo": "^3.4.0",
-    "@sparticuz/chromium": "^143.0.4",
+    "@sparticuz/chromium-min": "^143.0.4",
     "@vueuse/core": "^14.2.0",
     "@vueuse/nuxt": "^14.2.0",
     "cheerio": "^1.2.0",
@@ -61,7 +61,7 @@
     },
     "onlyBuiltDependencies": [
       "@parcel/watcher",
-      "@sparticuz/chromium",
+      "@sparticuz/chromium-min",
       "esbuild",
       "puppeteer-core",
       "sharp",

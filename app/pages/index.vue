@@ -2223,6 +2223,17 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                   Grade: {{ metaScore.grade }}
                 </span>
               </div>
+              <!-- Grade gate: a red og:image caps the score at F -->
+              <p
+                v-if="metaScore.gated && metaScore.gateReason"
+                class="mt-3 text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 rounded-lg p-3 border border-red-200 dark:border-red-800"
+              >
+                <UIcon
+                  name="i-heroicons-exclamation-triangle"
+                  class="inline-block w-4 h-4 mr-1 align-middle"
+                />
+                {{ metaScore.gateReason }}
+              </p>
               <p class="mt-4 text-sm text-gray-600 dark:text-gray-400">
                 <template v-if="metaScore.overall === 100">
                   🎉 Perfect score! Your meta tags are fully optimized.

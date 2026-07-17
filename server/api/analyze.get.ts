@@ -8,7 +8,13 @@
  * @module server/api/analyze.get
  */
 
-import { defineEventHandler, getQuery, createError, getHeader } from "h3";
+import {
+  defineEventHandler,
+  getQuery,
+  createError,
+  getHeader,
+  setResponseHeader,
+} from "h3";
 import { validateUrl } from "../utils/proxy";
 import {
   generateRequestId,
@@ -18,11 +24,12 @@ import {
   getClientIp,
   getUserAgent,
 } from "../utils/logger";
-import { fetchWithRedirects } from "../utils/fetcher";
+import { fetchWithRedirects, probeImageUrl } from "../utils/fetcher";
 import { safeEqual } from "../utils/auth";
 import { parseMetaTags } from "../../shared/parser";
 import { generateDiagnostics } from "../../shared/diagnostics";
 import { computeScore } from "../../shared/score";
+import type { ImageAnalysisResult } from "../../shared/types";
 import metapeekConfig from "../../metapeek.config";
 
 export default defineEventHandler(async (event) => {
@@ -102,8 +109,25 @@ export default defineEventHandler(async (event) => {
     // Parse meta tags from full HTML
     const meta = parseMetaTags(result.html);
 
-    // Run diagnostics (no image analysis on server)
-    const diagnostics = generateDiagnostics(meta);
+    // Probe the og:image URL so a present-but-broken image fails here the
+    // same way it fails in the CLI. Probe errors leave imageAnalysis
+    // undefined — unknown never penalizes.
+    let imageAnalysis: ImageAnalysisResult | undefined;
+    const ogImage = meta.og.image;
+    if (ogImage?.startsWith("http://") || ogImage?.startsWith("https://")) {
+      const probe = await probeImageUrl(ogImage);
+      if (probe.reachable !== undefined) {
+        imageAnalysis = {
+          width: 0,
+          height: 0,
+          overallStatus: null,
+          reachable: probe.reachable,
+          contentType: probe.contentType,
+        };
+      }
+    }
+
+    const diagnostics = generateDiagnostics(meta, imageAnalysis);
 
     // Compute quality score
     const score = computeScore(diagnostics);
@@ -120,6 +144,15 @@ export default defineEventHandler(async (event) => {
       ip: clientIp,
       userAgent,
     });
+
+    // Serve repeat checks of the same URL from the Netlify CDN instead of
+    // invoking the function again. Keyed on the `url` query param.
+    setResponseHeader(
+      event,
+      "Netlify-CDN-Cache-Control",
+      "public, s-maxage=60",
+    );
+    setResponseHeader(event, "Netlify-Vary", "query=url");
 
     return {
       ok: true,
@@ -148,15 +181,6 @@ export default defineEventHandler(async (event) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// NETLIFY RATE LIMITING (enforced at edge, before function invocation)
-// ═══════════════════════════════════════════════════════════
-
-export const config = {
-  path: "/api/analyze",
-  rateLimit: {
-    windowLimit: metapeekConfig.rateLimit.windowLimit,
-    windowSize: metapeekConfig.rateLimit.windowSize,
-    aggregateBy: [...metapeekConfig.rateLimit.aggregateBy],
-  },
-};
+// Rate limiting is enforced by server/middleware/rate-limit.ts. A Netlify
+// `export const config` here would be dead code: Nitro bundles all routes
+// into one function, so Netlify never reads per-route configs (nuxt/nuxt#33721).

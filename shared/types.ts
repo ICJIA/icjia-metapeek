@@ -140,6 +140,12 @@ export interface ImageAnalysisResult {
   width: number;
   height: number;
   overallStatus: "optimal" | "acceptable" | "issues" | null;
+  /** Browser could not load the image (client-side signal; may be hotlink protection). */
+  loadFailed?: boolean;
+  /** Server-verified reachability of the og:image URL (API-side probe). */
+  reachable?: boolean;
+  /** Content-Type reported by the og:image URL when probed server-side. */
+  contentType?: string;
 }
 
 /**
@@ -170,6 +176,10 @@ export interface MetaScore {
   };
   totalIssues: number;
   grade: "A" | "B" | "C" | "D" | "F";
+  /** True when a red og:image capped the overall score (automatic F). */
+  gated: boolean;
+  /** Human-readable explanation shown alongside a gated score. */
+  gateReason?: string;
 }
 
 /**

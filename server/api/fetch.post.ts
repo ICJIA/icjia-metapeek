@@ -186,17 +186,6 @@ export default defineEventHandler(async (event) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════
-// NETLIFY RATE LIMITING (enforced at edge, before function invocation)
-// ═══════════════════════════════════════════════════════════
-// Rate-limited requests return 429 and don't count as invocations.
-// Values come from metapeek.config.ts — change them there, not here.
-
-export const config = {
-  path: "/api/fetch",
-  rateLimit: {
-    windowLimit: metapeekConfig.rateLimit.windowLimit,
-    windowSize: metapeekConfig.rateLimit.windowSize,
-    aggregateBy: [...metapeekConfig.rateLimit.aggregateBy],
-  },
-};
+// Rate limiting is enforced by server/middleware/rate-limit.ts. A Netlify
+// `export const config` here would be dead code: Nitro bundles all routes
+// into one function, so Netlify never reads per-route configs (nuxt/nuxt#33721).

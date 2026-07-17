@@ -344,3 +344,75 @@ export async function fetchWithRedirects(
     });
   }
 }
+
+/**
+ * Result of probing an og:image URL for reachability.
+ */
+export interface ImageProbeResult {
+  /** True/false when the probe got a definitive answer; undefined when unknown. */
+  reachable?: boolean;
+  /** Content-Type header reported by the image URL, when available. */
+  contentType?: string;
+}
+
+const IMAGE_PROBE_TIMEOUT_MS = 5_000;
+
+/**
+ * Probes an og:image URL server-side so the API can fail pages whose image
+ * is missing in practice, not just missing in markup (parity with the CLI's
+ * "og:image URL is not reachable" verdict).
+ *
+ * Full SSRF validation + DNS pinning, HEAD first with a ranged-GET fallback
+ * for servers that reject HEAD. Redirect responses count as reachable (CDNs
+ * front most og:images). Probe failures (timeouts, TLS errors) return {} —
+ * unknown must never penalize a page.
+ *
+ * @param imageUrl - Absolute http(s) URL from the og:image tag
+ */
+export async function probeImageUrl(imageUrl: string): Promise<ImageProbeResult> {
+  try {
+    const validation = await validateUrl(imageUrl);
+    if (!validation.ok) {
+      // Invalid or private-address image URLs can never work as og:image.
+      return { reachable: false };
+    }
+
+    const dispatcher = createPinnedDispatcher(validation.resolvedAddresses!);
+    try {
+      const attempt = async (method: "HEAD" | "GET") => {
+        const { statusCode, headers, body } = await request(imageUrl, {
+          method,
+          headers: {
+            "User-Agent": metapeekConfig.proxy.userAgent,
+            ...(method === "GET" ? { Range: "bytes=0-1" } : {}),
+          },
+          dispatcher,
+          headersTimeout: IMAGE_PROBE_TIMEOUT_MS,
+          bodyTimeout: IMAGE_PROBE_TIMEOUT_MS,
+        });
+        body.destroy();
+        const rawType = headers["content-type"];
+        const contentType = Array.isArray(rawType)
+          ? rawType[0]
+          : rawType !== undefined
+            ? String(rawType)
+            : undefined;
+        return { statusCode, contentType };
+      };
+
+      let res = await attempt("HEAD");
+      if (res.statusCode === 405 || res.statusCode === 501) {
+        res = await attempt("GET");
+      }
+
+      if (res.statusCode >= 400) {
+        return { reachable: false, contentType: res.contentType };
+      }
+      return { reachable: true, contentType: res.contentType };
+    } finally {
+      await dispatcher.close();
+    }
+  } catch {
+    return {};
+  }
+}

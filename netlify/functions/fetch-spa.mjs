@@ -1,6 +1,8 @@
 /**
  * @fileoverview Standalone Netlify function for SPA rendering via headless Chromium.
- * Separate from the Nitro server bundle to isolate the ~50MB @sparticuz/chromium binary.
+ * Separate from the Nitro server bundle. Uses @sparticuz/chromium-min: the
+ * function bundles pure JS only; the Chromium binary pack downloads to /tmp
+ * on cold start (see CHROMIUM_PACK_URL) and is reused while warm.
  *
  * POST /.netlify/functions/fetch-spa  { url: string }
  *
@@ -14,10 +16,14 @@
  * @module netlify/functions/fetch-spa
  */
 
-import chromium from "@sparticuz/chromium";
+import chromium from "@sparticuz/chromium-min";
 import puppeteer from "puppeteer-core";
 import dns from "node:dns/promises";
 import { timingSafeEqual } from "node:crypto";
+import {
+  checkRateLimit,
+  createMemoryStore,
+} from "../../shared/rate-limit-core.mjs";
 
 // ═══════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -28,6 +34,34 @@ const PAGE_TIMEOUT_MS = 12_000;
 const MAX_RESPONSE_BYTES = 5_242_880; // 5MB
 const RATE_LIMIT_WINDOW = 60;
 const RATE_LIMIT_MAX = 3;
+
+// Chromium binary pack, downloaded to /tmp on cold start and reused while
+// the instance stays warm. chromium-min ships no binaries, so the whole
+// function (JS + deps) bundles cleanly under pnpm — shipping the 65MB
+// brotli binaries inside the function zip is what broke this function
+// after the pnpm migration. Keep the version pinned to the
+// @sparticuz/chromium-min dependency version.
+const CHROMIUM_PACK_URL =
+  process.env.CHROMIUM_PACK_URL ||
+  "https://github.com/Sparticuz/chromium/releases/download/v143.0.4/chromium-v143.0.4-pack.x64.tar";
+
+// Tiered limits — keep in sync with metapeek.config.ts rateLimit block
+// (this function stays self-contained: no Nitro/TS imports).
+const RATE_LIMIT = {
+  trustedSuffixes: ["illinois.gov", "icjia.app"],
+  tiers: {
+    trusted: { perMinute: 30, perDay: 500 },
+    default: { perMinute: 5, perDay: 50 },
+  },
+  spa: {
+    trusted: { perMinute: 3, perDay: 60 },
+    default: { perMinute: 1, perDay: 10 },
+  },
+  global: { perDay: 2000, spaPerDay: 100 },
+};
+
+// Per-instance fallback shared across warm invocations
+const memoryStore = createMemoryStore();
 
 // ═══════════════════════════════════════════════════════════
 // SSRF PROTECTION (self-contained — no Nitro imports)
@@ -187,6 +221,48 @@ export default async (req) => {
     }
   }
 
+  // ── Rate limiting (tiered, Supabase-backed, memory fallback) ──
+  // Placed before SSRF validation so denied requests cost no DNS work.
+  // When METAPEEK_API_KEY is set, every request reaching this point has
+  // already presented the valid bearer token — that's the bypass lane.
+  if (!apiKey) {
+    const verdict = await checkRateLimit({
+      ip: req.headers.get("x-nf-client-connection-ip") || undefined,
+      targetUrl: typeof url === "string" ? url : undefined,
+      config: RATE_LIMIT,
+      scope: "spa",
+      env: process.env,
+      memoryStore,
+      log: (entry) => console.error(JSON.stringify(entry)),
+      logMeta: {
+        path: "/api/fetch-spa",
+        userAgent: req.headers.get("user-agent") || undefined,
+      },
+    });
+
+    if (!verdict.allowed) {
+      const isGlobal =
+        verdict.violatedKey?.startsWith("sg:") ||
+        verdict.violatedKey?.startsWith("g:");
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: isGlobal
+            ? "MetaPeek is at its daily capacity. Please try again tomorrow."
+            : `Rate limit exceeded. Try again in ${verdict.retryAfter}s.`,
+          retryAfter: verdict.retryAfter,
+        }),
+        {
+          status: isGlobal ? 503 : 429,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": String(verdict.retryAfter),
+          },
+        },
+      );
+    }
+  }
+
   // ── SSRF Validation ───────────────────────────────────
   const validation = await validateUrlForSpa(url);
   if (!validation.ok) {
@@ -199,7 +275,7 @@ export default async (req) => {
   // ── Headless Chromium Rendering ────────────────────────
   let browser = null;
   try {
-    const executablePath = await chromium.executablePath();
+    const executablePath = await chromium.executablePath(CHROMIUM_PACK_URL);
 
     browser = await puppeteer.launch({
       args: [

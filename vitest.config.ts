@@ -16,6 +16,7 @@ export default defineConfig({
     include: [
       "tests/unit/**/*.{test,spec}.ts",
       "tests/security/**/*.{test,spec}.ts",
+      "tests/integration/**/*.{test,spec}.ts",
     ],
     exclude: ["tests/e2e/**"],
     coverage: {

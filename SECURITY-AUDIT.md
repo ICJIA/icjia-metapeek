@@ -705,3 +705,26 @@ This audit was performed via static code analysis of the complete server-side co
 - Infrastructure configuration beyond `netlify.toml`
 - Production environment variables and secrets management
 - Network-level security (TLS configuration, Netlify CDN settings)
+
+---
+
+## Addendum — 2026-07-17: RT-10 realized and resolved
+
+RT-10 ("Rate Limiting Is Netlify-Edge-Only", severity LOW) understated the
+exposure: the Netlify edge rate limiting it assumed was **never active**.
+Nitro deploys every route inside one Netlify function whose generated config
+is `path: "/*"` with no `rateLimit` — per-route `export const config`
+objects in `server/api/*.ts` are not read by Netlify at all
+(nuxt/nuxt#33721). Empirically confirmed against production: 14 requests to
+`/api/analyze` in ~30 seconds all returned 200. The practical severity was
+therefore HIGH (unauthenticated, unthrottled URL-fetching endpoints billed
+to the site owner).
+
+Resolved in 0.15.0 by RT-10's own recommended direction: application-level
+enforcement. A Nitro middleware (plus an equivalent check inside
+`fetch-spa`) applies tiered per-IP limits and a site-wide daily budget
+backed by an atomic Supabase RPC, with a per-instance in-memory fallback
+(fail-open, logged) when the store is unavailable. IPs are stored only as
+truncated SHA-256 hashes; request logs are purged after 90 days. Enforcement
+is verified by behavior tests and a post-deploy smoke script
+(`scripts/smoke-rate-limit.mjs`) that fails unless a real 429 is observed.

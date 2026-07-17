@@ -111,12 +111,6 @@ export default defineEventHandler(async (event) => {
   };
 });
 
-// Netlify rate limiting
-export const config = {
-  path: "/api/ai-check",
-  rateLimit: {
-    windowLimit: metapeekConfig.rateLimit.windowLimit,
-    windowSize: metapeekConfig.rateLimit.windowSize,
-    aggregateBy: [...metapeekConfig.rateLimit.aggregateBy],
-  },
-};
+// Rate limiting is enforced by server/middleware/rate-limit.ts. A Netlify
+// `export const config` here would be dead code: Nitro bundles all routes
+// into one function, so Netlify never reads per-route configs (nuxt/nuxt#33721).

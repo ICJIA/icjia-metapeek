@@ -11,6 +11,7 @@ const emit = defineEmits<{
     width: number;
     height: number;
     overallStatus: 'optimal' | 'acceptable' | 'issues' | null;
+    loadFailed?: boolean;
   }];
 }>();
 
@@ -166,11 +167,13 @@ watch(
       });
     } catch {
       imageInfo.value.error = "Could not load image";
-      // Emit null status on error
+      // loadFailed lets diagnostics distinguish "browser couldn't load the
+      // image" (yellow) from "no analysis ran" (no signal at all).
       emit('analysisComplete', {
         width: 0,
         height: 0,
         overallStatus: null,
+        loadFailed: true,
       });
     } finally {
       imageInfo.value.loading = false;

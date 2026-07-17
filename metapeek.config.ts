@@ -31,10 +31,26 @@ const metapeekConfig = {
   },
 
   // ── Rate Limiting ─────────────────────────────────────────
+  // Enforced application-level (server/middleware/rate-limit.ts + Supabase;
+  // in-memory fallback without credentials). Netlify's per-route rateLimit
+  // config is never read for Nitro routes (nuxt/nuxt#33721), so these are
+  // the values that actually bind.
   rateLimit: {
-    windowLimit: 10, // max requests per window per IP (reduced from 30 for security)
-    windowSize: 60, // window duration in seconds
-    aggregateBy: ["ip", "domain"] as const, // Netlify rate limit aggregation
+    // Targets whose host equals a suffix or ends with ".{suffix}" get the
+    // lenient "trusted" tier. Everything else is "default" (strict).
+    trustedSuffixes: ["illinois.gov", "icjia.app"],
+    tiers: {
+      trusted: { perMinute: 30, perDay: 500 },
+      default: { perMinute: 5, perDay: 50 },
+    },
+    // Chromium renders are ~100× the cost of a plain fetch — much tighter.
+    spa: {
+      trusted: { perMinute: 3, perDay: 60 },
+      default: { perMinute: 1, perDay: 10 },
+    },
+    // Site-wide daily ceilings across ALL clients — the Netlify-credit
+    // backstop that per-IP limits can't provide. Hitting these returns 503.
+    global: { perDay: 2000, spaPerDay: 100 },
   },
 
   // ── CORS ──────────────────────────────────────────────────

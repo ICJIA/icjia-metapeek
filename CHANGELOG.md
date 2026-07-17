@@ -108,6 +108,57 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.15.0] - 2026-07-17
+
+### Fixed
+
+- **Rate limiting was silently unenforced in production.** The per-route
+  `export const config` rate limits in `server/api/*.ts` were dead code —
+  Nitro bundles all routes into one Netlify function (`path: "/*"`), so
+  Netlify never read them (nuxt/nuxt#33721). Verified live: 14 requests in
+  ~30s, all 200. Replaced with application-level enforcement (below).
+- **`/api/fetch-spa` returned 500 on every production request.** The pnpm
+  migration (0.14.0) left `node_modules/@sparticuz/chromium` as a symlink
+  into `.pnpm/`, and the function bundle lost the package — the import
+  crashed at init before any logging. `included_files` now covers both the
+  symlink path and the `.pnpm` real path.
+- **A broken `og:image` scored green.** A browser load failure emitted a
+  null status that diagnostics treated as success. The client now reports
+  `loadFailed` (yellow "could not be verified"), and `/api/analyze` probes
+  the image URL server-side (SSRF-validated HEAD, ranged-GET fallback) so
+  an unreachable image is red — matching the CLI's existing verdict.
+
+### Added
+
+- **Tiered, Supabase-backed rate limiting** enforced in a Nitro middleware
+  for all `/api/*` routes and inside `fetch-spa`: trusted targets
+  (`*.illinois.gov`, `*.icjia.app`) 30/min · 500/day per IP (SPA renders
+  3/min · 60/day); all other targets 5/min · 50/day (SPA 1/min · 10/day);
+  plus a site-wide daily budget (2,000 standard + 100 SPA) that returns 503
+  when exhausted. Atomic Postgres RPC with fixed windows, hashed IPs only,
+  in-memory per-instance fallback (fail-open) when Supabase is absent or
+  erroring, `Retry-After` on 429/503, and a `METAPEEK_API_KEY` bearer
+  bypass. Env: `SUPABASE_URL` + `SUPABASE_SECRET_KEY` (see `.env.example`).
+- **Request logging** piggybacked on the same rate-limit RPC (zero extra
+  round-trips): target URL/host, tier, allow/deny verdict, hashed IP, user
+  agent. 90-day retention via pg_cron; raw IPs never stored.
+- **og:image grade gate:** a missing or unreachable image caps the score at
+  55 (grade F) with `score.gated` + `score.gateReason` in API responses and
+  an explanatory banner in the UI. Applied identically in web, API, and CLI.
+- **CDN caching for `/api/analyze`** — successful responses cached 60s per
+  URL (`Netlify-CDN-Cache-Control` + `Netlify-Vary: query=url`).
+- **CLI ↔ shared scorer parity tests** (`tests/integration/cli-parity.test.ts`)
+  run the CLI's fixtures through both implementations.
+- **Deployed smoke test** (`scripts/smoke-rate-limit.mjs <base-url> [--spa]`)
+  bursts a deploy until it sees a 429 — the test class that would have
+  caught the unenforced configs.
+
+### Changed
+
+- `tests/unit/rateLimit.test.ts` (config-shape assertions) replaced by
+  behavior tests: `rateLimitCore.test.ts` + `rateLimitMiddleware.test.ts`.
+- CLI 2.4.0: same og:image grade gate + `gated`/`gateReason` JSON fields.
+
 ## [0.14.1] - 2026-06-06
 
 ### Fixed

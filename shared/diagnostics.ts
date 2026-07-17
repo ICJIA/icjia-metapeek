@@ -175,6 +175,44 @@ function checkOGImage(
     };
   }
 
+  if (imageAnalysis) {
+    // Server-verified failure: the URL definitively does not serve an image.
+    if (imageAnalysis.reachable === false) {
+      return {
+        status: "red",
+        icon: "error",
+        message: "og:image URL is not reachable",
+        suggestion:
+          "The og:image URL returned an error. Social platforms will show a broken or missing preview — fix the URL or upload the image.",
+      };
+    }
+
+    if (
+      imageAnalysis.contentType &&
+      !imageAnalysis.contentType.toLowerCase().startsWith("image/")
+    ) {
+      return {
+        status: "red",
+        icon: "error",
+        message: `og:image does not serve an image content-type (${imageAnalysis.contentType})`,
+        suggestion:
+          "The og:image URL must return an actual image (image/png, image/jpeg, …), not a web page or redirect target.",
+      };
+    }
+
+    // Browser-only failure: warn, don't fail — hotlink/referer protection can
+    // block the browser while platform crawlers still fetch the image fine.
+    if (imageAnalysis.loadFailed && imageAnalysis.reachable !== true) {
+      return {
+        status: "yellow",
+        icon: "warning",
+        message: "og:image could not be verified (image failed to load in browser)",
+        suggestion:
+          "The image did not load here. If this is hotlink protection it may still work when shared — verify the URL opens directly in a new tab.",
+      };
+    }
+  }
+
   if (imageAnalysis && imageAnalysis.overallStatus) {
     if (imageAnalysis.overallStatus === "issues") {
       return {
@@ -206,7 +244,10 @@ function checkOGImage(
   return {
     status: "green",
     icon: "check",
-    message: "og:image present with absolute URL",
+    message:
+      imageAnalysis?.reachable === true
+        ? "og:image present and reachable"
+        : "og:image present with absolute URL",
   };
 }
 

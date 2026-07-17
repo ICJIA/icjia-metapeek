@@ -30,10 +30,18 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# SPA renderer function — needs extra memory and timeout for headless Chromium
+# SPA renderer function — headless Chromium via @sparticuz/chromium-min.
+#
+# History (prod 500s, 2026-05→07): with pnpm, @sparticuz/chromium and its
+# runtime deps live behind node_modules/.pnpm symlinks; marking it external
+# produced a function zip where the import (or its follow-redirects/tar-fs
+# deps) could not resolve — an init crash before any logging, surfacing as
+# Netlify "Internal Error". Shipping the 65MB brotli binaries also bloated
+# the zip to ~129MB. chromium-min is pure JS: esbuild bundles it (and its
+# deps) into the function, and the Chromium binary pack downloads to /tmp
+# on cold start (CHROMIUM_PACK_URL, pinned in fetch-spa.mjs). No externals,
+# no included_files — nothing left to break under pnpm.
 [functions.fetch-spa]
-  external_node_modules = ["@sparticuz/chromium"]
-  included_files = ["node_modules/@sparticuz/chromium/bin/**"]
 
 # ═══════════════════════════════════════════════════════════════════
 # Security headers
