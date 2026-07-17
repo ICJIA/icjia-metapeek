@@ -275,13 +275,21 @@ Limits are tiered by the **target** you ask MetaPeek to analyze, per client IP:
 
 ### Authentication
 
-Optional. If `METAPEEK_API_KEY` is set in environment variables, all requests require a Bearer token:
+The API is **keyless by design** — no account, no token, just rate limits. That openness is controlled by one optional environment variable, `METAPEEK_API_KEY`.
+
+The key does **not** come from Supabase, Netlify, or any other service — there is nowhere to "get" it. You generate it yourself and MetaPeek simply compares incoming `Authorization` headers against it. On macOS/Linux:
+
+```bash
+openssl rand -base64 32
+```
+
+When it is set (in Netlify env vars and/or local `.env`), MetaPeek switches into **private mode**: every API route requires the token —
 
 ```
 Authorization: Bearer YOUR_KEY
 ```
 
-When no key is set, the endpoint is open (rate-limited).
+— requests without it get `401` (including the public web UI's own fetches), and valid-key requests bypass rate limiting. Treat it as an emergency shutoff for public access, not a partner fast lane. Leave it unset for the normal public, keyless API.
 
 ### Examples (Development)
 
@@ -973,7 +981,7 @@ const metapeekConfig = {
 
 **Environment Variables** (`.env` - secrets only):
 
-- `METAPEEK_API_KEY` — Optional Bearer token for proxy auth (dormant at launch)
+- `METAPEEK_API_KEY` — Optional, self-generated Bearer token (`openssl rand -base64 32`); setting it switches the API to private mode (see Authentication). Dormant at launch — leave unset for the public keyless API
 - `NODE_ENV` — Set automatically by Netlify (development/production)
 
 ---

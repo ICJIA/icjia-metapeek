@@ -108,6 +108,16 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.15.1] - 2026-07-17
+
+### Documentation
+
+- README Authentication section and `.env.example` now explain that
+  `METAPEEK_API_KEY` is self-generated (`openssl rand -base64 32`) — it
+  does not come from any service — and that setting it switches the API
+  into private mode: keyless requests (including the web UI's own
+  fetches) get 401, while valid-key requests bypass rate limiting.
+
 ## [0.15.0] - 2026-07-17
 
 ### Fixed
