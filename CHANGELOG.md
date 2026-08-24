@@ -24,7 +24,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 - `pnpm audit --prod --audit-level high` → **exits clean**
 - 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
-- **282** unit, security, and integration tests pass (plus 8 Playwright e2e)
+- **292** unit, security, and integration tests pass (plus 8 Playwright e2e)
 - Production build succeeds with the Nitro netlify preset, prerender included
 - Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
@@ -47,6 +47,35 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
 
 ---
+
+## [0.18.2] - 2026-08-24
+
+Two rate-limit hardening fixes from a verification pass on the limiter (the
+core cost ceiling — the global daily budget — was confirmed sound; these
+close per-IP evasion gaps).
+
+### Security
+
+- **Per-IP limits now bucket IPv6 by /64.** `hashIp` hashed the full IPv6
+  address, so an attacker with a single /64 allocation (2^64 addresses) got a
+  fresh per-IP minute+day allowance per address — a complete bypass of the
+  per-IP tier, leaving only the global daily budget. Addresses in one /64 now
+  share a bucket. IPv4 is unchanged (still per-host; existing buckets and
+  logged hashes are byte-identical), and IPv4-mapped IPv6 (`::ffff:a.b.c.d`)
+  is keyed as its embedded IPv4 host, not collapsed.
+- **The limiter no longer trusts a client-supplied `X-Forwarded-For`.**
+  `getClientIp` fell back to the leftmost XFF (and `X-Real-IP`) when the
+  platform header was absent — both are whatever the client typed, so an
+  attacker could rotate the value to fragment their bucket or set a victim's
+  IP. On Netlify the platform always sets `x-nf-client-connection-ip` (written
+  from the real TCP peer, unforgeable), so the fallback never fired in
+  production — but it was a latent bypass one deploy-target change away from
+  active. Now only the platform header is trusted; with none present the IP is
+  unknown (→ the shared `anon` bucket), never an attacker-chosen key. A new
+  `TRUSTED_IP_HEADER` env var lets a non-Netlify host name its own trusted
+  header (e.g. `x-do-connecting-ip`) rather than re-enabling a client one, and
+  the standalone `fetch-spa` function now reads the IP the same way — the two
+  enforcement points had diverged.
 
 ## [0.18.1] - 2026-08-24
 

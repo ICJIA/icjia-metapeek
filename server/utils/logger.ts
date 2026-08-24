@@ -270,19 +270,27 @@ export function logWarning(data: {
 }
 
 /**
- * Extract client IP from request
- * Works with Netlify's proxy headers
+ * Extract the client IP the rate limiter keys on.
+ *
+ * ONLY a platform-set header is trusted. Netlify writes
+ * `x-nf-client-connection-ip` from the real TCP peer and strips any inbound
+ * copy, so it cannot be forged. The old fallback to the leftmost
+ * `X-Forwarded-For` trusted whatever the client typed — an attacker could
+ * rotate it to fragment their bucket or set a victim's IP — so it is gone.
+ * With no trusted header present the IP is simply unknown (→ the shared
+ * `anon` bucket): fail toward over-limiting, never toward an attacker-chosen
+ * key.
+ *
+ * A non-Netlify deploy sets `TRUSTED_IP_HEADER` to that platform's own
+ * trusted header (e.g. DigitalOcean's `x-do-connecting-ip`) — never a
+ * client-supplied one — so moving off Netlify can't silently re-open the
+ * spoof.
  */
 export function getClientIp(event: {
   headers: { get: (key: string) => string | null };
 }): string | undefined {
-  // Netlify sets these headers
-  return (
-    event.headers.get("x-nf-client-connection-ip") ||
-    event.headers.get("x-forwarded-for")?.split(",")[0] ||
-    event.headers.get("x-real-ip") ||
-    undefined
-  );
+  const header = process.env.TRUSTED_IP_HEADER || "x-nf-client-connection-ip";
+  return event.headers.get(header)?.trim() || undefined;
 }
 
 /**

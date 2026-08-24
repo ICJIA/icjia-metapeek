@@ -5,7 +5,7 @@
 **Live app:** [https://metapeek.icjia.app](https://metapeek.icjia.app)
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/e2999615-35c5-44fa-8486-fc7c555c9916/deploy-status)](https://app.netlify.com/projects/clinquant-lily-1beabe/deploys)
-[![Tests](https://img.shields.io/badge/tests-282%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
+[![Tests](https://img.shields.io/badge/tests-292%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4.5.2-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
 [![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.11.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
 [![Vue](https://img.shields.io/badge/Vue-3.5.41-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
@@ -722,7 +722,7 @@ icjia-metapeek/
 │   ├── security-testing-guide.md
 │   ├── logging-and-monitoring.md
 │   └── initial-package-json.md
-├── tests/                   # Test suites (282 passing)
+├── tests/                   # Test suites (292 passing)
 │   ├── unit/                # Vitest unit tests
 │   │   ├── useMetaParser.test.ts
 │   │   ├── useDiagnostics.test.ts
@@ -888,7 +888,7 @@ pnpm audit             # Production CVE audit (high+critical only)
 
  Running `pnpm test:all` produces verbose output showing each test:
 
-**Unit, Security & Integration Tests (282 tests)** — Vitest with verbose reporter
+**Unit, Security & Integration Tests (292 tests)** — Vitest with verbose reporter
 
 ```
 ✓ tagDefaults > generateDefaultTags > title generation > uses og:title when available
@@ -985,14 +985,14 @@ All three phases are complete. For ongoing development:
 
 ### Testing Requirements
 
-- **Unit, security & integration tests:** 282 tests covering the isomorphic core (`shared/`), composables, utilities, report builders, the server proxy, and rate limiting
+- **Unit, security & integration tests:** 292 tests covering the isomorphic core (`shared/`), composables, utilities, report builders, the server proxy, and rate limiting
 - **E2E accessibility:** 5 Playwright tests with axe-core (zero WCAG 2.1 AA violations)
 - **Lighthouse:** Accessibility score must be 100; Performance score must be ≥ 98 on mobile
 - **Manual testing:** Keyboard-only navigation must work
 - **Screen reader:** Test with NVDA or VoiceOver
 - **Linting:** Zero ESLint errors or warnings
 
-Run `pnpm test:all` to execute the complete test suite (282 unit/security/integration + 8 e2e = 290 tests).
+Run `pnpm test:all` to execute the complete test suite (292 unit/security/integration + 8 e2e = 300 tests).
 
 ### Accessibility Standards
 

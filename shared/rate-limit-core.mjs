@@ -68,14 +68,68 @@ function safeHost(targetUrl) {
 }
 
 /**
- * Hashes an IP so raw addresses never reach the counter store.
+ * The canonical /64 prefix of an IPv6 address (e.g. "2001:db8:0:1::/64"),
+ * or null if it does not parse. Expands one "::" and rewrites the first four
+ * hextets with leading zeros stripped, so the same /64 written any way — full,
+ * compressed, zero-padded — collapses to one string.
+ *
+ * @param {string} s - lowercased IPv6, no zone id or brackets
+ * @returns {string | null}
+ */
+function ipv6Prefix64(s) {
+  const halves = s.split("::");
+  if (halves.length > 2) return null; // more than one "::" is malformed
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  let groups;
+  if (halves.length === 2) {
+    const fill = 8 - head.length - tail.length;
+    if (fill < 1) return null;
+    groups = [...head, ...Array(fill).fill("0"), ...tail];
+  } else {
+    groups = head;
+  }
+  if (groups.length !== 8) return null;
+  const prefix = groups.slice(0, 4);
+  for (const g of prefix) {
+    if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+  }
+  return prefix.map((g) => parseInt(g, 16).toString(16)).join(":") + "::/64";
+}
+
+/**
+ * Collapses an IP to the identity the limiter buckets on. IPv4 is one host =
+ * itself (unchanged from before, so existing IPv4 buckets keep working). IPv6
+ * buckets by /64: a single allocation is 2^64 addresses, so without this an
+ * attacker source-rotating within one /64 would get a fresh per-IP allowance
+ * per address, defeating the per-IP tier. IPv4-mapped IPv6 (::ffff:a.b.c.d) is
+ * its embedded IPv4 host, not truncated. Unparseable input is used as-is.
+ *
+ * @param {string} ip
+ * @returns {string}
+ */
+function ipIdentity(ip) {
+  const s = ip
+    .trim()
+    .toLowerCase()
+    .replace(/%.*$/, "") // drop a zone id (fe80::1%eth0)
+    .replace(/^\[|\]$/g, ""); // drop brackets ([2001:db8::1])
+  if (!s.includes(":")) return s; // IPv4 or opaque — one host
+  const mappedV4 = s.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (mappedV4) return mappedV4[1]; // ::ffff:a.b.c.d — the IPv4 host
+  return ipv6Prefix64(s) ?? s; // real IPv6 → /64; else the raw string
+}
+
+/**
+ * Hashes an IP so raw addresses never reach the counter store. IPv6 is keyed
+ * by /64 (see ipIdentity) so a whole allocation shares one bucket.
  *
  * @param {string | undefined} ip
  * @returns {string} 16 hex chars, or "anon" when the IP is unknown
  */
 export function hashIp(ip) {
   if (!ip) return "anon";
-  return createHash("sha256").update(ip).digest("hex").slice(0, 16);
+  return createHash("sha256").update(ipIdentity(ip)).digest("hex").slice(0, 16);
 }
 
 /**

@@ -61,6 +61,20 @@ const CHROMIUM_PACK_URL =
 // Per-instance fallback shared across warm invocations
 const memoryStore = createMemoryStore();
 
+/**
+ * The client IP, from the platform-set header only — same trust rule as the
+ * Nitro getClientIp. Netlify's x-nf-client-connection-ip cannot be forged; a
+ * client-supplied X-Forwarded-For is never consulted. TRUSTED_IP_HEADER lets
+ * an off-Netlify host name its own trusted header instead.
+ *
+ * @param {Request} req
+ * @returns {string | undefined}
+ */
+function clientIp(req) {
+  const header = process.env.TRUSTED_IP_HEADER || "x-nf-client-connection-ip";
+  return req.headers.get(header)?.trim() || undefined;
+}
+
 // ═══════════════════════════════════════════════════════════
 // SSRF PROTECTION (self-contained — no Nitro imports)
 // Mirrors server/utils/proxy.ts logic for private IP blocking
@@ -252,7 +266,7 @@ async function reportFailure({ level, event, url, statusCode, error, stack, timi
     error,
     stack,
     timing_ms: timingMs,
-    ip_hash: hashIp(req.headers.get("x-nf-client-connection-ip") || undefined),
+    ip_hash: hashIp(clientIp(req)),
     user_agent: req.headers.get("user-agent") || undefined,
   };
   console.error(JSON.stringify({ at: new Date().toISOString(), ...entry }));
@@ -303,7 +317,7 @@ export default async (req) => {
   // Placed before SSRF validation so denied requests cost no DNS work.
   if (!authed) {
     const verdict = await checkRateLimit({
-      ip: req.headers.get("x-nf-client-connection-ip") || undefined,
+      ip: clientIp(req),
       targetUrl: typeof url === "string" ? url : undefined,
       config: RATE_LIMIT,
       scope: "spa",

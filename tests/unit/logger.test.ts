@@ -10,7 +10,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { logSuccess, logError, logBlocked, logWarning } from "../../server/utils/logger";
+import {
+  logSuccess,
+  logError,
+  logBlocked,
+  logWarning,
+  getClientIp,
+} from "../../server/utils/logger";
 import { hashIp } from "#shared/rate-limit-core.mjs";
 
 const RAW_IP_V4 = "203.0.113.9";
@@ -88,5 +94,37 @@ describe("logger IP handling", () => {
   it("an unknown IP logs as the limiter's 'anon' marker, matching request_log", () => {
     logError({ requestId: "r5", url: "https://example.com", error: "x" });
     expect(lastEntry().ipHash).toBe("anon");
+  });
+});
+
+describe("getClientIp — trusts only the platform header", () => {
+  const evt = (headers: Record<string, string>) => ({
+    headers: { get: (k: string) => headers[k.toLowerCase()] ?? null },
+  });
+
+  it("uses the Netlify platform connection IP", () => {
+    expect(getClientIp(evt({ "x-nf-client-connection-ip": "203.0.113.5" }))).toBe(
+      "203.0.113.5",
+    );
+  });
+
+  it("IGNORES a client-supplied X-Forwarded-For — the leftmost value is spoofable", () => {
+    // This is the fix: previously getClientIp fell back to the leftmost XFF,
+    // which is whatever the client typed, so an attacker could rotate it to
+    // fragment their bucket or set a victim's IP. With no platform header
+    // present, the identity is now unknown (→ the shared anon bucket), never
+    // an attacker-chosen value.
+    expect(getClientIp(evt({ "x-forwarded-for": "1.2.3.4, 203.0.113.5" }))).toBeUndefined();
+    expect(getClientIp(evt({ "x-real-ip": "1.2.3.4" }))).toBeUndefined();
+  });
+
+  it("honors TRUSTED_IP_HEADER so an off-Netlify host names its own trusted header — never a client one", () => {
+    vi.stubEnv("TRUSTED_IP_HEADER", "x-do-connecting-ip");
+    expect(
+      getClientIp(
+        evt({ "x-do-connecting-ip": "198.51.100.7", "x-forwarded-for": "1.2.3.4" }),
+      ),
+    ).toBe("198.51.100.7");
+    vi.unstubAllEnvs();
   });
 });

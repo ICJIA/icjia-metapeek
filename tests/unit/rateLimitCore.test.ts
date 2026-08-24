@@ -7,6 +7,7 @@
  * exercise the enforcement logic itself.
  */
 import { describe, it, expect, vi } from "vitest";
+import { createHash } from "node:crypto";
 import {
   resolveTier,
   hashIp,
@@ -28,6 +29,54 @@ const LIMITS = {
   },
   global: { perDay: 2000, spaPerDay: 100 },
 };
+
+describe("hashIp IPv6 /64 aggregation", () => {
+  it("buckets every address in one /64 together — a single allocation is 2^64 hosts", () => {
+    // Without this, an attacker source-rotating within one /64 gets a fresh
+    // per-IP allowance per address, defeating the per-IP tier entirely.
+    const a = hashIp("2001:db8:abcd:0012::1");
+    const b = hashIp("2001:db8:abcd:0012:ffff:ffff:ffff:ffff");
+    const c = hashIp("2001:db8:abcd:0012:dead:beef:cafe:0001");
+    expect(a).toBe(b);
+    expect(a).toBe(c);
+  });
+
+  it("keeps distinct /64s in distinct buckets", () => {
+    expect(hashIp("2001:db8:abcd:0012::1")).not.toBe(hashIp("2001:db8:abcd:0099::1"));
+  });
+
+  it("treats the same /64 written compressed or expanded as one bucket", () => {
+    const compressed = hashIp("2001:db8::1");
+    const expanded = hashIp("2001:0db8:0000:0000:1111:2222:3333:4444");
+    expect(compressed).toBe(expanded);
+  });
+
+  it("leaves IPv4 per-host — no aggregation, and the key is unchanged from before", () => {
+    expect(hashIp("203.0.113.9")).not.toBe(hashIp("203.0.113.10"));
+    // Backward compatibility: an IPv4 address still hashes its raw string, so
+    // existing IPv4 buckets and logged hashes are untouched.
+    expect(hashIp("203.0.113.9")).toBe(
+      createHash("sha256").update("203.0.113.9").digest("hex").slice(0, 16),
+    );
+  });
+
+  it("treats IPv4-mapped IPv6 as its embedded IPv4 host — not one giant bucket", () => {
+    // ::ffff:a.b.c.d is a single IPv4 host; it must NOT collapse to the
+    // all-zero /64 that would pool every mapped client together.
+    expect(hashIp("::ffff:203.0.113.9")).not.toBe(hashIp("::ffff:203.0.113.10"));
+    expect(hashIp("::ffff:203.0.113.9")).toBe(hashIp("203.0.113.9"));
+  });
+
+  it("still returns the anon marker for a missing IP", () => {
+    expect(hashIp(undefined)).toBe("anon");
+    expect(hashIp("")).toBe("anon");
+  });
+
+  it("never throws on a malformed address — hashes it as-is", () => {
+    expect(typeof hashIp("2001:db8:::zzzz")).toBe("string");
+    expect(hashIp("2001:db8:::zzzz")).toBe(hashIp("2001:db8:::zzzz"));
+  });
+});
 
 describe("resolveTier", () => {
   it("trusts *.illinois.gov subdomains", () => {
