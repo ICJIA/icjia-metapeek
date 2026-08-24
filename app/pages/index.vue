@@ -86,6 +86,11 @@ const metaScore = computed(() =>
   diagnostics.value ? computeScore(diagnostics.value) : null,
 );
 
+/** True once there is anything a reset would actually clear. */
+const hasEnteredAnything = computed(
+  () => !!(inputHtml.value.trim() || inputUrl.value.trim() || hasAnalyzed.value),
+);
+
 /**
  * Parses input HTML and generates diagnostics. Called on paste (debounced) or programmatically.
  */
@@ -219,6 +224,15 @@ const resetAll = () => {
   resetSeo();
   activeTab.value = "diagnostics";
   window.scrollTo({ top: 0, behavior: "smooth" });
+  // The page empties out and scrolls away under the click, so say plainly
+  // that the reset is what happened rather than leaving it to be inferred.
+  toast.add({
+    title: "Cleared",
+    description: "Everything is reset — enter a URL or paste HTML to start again.",
+    icon: "i-heroicons-arrow-path",
+    color: "success",
+    duration: 3000,
+  });
 };
 
 /**
@@ -682,6 +696,22 @@ const exportAsHtml = () => {
             </p>
           </div>
         </div>
+      </div>
+
+      <!--
+        Start over — top. Only once there is something to clear, so an
+        untouched page is not fronted by a button that does nothing.
+        Mirrored at the bottom of the results so it is reachable from
+        either end without scrolling the full page.
+      -->
+      <div
+        v-if="hasEnteredAnything"
+        class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 border-y border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60"
+      >
+        <ResetButton
+          hint="Clears the URL, the pasted HTML, and every result below."
+          @reset="resetAll"
+        />
       </div>
 
       <!-- Step 1: Input Section -->
@@ -1844,23 +1874,14 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
             </div>
           </details>
 
-          <!-- Reset button -->
+          <!-- Start over — bottom. Same control as the one above the steps. -->
           <div
-            class="mt-8 pt-6 -mx-6 px-6 pb-6 border-t-2 border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-950/40 rounded-b-lg flex flex-col items-center text-center"
+            class="mt-8 pt-6 -mx-6 px-6 pb-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60 rounded-b-lg"
           >
-            <UButton
-              size="xl"
-              variant="solid"
-              icon="i-heroicons-arrow-path"
-              aria-label="Reset and start over"
-              class="font-semibold shadow-lg bg-violet-600 hover:bg-violet-700 dark:bg-violet-700 dark:hover:bg-violet-800 text-white"
-              @click="resetAll"
-            >
-              Reset & Start Over
-            </UButton>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Clear everything and return to the top to start a new analysis
-            </p>
+            <ResetButton
+              hint="Clears everything and takes you back to the top for a new analysis."
+              @reset="resetAll"
+            />
           </div>
         </div>
       </div>

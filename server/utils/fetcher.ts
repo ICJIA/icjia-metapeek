@@ -76,7 +76,9 @@ function createPinnedLookup(addresses: ResolvedAddresses) {
  * so discardBody can be called with either a real BodyReadable or a test fake.
  */
 interface DiscardableBody {
-  dump?: (opts?: { limit?: number }) => Promise<unknown>;
+  // Mirrors undici's BodyReadable.dump exactly — `limit` is required inside
+  // the optional options object, so widening it here breaks assignability.
+  dump?: (opts?: { limit: number; signal?: AbortSignal }) => Promise<void>;
   destroy?: () => void;
 }
 

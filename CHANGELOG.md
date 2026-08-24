@@ -24,7 +24,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 - `pnpm audit --prod --audit-level high` → **exits clean**
 - 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
-- **214** unit, security, and integration tests pass
+- **221** unit, security, and integration tests pass
 - Production build succeeds with the Nitro netlify preset, prerender included
 - Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
@@ -45,6 +45,53 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 | ARIA landmarks | PASS | Live regions properly nested in landmarks |
 
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
+
+---
+
+## [0.17.0] - 2026-08-24
+
+### Added
+
+- **Large "Start over" button, above the steps and again below the results.**
+  Clearing everything previously meant finding a small ghost "Clear" link in the
+  Step 1 header, clicking the logo, or scrolling to the very bottom of an
+  ~11,800px page. The new control appears in both places, so it is reachable
+  without scrolling from either end, and both are the same `ResetButton`
+  component rather than two hand-styled buttons that can drift.
+
+  It is deliberately achromatic — high-contrast near-black in light mode, white
+  in dark. Every hue on the page is already assigned to a numbered step (blue,
+  purple, violet, cyan, teal, emerald, indigo, orange) or to a score badge
+  (red/amber/emerald), so a coloured reset would read as one more step. Neutral
+  is the one register left, it matches the app's Swiss `primary: 'neutral'`
+  token, and being the only achromatic block among pastel bands is what makes
+  it easy to find. Replaces the previous violet bottom button, which collided
+  with the violet step marker.
+
+  The top bar only renders once there is something to clear, so an untouched
+  page is not fronted by a button that does nothing. A "Cleared" toast confirms
+  the action, since the page empties and scrolls away under the click.
+
+### Fixed
+
+- **5 TypeScript errors that 0.16.1 shipped with.** The `DiscardableBody`
+  interface added in that release declared `dump(opts?: { limit?: number })`,
+  but undici's real signature requires `limit` inside the optional object, so
+  every call site failed to typecheck. It went unnoticed because that release
+  was verified with tests, lint, and a production build — and `nuxt build` does
+  not typecheck. Only `pnpm typecheck` catches it.
+
+### Added
+
+- **`.github/workflows/verify.yml`** — runs lint, typecheck, and the test suite
+  on every push and PR. Directly closes the gap above: nothing was running
+  `pnpm typecheck` automatically, so a green build read as a green change.
+
+### Tests
+
+- 221 passing (+7): `tests/unit/ResetButton.test.ts` covers the label, the
+  `reset` event, the accessible name, the optional hint, and the 44px touch
+  target. Accessibility suite still reports 0 WCAG 2.1 AA violations.
 
 ---
 
