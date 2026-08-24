@@ -13,7 +13,7 @@ scrutiny in every scan.
 
 | Date | Scan | Headline result |
 |------|------|-----------------|
-| [2026-08-24](#scan--2026-08-24--dependency-drift-sweep--proxy-hardening) | Dependency drift sweep + proxy hardening | 67 advisories (3 critical / 33 high) → **3 accepted, 0 actionable**; SPA renderer DNS-pinned; OG-image runtime removed; CI audit added |
+| [2026-08-24](#scan--2026-08-24--dependency-drift-sweep--proxy-hardening) | Dependency drift sweep + proxy hardening | 67 advisories (3 critical / 33 high) → **3 accepted, 0 actionable**; SPA renderer DNS-pinned; OG-image runtime removed; **found and fixed a 2-month-old production 502 on `/api/analyze`** (DR-08); CI audit added |
 | [2026-07-17](#scan--2026-07-17--rate-limiting-was-never-active-rt-10-realized) | RT-10 realized in production | Rate limiting was **never active**; app-level enforcement shipped in 0.15.0 |
 | [2026-05-26](#scan--2026-05-26--supply-chain-cves--header-baseline) | Supply-chain CVEs + header baseline | 3 CVEs pinned out, CSP/COOP/CORP/Permissions-Policy hardened, yarn → pnpm |
 | [2026-03-26](#scan--2026-03-26--full-red-team--blue-team-audit) | Full red team / blue team audit | 0 critical, 3 high, 5 medium, 4 low. Posture: **GOOD** |
@@ -29,9 +29,10 @@ provenance tracing (`pnpm why`), plus code review of `netlify/functions/fetch-sp
 and `server/utils/fetcher.ts`.
 **Result:** Production audit exits clean at `--audit-level high`. All findings
 fixed or explicitly accepted. 213 unit/security/integration tests and 5
-accessibility tests pass; production build verified; **and the running app was
-checked** — the last of those is what caught DR-07, which a passing build did
-not.
+accessibility tests pass; production build verified; **and the deployed site was
+checked** — the last of those is what caught DR-07 and DR-08, neither of which a
+passing build or a green test suite revealed. DR-08 had been breaking the
+primary API in production since July.
 
 ### DR-01 — Dependency audit had drifted to 3 critical / 33 high · **Fixed**
 
@@ -200,6 +201,57 @@ rendering stack that was being shipped for nothing.
 added a running-app check (HTTP 200 + expected meta tags + a real
 `/api/analyze` call) to the verification steps, which is the only reason the
 500 was caught before deploy.
+
+### DR-08 — `/api/analyze` crashed the function for any page with an og:image · **Fixed** (pre-existing since 0.15.0)
+
+**Finding.** Found by checking the deployed site after release, not by any test.
+In production, `GET /api/analyze` returned **502** for `github.com`,
+`icjia.illinois.gov`, and essentially every real site — while `example.com`
+succeeded. The discriminator was the og:image: `example.com` has none, so it
+skipped the `probeImageUrl` reachability probe added in 0.15.0.
+
+The Netlify function log gave the exact cause:
+
+```
+ERROR Uncaught Exception {"errorType":"AbortError","code":"UND_ERR_ABORTED"}
+  at BodyReadable._destroy (undici/lib/api/readable.js:88:13)
+  at BodyReadable.destroy
+  at attempt (fetcher.mjs)          ← body.destroy() inside probeImageUrl
+  at async probeImageUrl
+  at async Object.handler (routes/api/analyze.get.mjs)
+```
+
+**Why it mattered.** `probeImageUrl` is wrapped end-to-end in `try/catch` and
+looks safe. It is not: undici's `BodyReadable.destroy()` emits its AbortError
+**asynchronously and out-of-band**, so it arrives as an `uncaughtException`
+rather than a rejected promise. No `try/catch` can intercept it, and on Lambda
+an uncaught exception terminates the invocation — hence a raw
+`{"errorType":"Error","errorMessage":"An unknown error has occurred"}` envelope
+instead of any of the app's handled error responses.
+
+It never reproduced locally. The Nitro dev server keeps running through an
+uncaught exception; Lambda does not. A green build, a green test suite, and a
+working dev server were all consistent with a primary API endpoint being broken
+in production for two months.
+
+**Scope.** Pre-existing since 0.15.0 (2026-07-17), confirmed by replaying the
+request against that release's deploy permalink — it fails there identically, so
+this is not a regression from the 2026-08-24 work. However, DR-04 (added in this
+same scan) introduced two *more* `destroy()` calls, on the redirect and
+non-HTML paths. Those fire far more often than the oversized-response paths that
+already had them, so shipping DR-04 without this fix would have widened the
+crash from "pages with an og:image" to "that, plus every redirect."
+
+**Mitigation.** All five `body.destroy()` sites in `server/utils/fetcher.ts` now
+route through a `discardBody()` helper built on `dump()`, which drains and
+discards without the out-of-band error. `tests/unit/fetcher.test.ts` models the
+real failure — its fake body throws asynchronously from `destroy()` — and one
+test asserts flatly that no code path calls `destroy()`.
+
+**Lesson recorded.** Two process gaps, both now closed: verification must
+include the **deployed** app, not just a local one (a passing build proved
+nothing here); and an error that is unreachable by `try/catch` is invisible to
+tests that only assert on returned values.
 
 ### Operational tooling — `logs.sh`
 

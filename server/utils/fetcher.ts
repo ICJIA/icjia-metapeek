@@ -72,6 +72,38 @@ function createPinnedLookup(addresses: ResolvedAddresses) {
 }
 
 /**
+ * Minimal shape of the parts of an undici response body we touch. Kept local
+ * so discardBody can be called with either a real BodyReadable or a test fake.
+ */
+interface DiscardableBody {
+  dump?: (opts?: { limit?: number }) => Promise<unknown>;
+  destroy?: () => void;
+}
+
+/**
+ * Throws away a response body we have decided not to read.
+ *
+ * NEVER use `body.destroy()` for this. undici's BodyReadable.destroy() emits an
+ * AbortError (UND_ERR_ABORTED) asynchronously, *outside* the caller's control
+ * flow: it arrives as an `uncaughtException`, not a rejected promise, so no
+ * surrounding try/catch can intercept it. On Netlify's Lambda runtime that
+ * takes down the whole function — which is exactly what made /api/analyze
+ * return 502 for every page with an og:image (see SECURITY-AUDIT.md DR-08).
+ *
+ * `dump()` drains and discards the body without that side effect. The limit
+ * bounds how much it will read before giving up.
+ */
+async function discardBody(body: DiscardableBody): Promise<void> {
+  try {
+    if (typeof body?.dump === "function") {
+      await body.dump({ limit: 64 * 1024 });
+    }
+  } catch {
+    // A body that cannot be drained is already gone; nothing to clean up.
+  }
+}
+
+/**
  * Creates an undici Agent that pins DNS resolution to pre-validated addresses.
  * This ensures the HTTP request connects to the same IP that was validated,
  * preventing TOCTOU/DNS rebinding attacks.
@@ -104,7 +136,7 @@ export async function pinnedFetch(
     resolvedAddresses: ResolvedAddresses;
     /**
      * Called once the response headers are in, before the body is streamed.
-     * Return "discard" to destroy the body and get back data: "" (redirects —
+     * Return "discard" to drop the body and get back data: "" (redirects —
      * only the Location header matters). Throw to abort the fetch without
      * downloading the body (non-HTML content types). Omit to always read.
      */
@@ -140,8 +172,8 @@ export async function pinnedFetch(
     // Early reject if Content-Length exceeds limit (before reading body)
     const contentLength = headers["content-length"];
     if (contentLength && parseInt(String(contentLength)) > options.maxBytes) {
-      // Drain and discard the body to avoid resource leak
-      body.destroy();
+      // Drain and discard the body to avoid a resource leak
+      await discardBody(body);
       throw Object.assign(
         new Error(`Response exceeds ${options.maxBytes} bytes`),
         { code: "ERR_RESPONSE_TOO_LARGE" },
@@ -154,11 +186,11 @@ export async function pinnedFetch(
       try {
         verdict = options.onHeaders(statusCode, headerMap);
       } catch (err) {
-        body.destroy();
+        await discardBody(body);
         throw err;
       }
       if (verdict === "discard") {
-        body.destroy();
+        await discardBody(body);
         return { status: statusCode, headers: headerMap, data: "" };
       }
     }
@@ -171,7 +203,7 @@ export async function pinnedFetch(
     for await (const chunk of body) {
       receivedBytes += chunk.length;
       if (receivedBytes > options.maxBytes) {
-        body.destroy();
+        await discardBody(body);
         throw Object.assign(
           new Error("Response too large to process"),
           { code: "ERR_RESPONSE_TOO_LARGE" },
@@ -429,7 +461,7 @@ export async function probeImageUrl(imageUrl: string): Promise<ImageProbeResult>
           headersTimeout: IMAGE_PROBE_TIMEOUT_MS,
           bodyTimeout: IMAGE_PROBE_TIMEOUT_MS,
         });
-        body.destroy();
+        await discardBody(body);
         const rawType = headers["content-type"];
         const contentType = Array.isArray(rawType)
           ? rawType[0]

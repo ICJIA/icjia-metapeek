@@ -36,12 +36,29 @@ vi.mock("../../server/utils/proxy", async (importOriginal) => {
 
 const ADDRESSES = { ipv4: ["93.184.216.34"], ipv6: [] };
 
-/** A fake undici body that records whether it was streamed or destroyed. */
+/**
+ * A fake undici body that records how it was disposed of.
+ *
+ * `destroy()` here throws the way undici's real BodyReadable behaves: it emits
+ * an AbortError (UND_ERR_ABORTED) asynchronously, which surfaces as an
+ * *uncaught exception* rather than a rejected promise — no surrounding
+ * try/catch can intercept it, and on Lambda it kills the whole function.
+ * Production hit exactly this. Discarding must go through `dump()`.
+ */
 function makeBody(chunks: string[]) {
-  const state = { read: false, destroyed: false };
+  const state = { read: false, destroyed: false, dumped: false };
   const body = {
     destroy() {
       state.destroyed = true;
+      const err = new Error("Request aborted") as Error & { code?: string };
+      err.code = "UND_ERR_ABORTED";
+      // Mirrors undici: the error escapes the caller's control flow.
+      setImmediate(() => {
+        throw err;
+      });
+    },
+    async dump() {
+      state.dumped = true;
     },
     async *[Symbol.asyncIterator]() {
       for (const chunk of chunks) {
@@ -73,7 +90,8 @@ describe("fetchWithRedirects streaming discipline", () => {
       message: expect.stringContaining("application/pdf"),
     });
     expect(state.read).toBe(false);
-    expect(state.destroyed).toBe(true);
+    expect(state.dumped).toBe(true);
+    expect(state.destroyed).toBe(false);
   });
 
   it("discards redirect bodies and follows Location to the final HTML", async () => {
@@ -100,7 +118,8 @@ describe("fetchWithRedirects streaming discipline", () => {
     expect(result.finalUrl).toBe("https://example.com/next");
     expect(result.redirectChain).toHaveLength(1);
     expect(hop.state.read).toBe(false);
-    expect(hop.state.destroyed).toBe(true);
+    expect(hop.state.dumped).toBe(true);
+    expect(hop.state.destroyed).toBe(false);
     expect(final.state.read).toBe(true);
   });
 
@@ -119,6 +138,40 @@ describe("fetchWithRedirects streaming discipline", () => {
       fetchWithRedirects("https://example.com/huge", ADDRESSES),
     ).rejects.toMatchObject({ statusCode: 413 });
     expect(state.read).toBe(false);
-    expect(state.destroyed).toBe(true);
+    expect(state.dumped).toBe(true);
+    expect(state.destroyed).toBe(false);
+  });
+
+  it("never calls destroy() on a body — it crashes the process on Lambda", async () => {
+    // Regression guard for the production 502s: undici's destroy() emits an
+    // async AbortError that no try/catch can reach.
+    const oversized = makeBody(["x".repeat(32)]);
+    requestMock.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: { "content-type": "text/html", "content-length": "99999999" },
+      body: oversized.body,
+    });
+    await expect(
+      fetchWithRedirects("https://example.com/huge", ADDRESSES),
+    ).rejects.toMatchObject({ statusCode: 413 });
+
+    const redirect = makeBody(["<html>moved</html>"]);
+    const final = makeBody(["<html><head><title>t</title></head></html>"]);
+    requestMock
+      .mockResolvedValueOnce({
+        statusCode: 302,
+        headers: { location: "https://example.com/x", "content-type": "text/html" },
+        body: redirect.body,
+      })
+      .mockResolvedValueOnce({
+        statusCode: 200,
+        headers: { "content-type": "text/html" },
+        body: final.body,
+      });
+    await fetchWithRedirects("https://example.com/", ADDRESSES);
+
+    for (const s of [oversized.state, redirect.state, final.state]) {
+      expect(s.destroyed).toBe(false);
+    }
   });
 });

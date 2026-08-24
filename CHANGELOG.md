@@ -15,7 +15,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 | Date | Scan | Result |
 |------|------|--------|
-| **2026-08-24** | [Dependency drift sweep + proxy hardening](SECURITY-AUDIT.md#scan--2026-08-24--dependency-drift-sweep--proxy-hardening) | 67 advisories found (3 critical / 33 high) after 3 months of unwatched drift. All fixed via refreshed `pnpm.overrides`; 3 remain with no upstream patch and are documented as accepted (unreachable code paths). Also: SPA renderer DNS-pinned (DR-03), non-HTML responses rejected pre-download (DR-04), rate-limit table de-duplicated (DR-05), weekly CI audit added (DR-06). |
+| **2026-08-24** | [Dependency drift sweep + proxy hardening](SECURITY-AUDIT.md#scan--2026-08-24--dependency-drift-sweep--proxy-hardening) | 67 advisories found (3 critical / 33 high) after 3 months of unwatched drift. All fixed via refreshed `pnpm.overrides`; 3 remain with no upstream patch and are listed in `auditConfig.ignoreCves` (unreachable code paths). Also: SPA renderer DNS-pinned (DR-03), non-HTML responses rejected pre-download (DR-04), rate-limit table de-duplicated (DR-05), weekly CI audit added (DR-06), OG-image runtime removed (DR-07), and **a 2-month-old production 502 on `/api/analyze` found and fixed** (DR-08). |
 | **2026-07-17** | [RT-10 realized in production](SECURITY-AUDIT.md#scan--2026-07-17--rate-limiting-was-never-active-rt-10-realized) | Rate limiting was **never active** — Nitro deploys all routes as one function, so Netlify never read the per-route configs (nuxt/nuxt#33721). Practical severity HIGH, not the LOW originally filed. Application-level enforcement shipped in 0.15.0. |
 | **2026-05-26** | [Supply-chain CVEs + header baseline](SECURITY-AUDIT.md#scan--2026-05-26--supply-chain-cves--header-baseline) | 3 dependency CVEs pinned out (undici, h3, fast-xml-parser); CSP gained `base-uri`/`form-action`/`object-src`/`upgrade-insecure-requests`; COOP/CORP added; Permissions-Policy expanded to 20+ features; yarn → pnpm. All fixed in v0.14.0. |
 | **2026-03-26** | [Full red team / blue team audit](SECURITY-AUDIT.md#scan--2026-03-26--full-red-team--blue-team-audit) | 0 critical, 3 high, 5 medium, 4 low. **Posture: GOOD.** SSRF protections (DNS pinning, IPv4/IPv6 private-range blocking, per-hop redirect re-validation, timing-safe auth) rated EXCELLENT. High findings fixed in v0.9.0. |
@@ -24,7 +24,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 - `pnpm audit --prod --audit-level high` → **exits clean**
 - 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
-- **213** unit, security, and integration tests pass
+- **214** unit, security, and integration tests pass
 - Production build succeeds with the Nitro netlify preset, prerender included
 - Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
@@ -45,6 +45,36 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 | ARIA landmarks | PASS | Live regions properly nested in landmarks |
 
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
+
+---
+
+## [0.16.1] - 2026-08-24
+
+### Fixed
+
+- **`/api/analyze` returned 502 in production for any page with an og:image.**
+  Found by testing the deployed site after releasing 0.16.0. `probeImageUrl`
+  called `body.destroy()` on the undici response; undici emits that AbortError
+  (`UND_ERR_ABORTED`) asynchronously and out-of-band, so it lands as an
+  `uncaughtException` that no `try/catch` can reach and that terminates the
+  Lambda. `example.com` worked only because it has no og:image to probe.
+
+  Pre-existing since 0.15.0 (2026-07-17) — confirmed by replaying the request
+  against that release's deploy permalink, where it fails identically. It never
+  reproduced locally: the Nitro dev server survives an uncaught exception and
+  Lambda does not, so a green build, green tests, and a working dev server were
+  all consistent with the primary API being broken for two months.
+
+  All five `body.destroy()` sites in `server/utils/fetcher.ts` now go through a
+  `discardBody()` helper built on `dump()`. This also covers the two additional
+  `destroy()` calls that 0.16.0 introduced on the redirect and non-HTML paths,
+  which fire far more often and would have widened the crash.
+
+### Tests
+
+- 214 passing. `tests/unit/fetcher.test.ts` now models the real failure — the
+  fake body throws asynchronously from `destroy()` — and asserts that no code
+  path calls `destroy()` at all.
 
 ---
 
