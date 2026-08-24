@@ -1,5 +1,12 @@
 // metapeek.config.ts
 
+// #shared resolves everywhere this file is loaded: Nuxt/Nitro alias the
+// shared/ dir for app + server builds, vitest maps it in vitest.config.ts,
+// and the package.json "imports" field covers plain Node (jiti loading
+// nuxt.config at config time). A relative path would break page-chunk
+// resolution during prerender.
+import { RATE_LIMIT } from "#shared/rate-limit-config.mjs";
+
 // CORS origins: localhost only allowed in non-production
 const corsOrigins: string[] = ["https://metapeek.icjia.app"];
 if (process.env.NODE_ENV !== "production") {
@@ -31,27 +38,12 @@ const metapeekConfig = {
   },
 
   // ── Rate Limiting ─────────────────────────────────────────
-  // Enforced application-level (server/middleware/rate-limit.ts + Supabase;
-  // in-memory fallback without credentials). Netlify's per-route rateLimit
-  // config is never read for Nitro routes (nuxt/nuxt#33721), so these are
-  // the values that actually bind.
-  rateLimit: {
-    // Targets whose host equals a suffix or ends with ".{suffix}" get the
-    // lenient "trusted" tier. Everything else is "default" (strict).
-    trustedSuffixes: ["illinois.gov", "icjia.app"],
-    tiers: {
-      trusted: { perMinute: 30, perDay: 500 },
-      default: { perMinute: 5, perDay: 50 },
-    },
-    // Chromium renders are ~100× the cost of a plain fetch — much tighter.
-    spa: {
-      trusted: { perMinute: 3, perDay: 60 },
-      default: { perMinute: 1, perDay: 10 },
-    },
-    // Site-wide daily ceilings across ALL clients — the Netlify-credit
-    // backstop that per-IP limits can't provide. Hitting these returns 503.
-    global: { perDay: 2000, spaPerDay: 100 },
-  },
+  // The tier table lives in shared/rate-limit-config.mjs — the single source
+  // shared with the standalone fetch-spa function. Enforcement is
+  // application-level (server/middleware/rate-limit.ts + Supabase; in-memory
+  // fallback without credentials); Netlify's per-route rateLimit config is
+  // never read for Nitro routes (nuxt/nuxt#33721).
+  rateLimit: RATE_LIMIT,
 
   // ── CORS ──────────────────────────────────────────────────
   cors: {

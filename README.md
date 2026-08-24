@@ -5,11 +5,11 @@
 **Live app:** [https://metapeek.icjia.app](https://metapeek.icjia.app)
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/e2999615-35c5-44fa-8486-fc7c555c9916/deploy-status)](https://app.netlify.com/projects/clinquant-lily-1beabe/deploys)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
-[![Nuxt](https://img.shields.io/badge/Nuxt-4.3.0-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
-[![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.4.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
-[![Vue](https://img.shields.io/badge/Vue-3.5.27-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![Tests](https://img.shields.io/badge/tests-213%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
+[![Nuxt](https://img.shields.io/badge/Nuxt-4.5.2-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
+[![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.11.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
+[![Vue](https://img.shields.io/badge/Vue-3.5.41-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-green?style=flat)](https://www.w3.org/WAI/WCAG21/quickref/)
 
 ![MetaPeek by ICJIA — Open Graph & Social Sharing Meta Tag Analyzer](public/og-image-v2.png)
@@ -270,8 +270,9 @@ Limits are tiered by the **target** you ask MetaPeek to analyze, per client IP:
 - `429` responses include a `Retry-After` header (seconds) and a JSON body with `retryAfter`.
 - A site-wide daily budget also applies; when exhausted the API returns `503` until the next UTC day.
 - Successful `GET /api/analyze` responses are CDN-cached for 60 seconds per URL — repeat checks of the same URL don't count against your limits.
-- Requests are logged for abuse monitoring (target URL/host, tier, verdict, **hashed** IP, user agent) and purged after 90 days. Raw IPs are never stored.
+- Requests are logged for abuse monitoring (target URL/host, tier, verdict, **hashed** IP, user agent) and purged after 90 days. Raw IPs are never stored. Read the log with [`./logs.sh`](#operations--reading-the-request-log).
 - Limits are enforced in the application against a Supabase counter store. Netlify's per-route `rateLimit` function config is not used: Nitro deploys all routes as a single function, so Netlify never reads per-route configs ([nuxt/nuxt#33721](https://github.com/nuxt/nuxt/issues/33721)).
+- The tier table above lives in `shared/rate-limit-config.mjs` and is imported by both the Nitro middleware and the standalone `fetch-spa` function, so the two cannot drift apart.
 
 ### Authentication
 
@@ -469,33 +470,81 @@ The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable
 
 ---
 
+## Operations — Reading the Request Log
+
+Every rate-limit decision writes one row to the Supabase `request_log` table, through the same RPC round-trip that checks the limits — so **denied requests are logged too**, which is where the abuse signal lives. `./logs.sh` reads it.
+
+There is no server to SSH into: run it from any checkout. Credentials come from `.env` (`SUPABASE_URL` and `SUPABASE_SECRET_KEY`, the `sb_secret_…` one — the table is RLS-enabled with no policies, so the publishable/anon key returns nothing).
+
+```bash
+./logs.sh                    # the 200 most recent requests, newest first
+./logs.sh 50                 # the 50 most recent
+./logs.sh 2026-08-24         # every request on that day (America/Chicago)
+./logs.sh denied             # only what the limiter stopped, and which bucket stopped it
+./logs.sh hosts              # which sites people analyzed most, with denial counts
+./logs.sh stats              # totals by scope, tier, and allow/deny
+./logs.sh grep googlebot     # search target URLs and user agents
+./logs.sh tail               # poll for new requests live
+./logs.sh help               # full reference
+```
+
+Any table command takes `--table` (default at a terminal), `--csv` (default when piped), `--tsv`, `--md`, or `--copy` to put the result on the clipboard.
+
+```bash
+./logs.sh denied --md              # paste into an issue or Slack
+./logs.sh day today > today.csv    # piped, so CSV
+./logs.sh hosts yesterday --copy   # TSV on the clipboard, pastes into Sheets as columns
+```
+
+**What the columns mean:** `scope` is `api` for a plain fetch/analyze or `spa` for a headless-Chromium render; `tier` is `trusted` (`*.illinois.gov`, `*.icjia.app`) or `default`; `violated_key` names the bucket that rejected the request — `m:`/`d:` are per-IP minute/day, `g:`/`sg:` the site-wide daily budget. IPs are stored only as truncated SHA-256 hashes, and rows are purged after 90 days by `pg_cron`.
+
+A quiet stretch is not necessarily quiet traffic: when Supabase is unreachable the limiter falls back to a per-instance in-memory store (fail-open, logged to the function log) and those requests are **not** recorded.
+
+Here is what the first run over existing data turned up:
+
+```
+$ ./logs.sh stats
+60 request(s), 10 denied
+
+by scope:
+  api          59
+  spa          1
+
+denied by bucket:
+  per-IP minute          10
+```
+
+All ten denials were one IP hash walking `/api/graphql`, `/api/v1/env`, and `/api/account` — a credential/secret scanner, throttled as intended.
+
+---
+
 ## Tech Stack
 
 ### Core Framework
 
-- **[Nuxt 4](https://nuxt.com/)** (v4.4.6) — Full-stack Vue framework with SSR
+- **[Nuxt 4](https://nuxt.com/)** (v4.5.2) — Full-stack Vue framework with SSR
 - **[Vue 3](https://vuejs.org/)** (v3.5) — Progressive JavaScript framework
 - **[TypeScript](https://www.typescriptlang.org/)** (v5.9) — Type safety throughout
-- **[VueUse](https://vueuse.org/)** (v14.2) — Essential Vue Composition Utilities
+- **[VueUse](https://vueuse.org/)** (v14.4) — Essential Vue Composition Utilities
 - **[pnpm](https://pnpm.io/)** (v10.33) — Fast, disk-efficient package manager (migrated from yarn in v0.14.0)
 - **Node.js 22 LTS** — Runtime, pinned via `.nvmrc` and `netlify.toml`
 
 ### UI & Components
 
-- **[Nuxt UI](https://ui.nuxt.com/)** (v4.4.0) — Fully styled component library
+- **[Nuxt UI](https://ui.nuxt.com/)** (v4.11.0) — Fully styled component library
 - **[Tailwind CSS 4](https://tailwindcss.com/)** — Utility-first CSS (via Nuxt UI)
 - **[Heroicons](https://heroicons.com/)** — Beautiful hand-crafted SVG icons
 
 ### SEO & Meta
 
-- **[@nuxtjs/seo](https://nuxtseo.com/)** (v3.4.0) — Technical SEO: sitemap, robots.txt, schema.org, Open Graph meta tags
-- **Static OG image** — `public/og-image-v2.png` (1200×630) for social sharing previews
+- **[@nuxtjs/seo](https://nuxtseo.com/)** (v3.4.0) — Technical SEO: sitemap, robots.txt, schema.org
+- **Static OG image** — `public/og-image-v2.png` (1200×630), declared with `useSeoMeta` in `app/pages/index.vue`. The `nuxt-og-image` runtime module is deliberately disabled (`ogImage: { enabled: false }`): MetaPeek never renders an OG image per request, so its Satori/Resvg stack and `/__og-image__/` routes were pure attack surface (see SECURITY-AUDIT.md DR-07)
 
 ### Server & Deployment
 
 - **[Nitro](https://nitro.unjs.io/)** — Nuxt's server engine for API routes
-- **[Netlify](https://www.netlify.com/)** — Serverless functions + edge deployment, edge rate limiting
-- **[undici](https://undici.nodejs.org/)** (v7.24+) — Streaming HTTP client with DNS pinning for SSRF protection
+- **[Netlify](https://www.netlify.com/)** — Serverless functions + edge deployment (rate limiting is application-level; see Security)
+- **[undici](https://undici.nodejs.org/)** (v8.9+) — Streaming HTTP client with DNS pinning for SSRF protection
 
 ### Parsing & Data
 
@@ -525,10 +574,10 @@ MetaPeek runs a server-side proxy that fetches arbitrary user-supplied URLs, so 
 - **IPv4 + IPv6 private range blocking** — RFC 1918, loopback, link-local (cloud metadata), ULA, multicast all rejected
 - **Per-redirect re-validation** — every hop in the redirect chain is validated against the same blocklist
 - **Streaming size enforcement** — `pinnedFetch` aborts mid-download if `maxBytes` is exceeded (no memory exhaustion via chunked encoding)
-- **Content-Type validation** — only `text/html` / `application/xhtml+xml` responses are parsed
+- **Content-Type validation** — only `text/html` / `application/xhtml+xml` responses are parsed, and the check runs on the response headers, so a non-HTML body is never downloaded
 - **Body snippet sanitization** — `extractBodySnippet` returns text-only content (no CSRF tokens or API keys leak through)
 - **Script stripping** — fetched `<head>` has all scripts removed except `application/ld+json`
-- **Headless renderer isolation** — `fetch-spa` Chromium lambda uses `--host-resolver-rules` to block in-page DNS for everything except the target hostname
+- **Headless renderer isolation** — the `fetch-spa` Chromium lambda pins the target hostname to the IP validated in Node (`MAP <host> <ip>, MAP * ~NOTFOUND`), so in-page JS cannot reach internal addresses and the hostname itself cannot be re-resolved mid-flight (DNS rebinding)
 - **Timing-safe auth** — `crypto.timingSafeEqual` with length-normalized comparison
 - **Crypto-strong request IDs** — `crypto.randomUUID()` for log correlation
 - **Application-level rate limiting** — tiered per-IP limits plus a site-wide daily budget, enforced in a Nitro middleware (and inside `fetch-spa`) against Supabase with an in-memory fallback. Deliberately not Netlify edge config: per-route `rateLimit` exports are never read for Nitro routes (nuxt/nuxt#33721)
@@ -537,7 +586,20 @@ MetaPeek runs a server-side proxy that fetches arbitrary user-supplied URLs, so 
 - **Wide-permissions denial** — `Permissions-Policy` disables 20+ browser features (USB, serial, bluetooth, midi, geo, camera, mic, etc.)
 - **HSTS preload-eligible** — `max-age=63072000; includeSubDomains; preload`
 
-**Last audit:** 2026-05-26 (red team + blue team). See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for findings and [CHANGELOG.md](CHANGELOG.md) for the summary table. `pnpm audit --prod --audit-level high` returns clean — undici 7.24+, h3 1.15.6+, fast-xml-parser 5.5.6+ pinned via `pnpm.overrides`.
+**Audit history.** [SECURITY-AUDIT.md](SECURITY-AUDIT.md) is a running log of every scan, **newest first**, with the finding, why it mattered in this codebase, and the mitigation:
+
+| Date | Scan | Result |
+|------|------|--------|
+| 2026-08-24 | Dependency drift sweep + proxy hardening | 67 advisories (3 critical / 33 high) after three unwatched months → all fixed or documented as accepted; SPA renderer DNS-pinned |
+| 2026-07-17 | RT-10 realized in production | Rate limiting was never active; app-level enforcement shipped in 0.15.0 |
+| 2026-05-26 | Supply-chain CVEs + header baseline | 3 CVEs pinned out; CSP, COOP/CORP, Permissions-Policy hardened |
+| 2026-03-26 | Full red team / blue team audit | 0 critical, 3 high, 5 medium, 4 low — posture **GOOD** |
+
+`pnpm audit --prod --audit-level high` exits clean. Three advisories have no upstream patch at all (`extract-zip` CVE-2026-56876; `image-size` CVE-2025-71329 / CVE-2025-71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` with the reasoning recorded in the audit log — neither code path is reachable here (MetaPeek never extracts an attacker-supplied archive, and never decodes an image server-side). They are listed rather than silently tolerated so the exception is reviewable, and so a genuinely *new* finding still fails the build.
+
+Drift is now caught by [`.github/workflows/audit.yml`](.github/workflows/audit.yml), which re-runs the production audit weekly and on every dependency change — the control that was missing while the 2026-08-24 drift accumulated.
+
+**Reading the request log.** Every rate-limit decision writes a row to Supabase. [`./logs.sh`](#operations--reading-the-request-log) reads it — `./logs.sh denied` is the fastest way to see what the limiter stopped.
 
 **Reporting a vulnerability:** Email security details to the ICJIA contact in the repo — do not file public issues.
 
@@ -588,7 +650,9 @@ icjia-metapeek/
 │   ├── diagnostics.ts       # Diagnostic analysis (pure function)
 │   ├── score.ts             # Quality scoring (pure function)
 │   ├── ai-readiness.ts      # AI readiness checks (pure function)
-│   └── seo-insights.ts      # SEO insights advisory checks (pure function)
+│   ├── seo-insights.ts      # SEO insights advisory checks (pure function)
+│   ├── rate-limit-core.mjs  # Tiered limiter: buckets, stores, orchestration
+│   └── rate-limit-config.mjs # Tier table — single source for Nitro + fetch-spa
 ├── app/
 │   ├── assets/
 │   │   └── css/
@@ -621,15 +685,19 @@ icjia-metapeek/
 │   │   └── meta.ts          # Re-exports from shared/types
 │   └── utils/
 │       ├── constants.ts         # Re-exports from shared/constants
+│       ├── exporters.ts         # Pure report builders (JSON/MD/HTML/LLM)
 │       └── tagDefaults.ts
 ├── server/
 │   ├── api/
 │   │   ├── fetch.post.ts    # POST /api/fetch — raw HTML proxy ✅
 │   │   ├── analyze.get.ts   # GET /api/analyze — full analysis JSON ✅
 │   │   └── ai-check.get.ts  # GET /api/ai-check — robots.txt/llms.txt ✅
+│   ├── middleware/
+│   │   └── rate-limit.ts    # Tiered rate limiting for all /api/* routes ✅
 │   └── utils/
 │       ├── fetcher.ts       # Shared fetch-with-redirects logic ✅
 │       ├── proxy.ts         # URL validation & security utilities ✅
+│       ├── auth.ts          # Timing-safe bearer token comparison ✅
 │       └── logger.ts        # Structured logging for production ✅
 ├── documentation/           # Complete design & implementation docs
 │   ├── README.md
@@ -645,14 +713,24 @@ icjia-metapeek/
 │   ├── security-testing-guide.md
 │   ├── logging-and-monitoring.md
 │   └── initial-package-json.md
-├── tests/                   # Test suites
+├── tests/                   # Test suites (213 passing)
 │   ├── unit/                # Vitest unit tests
 │   │   ├── useMetaParser.test.ts
 │   │   ├── useDiagnostics.test.ts
-│   │   └── tagDefaults.test.ts
-│   ├── security/            # Security tests (Phase 2) ✅
-│   │   ├── ssrf.test.ts         # SSRF protection tests (30 tests)
-│   │   └── proxy.test.ts        # Proxy utility tests (16 tests)
+│   │   ├── tagDefaults.test.ts
+│   │   ├── score.test.ts
+│   │   ├── exporters.test.ts        # Report builders (17 tests)
+│   │   ├── fetcher.test.ts          # Streaming discipline (3 tests)
+│   │   ├── rateLimitCore.test.ts
+│   │   ├── rateLimitConfig.test.ts  # Shared tier table (2 tests)
+│   │   ├── rateLimitMiddleware.test.ts
+│   │   └── logsScript.test.ts       # logs.sh query building (10 tests)
+│   ├── security/            # Security tests ✅
+│   │   ├── ssrf.test.ts             # SSRF protection (30 tests)
+│   │   ├── proxy.test.ts            # Proxy utilities (16 tests)
+│   │   └── fetchSpaPinning.test.ts  # Chromium DNS pinning (8 tests)
+│   ├── integration/
+│   │   └── cli-parity.test.ts       # CLI ↔ web scorer parity
 │   └── e2e/                 # Playwright E2E tests
 │       └── accessibility.spec.ts
 ├── public/                  # Static assets
@@ -663,7 +741,13 @@ icjia-metapeek/
 ├── netlify/
 │   └── functions/
 │       └── fetch-spa.mjs    # Standalone SPA renderer (headless Chromium)
-├── SECURITY-AUDIT.md        # Red/blue team security audit report
+├── .github/
+│   └── workflows/
+│       └── audit.yml        # Weekly production dependency audit
+├── scripts/
+│   └── smoke-rate-limit.mjs # Post-deploy check: fails unless a real 429 is seen
+├── logs.sh                  # Read the Supabase request log (see Operations)
+├── SECURITY-AUDIT.md        # Reverse-chronological log of every security scan
 ├── CHANGELOG.md             # Version history and audit summaries
 ├── metapeek.config.ts       # Central configuration (single source of truth)
 ├── nuxt.config.ts           # Nuxt configuration
@@ -791,7 +875,7 @@ pnpm audit             # Production CVE audit (high+critical only)
 
  Running `pnpm test:all` produces verbose output showing each test:
 
-**Unit & Security Tests (139 tests)** — Vitest with verbose reporter
+**Unit, Security & Integration Tests (213 tests)** — Vitest with verbose reporter
 
 ```
 ✓ tagDefaults > generateDefaultTags > title generation > uses og:title when available
@@ -888,14 +972,14 @@ All three phases are complete. For ongoing development:
 
 ### Testing Requirements
 
-- **Unit tests:** 139 tests covering composables and utilities (> 85% coverage for security)
+- **Unit, security & integration tests:** 213 tests covering the isomorphic core (`shared/`), composables, utilities, report builders, the server proxy, and rate limiting
 - **E2E accessibility:** 5 Playwright tests with axe-core (zero WCAG 2.1 AA violations)
 - **Lighthouse:** Accessibility score must be 100; Performance score must be ≥ 98 on mobile
 - **Manual testing:** Keyboard-only navigation must work
 - **Screen reader:** Test with NVDA or VoiceOver
 - **Linting:** Zero ESLint errors or warnings
 
-Run `pnpm test:all` to execute the complete test suite (139 unit/security + 5 accessibility = 144 tests).
+Run `pnpm test:all` to execute the complete test suite (213 unit/security/integration + 5 accessibility = 218 tests).
 
 ### Accessibility Standards
 
@@ -929,7 +1013,7 @@ site: {
 }
 ```
 
-The OG image (`public/og-image-v2.png`) is referenced via `defineOgImage()` in `app/pages/index.vue`.
+The OG image (`public/og-image-v2.png`) is declared with `useSeoMeta()` in `app/pages/index.vue`. The `nuxt-og-image` submodule that `@nuxtjs/seo` bundles is disabled in `nuxt.config.ts` — MetaPeek serves a static image and never renders one at request time, so shipping a rendering runtime (and its CVEs) bought nothing. Disabling it also cut the production bundle from 20 MB to 12.5 MB.
 
 ### AI Readiness (MetaPeek's Own Page)
 

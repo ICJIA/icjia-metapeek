@@ -102,6 +102,16 @@ export async function pinnedFetch(
     timeout: number;
     maxBytes: number;
     resolvedAddresses: ResolvedAddresses;
+    /**
+     * Called once the response headers are in, before the body is streamed.
+     * Return "discard" to destroy the body and get back data: "" (redirects —
+     * only the Location header matters). Throw to abort the fetch without
+     * downloading the body (non-HTML content types). Omit to always read.
+     */
+    onHeaders?: (
+      status: number,
+      headers: PinnedResponse["headers"],
+    ) => "read" | "discard";
   },
 ): Promise<PinnedResponse> {
   const dispatcher = createPinnedDispatcher(options.resolvedAddresses);
@@ -118,6 +128,15 @@ export async function pinnedFetch(
       bodyTimeout: options.timeout,
     });
 
+    // Wrap headers in a Map-like interface for compatibility
+    const headerMap = {
+      get(name: string): string | null {
+        const val = headers[name.toLowerCase()];
+        if (val === undefined) return null;
+        return Array.isArray(val) ? val[0] ?? null : String(val);
+      },
+    };
+
     // Early reject if Content-Length exceeds limit (before reading body)
     const contentLength = headers["content-length"];
     if (contentLength && parseInt(String(contentLength)) > options.maxBytes) {
@@ -127,6 +146,21 @@ export async function pinnedFetch(
         new Error(`Response exceeds ${options.maxBytes} bytes`),
         { code: "ERR_RESPONSE_TOO_LARGE" },
       );
+    }
+
+    // Give the caller a chance to reject or skip the body from headers alone
+    if (options.onHeaders) {
+      let verdict: "read" | "discard";
+      try {
+        verdict = options.onHeaders(statusCode, headerMap);
+      } catch (err) {
+        body.destroy();
+        throw err;
+      }
+      if (verdict === "discard") {
+        body.destroy();
+        return { status: statusCode, headers: headerMap, data: "" };
+      }
     }
 
     // Stream the body with byte counting — abort if limit exceeded mid-download
@@ -147,15 +181,6 @@ export async function pinnedFetch(
     }
 
     const data = Buffer.concat(chunks).toString("utf-8");
-
-    // Wrap headers in a Map-like interface for compatibility
-    const headerMap = {
-      get(name: string): string | null {
-        const val = headers[name.toLowerCase()];
-        if (val === undefined) return null;
-        return Array.isArray(val) ? val[0] ?? null : String(val);
-      },
-    };
 
     return {
       status: statusCode,
@@ -183,6 +208,30 @@ export async function fetchWithRedirects(
   const startTime = Date.now();
   const redirectChain: Array<{ status: number; from: string; to: string }> = [];
 
+  // Decides from the headers alone whether the body is worth downloading:
+  // redirect bodies are discarded (only Location matters), and non-HTML
+  // content types are rejected before their potentially-5MB body streams in
+  // (RT-05, moved from post-download to pre-download).
+  const onHeaders = (
+    status: number,
+    headers: PinnedResponse["headers"],
+  ): "read" | "discard" => {
+    if (status >= 300 && status < 400) return "discard";
+    const contentType = headers.get("content-type") || "";
+    if (
+      contentType &&
+      !contentType.includes("text/html") &&
+      !contentType.includes("application/xhtml+xml")
+    ) {
+      const shortType = contentType.split(";")[0]?.trim() || "unknown";
+      throw createError({
+        statusCode: 422,
+        message: `URL returned "${shortType}" instead of HTML. MetaPeek can only analyze HTML pages.`,
+      });
+    }
+    return "read";
+  };
+
   try {
     // Initial fetch with security controls
     let currentUrl = url;
@@ -194,6 +243,7 @@ export async function fetchWithRedirects(
       timeout: metapeekConfig.proxy.fetchTimeoutMs,
       maxBytes: metapeekConfig.proxy.maxResponseBytes,
       resolvedAddresses: currentAddresses,
+      onHeaders,
     });
 
     let redirectCount = 0;
@@ -240,6 +290,7 @@ export async function fetchWithRedirects(
         timeout: metapeekConfig.proxy.fetchTimeoutMs,
         maxBytes: metapeekConfig.proxy.maxResponseBytes,
         resolvedAddresses: currentAddresses,
+        onHeaders,
       });
 
       redirectCount++;
@@ -250,21 +301,9 @@ export async function fetchWithRedirects(
     const contentType =
       currentResponse.headers.get("content-type") || "";
 
-    // RT-05: Validate Content-Type is HTML before processing.
-    // Reject binary files (PDF, ZIP, images) and non-HTML text formats
-    // to avoid wasting resources parsing non-HTML responses.
-    if (
-      contentType &&
-      !contentType.includes("text/html") &&
-      !contentType.includes("application/xhtml+xml")
-    ) {
-      const shortType = contentType.split(";")[0]?.trim() || "unknown";
-      throw createError({
-        statusCode: 422,
-        message: `URL returned "${shortType}" instead of HTML. MetaPeek can only analyze HTML pages.`,
-      });
-    }
-
+    // Content-Type enforcement happens in onHeaders, before any body
+    // downloads. A residual 3xx here (Location missing, or maxRedirects
+    // exhausted) has an empty, discarded body — html is "" by design.
     const html = currentResponse.data;
 
     return {

@@ -8,7 +8,9 @@
  *
  * Security:
  * - Full SSRF validation before Chromium launches (private IP, hostname, protocol)
- * - Chromium DNS restricted to target hostname only (--host-resolver-rules)
+ * - Chromium DNS pinned: the target hostname maps to the IP validated here
+ *   (closing the DNS-rebinding TOCTOU window) and every other hostname
+ *   resolves to NOTFOUND (--host-resolver-rules)
  * - No credentials, no cookies, no local storage
  * - Page timeout (10s) + function timeout (26s on Netlify Pro)
  * - Rate limited via Netlify edge (3/min)
@@ -24,6 +26,7 @@ import {
   checkRateLimit,
   createMemoryStore,
 } from "../../shared/rate-limit-core.mjs";
+import { RATE_LIMIT } from "../../shared/rate-limit-config.mjs";
 
 // ═══════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -45,20 +48,9 @@ const CHROMIUM_PACK_URL =
   process.env.CHROMIUM_PACK_URL ||
   "https://github.com/Sparticuz/chromium/releases/download/v143.0.4/chromium-v143.0.4-pack.x64.tar";
 
-// Tiered limits — keep in sync with metapeek.config.ts rateLimit block
-// (this function stays self-contained: no Nitro/TS imports).
-const RATE_LIMIT = {
-  trustedSuffixes: ["illinois.gov", "icjia.app"],
-  tiers: {
-    trusted: { perMinute: 30, perDay: 500 },
-    default: { perMinute: 5, perDay: 50 },
-  },
-  spa: {
-    trusted: { perMinute: 3, perDay: 60 },
-    default: { perMinute: 1, perDay: 10 },
-  },
-  global: { perDay: 2000, spaPerDay: 100 },
-};
+// Tiered limits come from shared/rate-limit-config.mjs — the same module
+// metapeek.config.ts uses, so the two contexts cannot drift. esbuild bundles
+// it into this function exactly like rate-limit-core.mjs (plain JS, no deps).
 
 // Per-instance fallback shared across warm invocations
 const memoryStore = createMemoryStore();
@@ -101,7 +93,7 @@ function isPrivateIpv6(ip) {
   return false;
 }
 
-async function validateUrlForSpa(input) {
+export async function validateUrlForSpa(input) {
   if (typeof input !== "string" || input.trim().length === 0) {
     return { ok: false, reason: "URL is required" };
   }
@@ -137,8 +129,9 @@ async function validateUrlForSpa(input) {
     return { ok: false, reason: "IP literal addresses are not allowed" };
   }
 
-  // DNS resolution — block private IPs
+  // DNS resolution — block private IPs, keep the public ones for pinning
   let hasValid = false;
+  const resolved = { ipv4: [], ipv6: [] };
   try {
     const addrs4 = await dns.resolve4(parsed.hostname);
     hasValid = true;
@@ -146,6 +139,7 @@ async function validateUrlForSpa(input) {
       if (isPrivateIp(addr)) {
         return { ok: false, reason: "URL resolves to a private address" };
       }
+      resolved.ipv4.push(addr);
     }
   } catch { /* may be IPv6-only */ }
 
@@ -156,6 +150,7 @@ async function validateUrlForSpa(input) {
       if (isPrivateIpv6(addr)) {
         return { ok: false, reason: "URL resolves to a private address" };
       }
+      resolved.ipv6.push(addr);
     }
   } catch { /* may be IPv4-only */ }
 
@@ -163,7 +158,38 @@ async function validateUrlForSpa(input) {
     return { ok: false, reason: `Could not resolve hostname '${parsed.hostname}'` };
   }
 
-  return { ok: true, hostname: parsed.hostname };
+  return { ok: true, hostname: parsed.hostname, resolved };
+}
+
+/**
+ * Picks the address Chromium should be pinned to: the first public IPv4,
+ * else the first IPv6 in the [bracketed] form host-resolver-rules expects.
+ *
+ * @param {{ ipv4: string[], ipv6: string[] } | undefined} resolved
+ * @returns {string | null}
+ */
+export function pickPinnedAddress(resolved) {
+  if (!resolved) return null;
+  if (resolved.ipv4.length > 0) return resolved.ipv4[0];
+  if (resolved.ipv6.length > 0) return `[${resolved.ipv6[0]}]`;
+  return null;
+}
+
+/**
+ * Builds the --host-resolver-rules value that pins the target hostname to the
+ * IP validated above and maps every other hostname to NOTFOUND. Chromium
+ * applies MAP rules first-match-wins in listed order, so the pinned rule must
+ * come before the wildcard. Pinning (rather than EXCLUDE-ing the target from
+ * the wildcard) closes the DNS-rebinding TOCTOU window: without it, Chromium
+ * would re-resolve the hostname at navigation time and a short-TTL attacker
+ * could flip it to a private IP after validation.
+ *
+ * @param {string} hostname - Validated target hostname
+ * @param {string} pinnedAddress - IP from pickPinnedAddress
+ * @returns {string}
+ */
+export function buildHostResolverRules(hostname, pinnedAddress) {
+  return `MAP ${hostname} ${pinnedAddress}, MAP * ~NOTFOUND`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -272,6 +298,16 @@ export default async (req) => {
     });
   }
 
+  // Pin Chromium to the address validated above. No public address at all
+  // cannot normally happen after a successful validation, but stay defensive.
+  const pinnedAddress = pickPinnedAddress(validation.resolved);
+  if (!pinnedAddress) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Could not resolve a public address" }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   // ── Headless Chromium Rendering ────────────────────────
   let browser = null;
   try {
@@ -280,9 +316,11 @@ export default async (req) => {
     browser = await puppeteer.launch({
       args: [
         ...chromium.args,
-        // RT: Block Chromium-level DNS for all hosts EXCEPT the target.
-        // Prevents in-page JS from fetching internal IPs, cloud metadata, etc.
-        `--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE ${validation.hostname}`,
+        // RT: Pin the target hostname to its validated IP and block
+        // Chromium-level DNS for every other host. Prevents in-page JS from
+        // fetching internal IPs / cloud metadata, and prevents DNS rebinding
+        // on the target hostname itself (see buildHostResolverRules).
+        `--host-resolver-rules=${buildHostResolverRules(validation.hostname, pinnedAddress)}`,
         "--disable-background-networking",
         "--disable-default-apps",
         "--disable-extensions",

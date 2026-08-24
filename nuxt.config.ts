@@ -54,7 +54,16 @@ export default defineNuxtConfig({
     fallbackToApi: "server-only",
   },
 
-  // Nuxt SEO / Site Config — shared across sitemap, robots, og-image, schema.org
+  // MetaPeek serves a static OG image (public/og-image-v2.png) and never
+  // renders one per request, so @nuxtjs/seo's og-image module is disabled.
+  // It shipped SSRF, reflected-XSS, and DoS advisories (RT-21) for a feature
+  // this app does not use, and its v6 runtime is what broke `defineOgImage`.
+  // The og:image tags are declared directly in app/pages/index.vue.
+  ogImage: {
+    enabled: false,
+  },
+
+  // Nuxt SEO / Site Config — shared across sitemap, robots, schema.org
   site: {
     url: "https://metapeek.icjia.app",
     name: "MetaPeek",

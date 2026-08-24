@@ -22,6 +22,7 @@ dist
 # Test artifacts
 playwright-report/
 test-results/
+coverage/
 
 # Local Netlify folder
 .netlify

@@ -1,9 +1,12 @@
 {
   "name": "icjia-metapeek",
-  "version": "0.15.1",
+  "version": "0.16.0",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "type": "module",
+  "imports": {
+    "#shared/*": "./shared/*"
+  },
   "scripts": {
     "dev": "nuxt dev",
     "start-dev-server": "./scripts/start-dev-server.sh",
@@ -24,40 +27,61 @@
     "audit": "pnpm audit --prod --audit-level high"
   },
   "dependencies": {
-    "@nuxt/ui": "^4.4.0",
+    "@nuxt/ui": "^4.11.0",
     "@nuxtjs/seo": "^3.4.0",
     "@sparticuz/chromium-min": "^143.0.4",
-    "@vueuse/core": "^14.2.0",
-    "@vueuse/nuxt": "^14.2.0",
+    "@vueuse/core": "^14.4.0",
+    "@vueuse/nuxt": "^14.4.0",
     "cheerio": "^1.2.0",
-    "nuxt": "^4.4.6",
-    "puppeteer-core": "^24.40.0",
-    "vue": "^3.5.27"
+    "nuxt": "^4.5.2",
+    "puppeteer-core": "^24.43.1",
+    "undici": "^8.9.0",
+    "vue": "^3.5.41"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.10.2",
+    "@axe-core/playwright": "^4.13.0",
     "@iconify-json/heroicons": "^1.2.3",
-    "@iconify-json/simple-icons": "^1.2.69",
-    "@nuxt/eslint": "^1.13.0",
-    "@nuxt/test-utils": "^3.14.3",
-    "@playwright/test": "^1.49.0",
-    "@vitest/coverage-v8": "^3.2.0",
-    "@vue/test-utils": "^2.4.6",
-    "eslint": "^9.39.2",
-    "happy-dom": "^20.0.2",
-    "typescript": "^5.7.2",
-    "vitest": "^3.2.0",
-    "vue-tsc": "^3.2.4"
+    "@iconify-json/simple-icons": "^1.2.93",
+    "@nuxt/eslint": "^1.17.0",
+    "@nuxt/test-utils": "^3.23.0",
+    "@playwright/test": "^1.62.1",
+    "@vitest/coverage-v8": "^3.2.7",
+    "@vue/test-utils": "^2.4.11",
+    "eslint": "^9.39.5",
+    "happy-dom": "^20.11.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7",
+    "vue-tsc": "^3.3.11"
   },
   "pnpm": {
     "overrides": {
-      "undici@<7.24.0": ">=7.24.0",
+      "undici@<8.9.0": ">=8.9.0",
       "h3@<1.15.6": ">=1.15.6",
       "fast-xml-parser@<5.5.6": ">=5.5.6",
-      "fast-xml-builder@<1.1.7": ">=1.1.7"
+      "fast-xml-builder@<1.1.7": ">=1.1.7",
+      "@nuxt/devtools@3": ">=3.3.1",
+      "shell-quote@<1.9.0": ">=1.9.0",
+      "tar@7": ">=7.5.21",
+      "brace-expansion@1": ">=1.1.18",
+      "brace-expansion@2": ">=2.1.4",
+      "ip-address@10": ">=10.3.1",
+      "js-yaml@4": ">=4.3.1",
+      "linkify-it@5": ">=5.0.2",
+      "nanoid@3": ">=3.3.18",
+      "postcss@8": ">=8.5.18",
+      "svgo@4": ">=4.0.2",
+      "vite@7": ">=7.3.5",
+      "valibot@<1.4.2": ">=1.4.2",
+      "esbuild@>=0.27.3 <0.28.1": ">=0.28.1",
+      "nuxt-og-image@<6.2.5": ">=6.2.5"
     },
     "auditConfig": {
-      "ignoreCves": []
+      "//": "Accepted advisories — no upstream patch exists (upstream lists patched: <0.0.0). Each is unreachable in MetaPeek; see SECURITY-AUDIT.md DR-02. Re-review whenever a fix ships.",
+      "ignoreCves": [
+        "CVE-2026-56876",
+        "CVE-2025-71329",
+        "CVE-2025-71330"
+      ]
     },
     "onlyBuiltDependencies": [
       "@parcel/watcher",

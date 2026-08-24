@@ -1,0 +1,59 @@
+# Dependency audit — catches CVE drift between manual security reviews.
+#
+# The 2026-05-26 audit left `pnpm audit --prod --audit-level high` clean; by
+# 2026-08-24 it had drifted to 3 critical / 33 high without anyone noticing,
+# because nothing re-ran it. This does, weekly and on every dependency change.
+#
+# Failing the build on `--prod --audit-level high` is deliberate: those are the
+# packages that ship to Netlify and handle attacker-influenced input. Dev-only
+# and moderate findings are reported for visibility but do not fail.
+name: audit
+
+on:
+  schedule:
+    # Mondays, 13:00 UTC (08:00 America/Chicago)
+    - cron: "0 13 * * 1"
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/audit.yml"
+  pull_request:
+    paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # --ignore-scripts: an audit never needs Chromium or native rebuilds.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Audit production dependencies (fails on high/critical)
+        run: pnpm audit --prod --audit-level high
+
+      - name: Report remaining findings (informational)
+        if: always()
+        run: |
+          echo "### Full audit (informational)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          pnpm audit --prod --audit-level moderate 2>&1 | tail -40 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -9,84 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Security Audit Summary
 
-The most recent red team / blue team audit was performed on **2026-05-26**. The previous audit ran on 2026-03-26 and most of its priority-1 findings were resolved in v0.9.0; this round focuses on supply-chain CVEs, security-header baselines, and tooling. See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the full report.
+Security scans, **newest first**. Each entry links to the full write-up —
+finding, why it mattered in this codebase, and what was done about it — in
+[SECURITY-AUDIT.md](SECURITY-AUDIT.md).
 
-### 2026-05-26 Audit — What changed
+| Date | Scan | Result |
+|------|------|--------|
+| **2026-08-24** | [Dependency drift sweep + proxy hardening](SECURITY-AUDIT.md#scan--2026-08-24--dependency-drift-sweep--proxy-hardening) | 67 advisories found (3 critical / 33 high) after 3 months of unwatched drift. All fixed via refreshed `pnpm.overrides`; 3 remain with no upstream patch and are documented as accepted (unreachable code paths). Also: SPA renderer DNS-pinned (DR-03), non-HTML responses rejected pre-download (DR-04), rate-limit table de-duplicated (DR-05), weekly CI audit added (DR-06). |
+| **2026-07-17** | [RT-10 realized in production](SECURITY-AUDIT.md#scan--2026-07-17--rate-limiting-was-never-active-rt-10-realized) | Rate limiting was **never active** — Nitro deploys all routes as one function, so Netlify never read the per-route configs (nuxt/nuxt#33721). Practical severity HIGH, not the LOW originally filed. Application-level enforcement shipped in 0.15.0. |
+| **2026-05-26** | [Supply-chain CVEs + header baseline](SECURITY-AUDIT.md#scan--2026-05-26--supply-chain-cves--header-baseline) | 3 dependency CVEs pinned out (undici, h3, fast-xml-parser); CSP gained `base-uri`/`form-action`/`object-src`/`upgrade-insecure-requests`; COOP/CORP added; Permissions-Policy expanded to 20+ features; yarn → pnpm. All fixed in v0.14.0. |
+| **2026-03-26** | [Full red team / blue team audit](SECURITY-AUDIT.md#scan--2026-03-26--full-red-team--blue-team-audit) | 0 critical, 3 high, 5 medium, 4 low. **Posture: GOOD.** SSRF protections (DNS pinning, IPv4/IPv6 private-range blocking, per-hop redirect re-validation, timing-safe auth) rated EXCELLENT. High findings fixed in v0.9.0. |
 
-| ID | Severity | Finding | Status |
-|----|----------|---------|--------|
-| RT-13 | High | **undici 7.21.0 has 3 WebSocket DoS CVEs** (CVE-2026-1528 / 1526 / 2229) — undici is our direct HTTP client | **Fixed in v0.14.0** — `pnpm.overrides` pin undici to `>=7.24.0`. We don't use WebSockets, but hygiene matters |
-| RT-14 | High | **h3 1.15.5 SSE injection** (CVE-2026-33128) — newlines in SSE field values escape the wire format | **Fixed in v0.14.0** — override pins h3 to `>=1.15.6`. We don't use h3 SSE either |
-| RT-15 | Critical | **fast-xml-parser entity-expansion bypass** — incomplete fix for CVE-2026-26278, transitive via `@nuxtjs/seo > sitemap` | **Fixed in v0.14.0** — override pins to `>=5.5.6`; `fast-xml-builder` pinned to `>=1.1.7` |
-| RT-16 | Medium | **CSP missing baseline directives** — no `base-uri`, `form-action`, `object-src`, `upgrade-insecure-requests` | **Fixed in v0.14.0** — added all four to `netlify.toml`. Blocks `<base>` injection, off-origin form posts, legacy plugins, and mixed-content downgrades |
-| RT-17 | Medium | **Missing cross-origin isolation headers** — no COOP / CORP | **Fixed in v0.14.0** — `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site` |
-| RT-18 | Low | **Permissions-Policy disabled only 4 features** — camera, microphone, geolocation, payment | **Fixed in v0.14.0** — expanded to 20+ features (USB, serial, bluetooth, midi, accelerometer, gyroscope, magnetometer, autoplay, display-capture, encrypted-media, picture-in-picture, screen-wake-lock, sync-xhr, web-share, xr-spatial-tracking, publickey-credentials-get) |
-| RT-19 | Low | **Missing X-Permitted-Cross-Domain-Policies / X-DNS-Prefetch-Control** | **Fixed in v0.14.0** — `none` and `off` added to defend against legacy Flash/Acrobat policies and reduce passive network leak |
-| RT-20 | Info | **Build still uses yarn 1 (classic)** — slower, no content-addressable store, weak workspace support | **Fixed in v0.14.0** — migrated to pnpm 10.33.0; lockfile regenerated, Netlify build command updated, `[dev]` block added for prod-parity local dev |
-| RT-21 | Moderate | **nuxt-og-image transitive vulns** (CVE GHSA-pqhr / mg36 / c7xp) — SSRF, reflected XSS, DoS in dynamic OG image rendering | **Accepted** — we don't generate OG images at request time; the app uses static `public/og-image-v2.png`. Override attempted but breaks Nuxt's prerender (unhead 2.1.15 ABI conflict). Will revisit when @nuxtjs/seo 5.x stabilizes with Nuxt 4.4 |
+### Current status
 
-### Previously-resolved findings (from 2026-03-26 audit) — confirmed in v0.14.0
-
-| ID | Severity | Resolution |
-|----|----------|------------|
-| RT-01 | High | Streaming size check via `pinnedFetch` (for-await loop, byte counter, mid-download abort) — verified in `server/utils/fetcher.ts` |
-| RT-03 | High | `extractBodySnippet` strips scripts, styles, and HTML tags — text-only output |
-| RT-05 | Medium | Content-Type validation rejects non-HTML with 422 |
-| RT-06 | Medium | `crypto.randomUUID()` for request IDs |
-| RT-09 | Low | Redundant `Cookie: ""` header removed |
-| BD-08 gap | — | Sensitive-param redaction in logs is now case-insensitive |
-
-### Still accepted (from 2026-03-26 audit)
-
-- **RT-02** (CSP `'unsafe-inline'` for scripts) — removing requires per-request nonce integration with Nuxt 4. Vue's template interpolation auto-escapes, so no current XSS vector exists. Deferred to a dedicated CSP hardening sprint.
-- **RT-04** (CORS `allowedOrigins[0]` only) — production single-origin works correctly; localhost dev uses same-origin so unaffected.
-- **RT-07** (Network errors discriminate ENOTFOUND / ECONNREFUSED / ETIMEDOUT) — kept because the messages help legitimate users debug; edge rate limiting mitigates scanning abuse.
-- **RT-08** (`img-src *` in CSP) — required by design; users analyze OG images on arbitrary domains.
-- **RT-10** (Rate limiting is Netlify-edge-only) — no immediate plan to deploy elsewhere; app-level fallback in `metapeek.config.ts` is wired up but not enabled.
-- **RT-11** (`extractHead` regex lazy match) — only affects the lightweight `/api/fetch` route; `/api/analyze` uses cheerio.
-- **RT-12** (No server-side CORS enforcement) — API is intentionally public; `METAPEEK_API_KEY` opts in to bearer-token auth.
-
-### Audit status — TL;DR
-
-- `pnpm audit --prod --audit-level high` → **0 findings**
-- `pnpm audit --prod --audit-level moderate` → 3 (all `nuxt-og-image`, not exploitable in our usage)
-- `pnpm audit --audit-level high` → 1 (`js-cookie` via `@vue/test-utils`, **dev-only**)
-- 139 unit + security tests pass
-- Local production build succeeds with Nitro netlify preset
-
-A full red team / blue team security audit was performed on 2026-03-26. See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the complete report with proof-of-concept code and remediation guidance.
-
-**Overall Posture: GOOD** — 0 critical vulnerabilities. The application implements substantially above-average security controls for a URL-fetching proxy, including DNS pinning, IPv4/IPv6 private IP blocking, redirect re-validation, and timing-safe authentication — all rated EXCELLENT by the blue team assessment.
-
-### Findings and Status
-
-| ID | Severity | Finding | Risk | Status |
-|----|----------|---------|------|--------|
-| RT-01 | High | **Chunked encoding bypasses Content-Length size check** — server downloads full response into memory before rejecting oversized payloads | Attacker could exhaust server memory with concurrent large requests | **Fixed in v0.9.0** — replaced `ofetch` with streaming `undici.request()` that counts bytes during download and aborts immediately when limit exceeded |
-| RT-02 | High | **CSP allows `unsafe-inline` for scripts** — weakens XSS protection | If any future XSS vector appears, CSP will not block it | Accepted — required by Nuxt/Vue inline scripts; no current XSS vectors exist (Vue auto-escapes all template interpolation) |
-| RT-03 | High | **Body snippet returns unsanitized HTML** — first 1024 chars of `<body>` forwarded raw, could contain CSRF tokens or API keys from target sites | Information disclosure of target site data to MetaPeek users | **Fixed in v0.9.0** — `extractBodySnippet` now strips all HTML tags, scripts, and styles, returning text-only content |
-| RT-04 | Medium | **CORS only sets first origin from array** — `localhost` origin is added but never used in the header | Dev-only — production works correctly with single origin | Accepted — no production impact; dev uses same-origin requests |
-| RT-05 | Medium | **No Content-Type validation on responses** — binary files (PDF, ZIP) downloaded and parsed as HTML | Wastes server resources on non-HTML responses | **Fixed in v0.9.0** — rejects responses that are not `text/html` or `application/xhtml+xml` with a 422 error |
-| RT-06 | Medium | **Request IDs use `Math.random()`** — predictable, not cryptographically secure | Log correlation IDs could be forged if attacker has log access | **Fixed in v0.9.0** — replaced with `crypto.randomUUID()` |
-| RT-07 | Medium | **Error messages reveal network topology** — distinct messages for DNS failure vs connection refused vs timeout | Attacker could use MetaPeek as a network reconnaissance oracle | Accepted — specific errors help legitimate users debug; rate limiting mitigates scanning |
-| RT-08 | Medium | **`img-src *` in CSP** — allows loading images from any origin | By design — MetaPeek previews OG images from arbitrary domains; user's browser connects directly to image hosts | Accepted — inherent to the application's purpose |
-| RT-09 | Low | **`Cookie: ""` header is a no-op** — `credentials: "omit"` already prevents cookies | No security impact; redundant header | **Fixed in v0.9.0** — removed redundant header |
-| RT-10 | Low | **Rate limiting is Netlify-edge-only** — no fallback if deployed elsewhere | No impact on current Netlify deployment | Accepted — add app-level fallback if deployment target changes |
-| RT-11 | Low | **`extractHead` regex lazy match** — premature `</head>` in comments truncates parsing | Edge case affecting parsing accuracy, not security; cheerio parser handles this correctly in `/api/analyze` | Accepted — low impact, only affects `/api/fetch` route |
-| RT-12 | Low | **No server-side CORS enforcement** — headers instruct browsers, but non-browser clients bypass CORS | API is intentionally public; non-browser access is expected | Accepted — activate `METAPEEK_API_KEY` env var if access control needed |
-
-### What's Already Well-Defended
-
-| Defense | Rating | What It Stops |
-|---------|--------|---------------|
-| DNS pinning (TOCTOU prevention) | EXCELLENT | DNS rebinding attacks where IP changes between validation and fetch |
-| IPv4 + IPv6 private IP blocking | EXCELLENT | SSRF to internal services, cloud metadata (169.254.169.254), loopback |
-| Redirect re-validation per hop | EXCELLENT | SSRF via open redirect chains (public URL → internal IP) |
-| Timing-safe auth comparison | EXCELLENT | Timing side-channel attacks on API key |
-| Script stripping in head extraction | GOOD | XSS from forwarded JavaScript in fetched HTML |
-| Structured logging with redaction | GOOD | Sensitive data (tokens, keys) leaking into logs |
-| Security headers (HSTS, CSP, X-Frame-Options) | GOOD | Clickjacking, MIME sniffing, protocol downgrade |
-| Parameter pollution rejection | GOOD | Unexpected fields influencing server behavior |
+- `pnpm audit --prod --audit-level high` → **exits clean**
+- 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
+- **213** unit, security, and integration tests pass
+- Production build succeeds with the Nitro netlify preset, prerender included
+- Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
 ---
 
@@ -105,6 +45,90 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 | ARIA landmarks | PASS | Live regions properly nested in landmarks |
 
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
+
+---
+
+## [0.16.0] - 2026-08-24
+
+### Security
+
+- **Dependency drift closed.** `pnpm audit --prod --audit-level high` had gone
+  from 0 findings (2026-05-26) to 67 advisories — 3 critical, 33 high — because
+  nothing re-ran it between manual audits. Two sat on production paths: an
+  **undici** TLS certificate-validation bypass (the HTTP client every proxied
+  fetch uses) and a **nuxt** route-rule middleware bypass (rate limiting *is*
+  Nitro middleware). Resolved by `pnpm update` plus a refreshed
+  `pnpm.overrides` block; `undici` is now a direct dependency, since the proxy
+  imports it directly. Three advisories remain with no upstream fix
+  (`extract-zip`, `image-size` ×2) and are documented as accepted — neither code
+  path is reachable here — they are listed in `pnpm.auditConfig.ignoreCves` so
+  the exception is reviewable and a new finding still fails the audit.
+- **OG-image rendering runtime removed (RT-21 closed).** v0.14.0 accepted RT-21
+  (SSRF, reflected XSS, DoS in `nuxt-og-image`) as unreachable, since MetaPeek
+  serves a static image. Pinning `>=6.2.5` fixed the advisories and the build
+  passed — but the **running app returned HTTP 500**: v6 changed the runtime API
+  and the v5-style `defineOgImage({ url, … })` call threw on every render. Rather
+  than adapt the call, the module is now disabled (`ogImage: { enabled: false }`)
+  and the tags are declared with `useSeoMeta`. An entire OG-rendering stack
+  (Satori, Resvg, `/__og-image__/` routes) is no longer shipped for a feature the
+  app does not use. The rest of `@nuxtjs/seo` is unaffected.
+- **SPA renderer DNS-pinned.** `fetch-spa` validated DNS in Node, then let
+  Chromium re-resolve the target itself (`EXCLUDE <hostname>`), reopening the
+  rebinding window the Nitro fetcher already closes. Chromium is now pinned to
+  the validated address: `MAP <hostname> <ip>, MAP * ~NOTFOUND`. Rule order is
+  load-bearing (first match wins) and is asserted by tests.
+- **Non-HTML responses rejected before download.** The Content-Type check ran
+  after the whole body streamed in, so a 5 MB PDF was fetched just to be 422'd,
+  and every redirect hop's body was downloaded although only `Location` is used.
+  `pinnedFetch` gained an `onHeaders` hook; both now cost nothing.
+
+### Added
+
+- **`logs.sh`** — reads the Supabase `request_log` the rate limiter has been
+  writing since 0.15.0 and nothing had ever read. `recent`, `day`, `denied`,
+  `hosts`, `stats`, `grep`, and `tail`, with `--table/--csv/--tsv/--md/--copy`
+  output and Chicago-local timestamps. Its first run surfaced 10 denied
+  requests from one IP hash walking `/api/graphql`, `/api/v1/env`, and
+  `/api/account` — a credential scanner, correctly throttled.
+- **`.github/workflows/audit.yml`** — `pnpm audit --prod --audit-level high`
+  weekly, on every `package.json`/`pnpm-lock.yaml` change, and on demand. This
+  is the control that would have caught the drift above.
+- **`shared/rate-limit-config.mjs`** — the tier table, previously duplicated by
+  hand in `metapeek.config.ts` and `fetch-spa.mjs` under a "keep in sync"
+  comment. Both now import it; a test asserts they are the same object.
+
+### Changed
+
+- **`app/pages/index.vue` reduced from 2,991 to 1,934 lines.** The report
+  builders (JSON, Markdown, LLM handoff, standalone HTML) moved to
+  `app/utils/exporters.ts` as pure functions over an `ExportSnapshot`. Behavior
+  is unchanged; they are now unit-testable, and 17 tests cover them — including
+  HTML escaping and CSS-color sanitization of hostile tag values.
+- Dependencies updated within their ranges: Nuxt 4.4.6 → 4.5.2, Nuxt UI 4.4 →
+  4.11, Vue 3.5.34 → 3.5.41, puppeteer-core, Playwright, ESLint, and others.
+
+### Fixed
+
+- `coverage/` was committed to the repository (22 stale HTML files from
+  February) and missing from `.gitignore`. Untracked and ignored.
+- README badges showed Nuxt 4.3.0 and a hand-maintained "100%" coverage claim
+  that measured only part of the codebase.
+
+### Performance
+
+- Production bundle **20 MB → 12.5 MB** (5.47 → 3.99 MB gzip), from dropping the
+  unused OG-image rendering stack.
+
+### Tests
+
+- 173 → **213** passing: exporters (17), fetch-spa DNS pinning (8), fetcher
+  streaming discipline (3), shared rate-limit config (2), `logs.sh` query
+  building (10). Plus 5 Playwright/axe-core accessibility tests, still at 0
+  WCAG 2.1 AA violations.
+- Verification now includes a **running-app check** (HTTP 200, expected `og:`
+  and `twitter:` meta tags, a live `/api/analyze` call, and an SSRF rejection),
+  not just a green build. That check is the only reason the 500 above was found
+  before deploy.
 
 ---
 

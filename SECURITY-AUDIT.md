@@ -1,4 +1,278 @@
-# MetaPeek Security Audit
+# MetaPeek Security Audit Log
+
+Every security scan of MetaPeek, **newest first**. Each entry records what was
+found, why it mattered here, and what was done about it. A finding marked
+**Accepted** is a deliberate, reasoned decision — not an oversight.
+
+**Project:** MetaPeek (icjia-metapeek) — a Nuxt 4 app on Netlify that fetches
+arbitrary user-supplied URLs. That single capability is the whole attack
+surface, so SSRF, resource exhaustion, and abuse-cost control get the most
+scrutiny in every scan.
+
+## Scan index
+
+| Date | Scan | Headline result |
+|------|------|-----------------|
+| [2026-08-24](#scan--2026-08-24--dependency-drift-sweep--proxy-hardening) | Dependency drift sweep + proxy hardening | 67 advisories (3 critical / 33 high) → **3 accepted, 0 actionable**; SPA renderer DNS-pinned; OG-image runtime removed; CI audit added |
+| [2026-07-17](#scan--2026-07-17--rate-limiting-was-never-active-rt-10-realized) | RT-10 realized in production | Rate limiting was **never active**; app-level enforcement shipped in 0.15.0 |
+| [2026-05-26](#scan--2026-05-26--supply-chain-cves--header-baseline) | Supply-chain CVEs + header baseline | 3 CVEs pinned out, CSP/COOP/CORP/Permissions-Policy hardened, yarn → pnpm |
+| [2026-03-26](#scan--2026-03-26--full-red-team--blue-team-audit) | Full red team / blue team audit | 0 critical, 3 high, 5 medium, 4 low. Posture: **GOOD** |
+
+---
+
+## Scan — 2026-08-24 — Dependency drift sweep + proxy hardening
+
+**Scope:** Full dependency tree, the SPA renderer's SSRF path, response
+streaming, and the operational tooling gap that let the drift go unnoticed.
+**Method:** `pnpm audit` across the production tree with per-package
+provenance tracing (`pnpm why`), plus code review of `netlify/functions/fetch-spa.mjs`
+and `server/utils/fetcher.ts`.
+**Result:** Production audit exits clean at `--audit-level high`. All findings
+fixed or explicitly accepted. 213 unit/security/integration tests and 5
+accessibility tests pass; production build verified; **and the running app was
+checked** — the last of those is what caught DR-07, which a passing build did
+not.
+
+### DR-01 — Dependency audit had drifted to 3 critical / 33 high · **Fixed**
+
+**Finding.** The 2026-05-26 scan closed with `pnpm audit --prod --audit-level high`
+reporting **0 findings**. Re-running it on 2026-08-24 returned **67 advisories:
+3 critical, 33 high, 24 moderate, 7 low**.
+
+**Why it mattered.** Most were build-time only, but two sat directly on
+production paths:
+
+- **undici** (4 high, including a TLS certificate-validation bypass) is the HTTP
+  client `server/utils/fetcher.ts` uses to fetch attacker-supplied URLs. A
+  certificate-validation bypass there undermines the guarantee that a pinned,
+  validated host is the host actually being talked to.
+- **nuxt** (5 high, including a route-rule middleware bypass via a
+  case-sensitivity mismatch) matters because rate limiting *is* Nitro middleware
+  gated on `path.startsWith("/api/")`. A routing/middleware mismatch is the
+  difference between a limiter that runs and one that silently does not — the
+  exact failure mode of RT-10 (see the 2026-07-17 entry).
+
+**Root cause.** Nothing re-ran the audit between manual reviews. The May result
+was a point-in-time snapshot treated, in practice, as a standing guarantee.
+
+**Mitigation.** `pnpm update` across the tree, then a refreshed
+`pnpm.overrides` block pinning every remaining advisory to its patched range:
+`undici >=8.9.0` (also promoted to a direct dependency, since the proxy imports
+it directly rather than relying on cheerio's transitive copy), `@nuxt/devtools
+>=3.3.1`, `shell-quote >=1.9.0`, `tar >=7.5.21`, `brace-expansion >=1.1.18/2.1.4`,
+`ip-address >=10.3.1`, `js-yaml >=4.3.1`, `linkify-it >=5.0.2`, `nanoid >=3.3.18`,
+`postcss >=8.5.18`, `svgo >=4.0.2`, `vite >=7.3.5`, `valibot >=1.4.2`,
+`esbuild >=0.28.1`, `nuxt-og-image >=6.2.5`.
+
+See DR-07 for `nuxt-og-image`, which the pin alone did not settle.
+
+**Verification.** `pnpm audit --prod --audit-level high` exits 0.
+`NITRO_PRESET=netlify pnpm build` succeeds including prerender. Full suite green.
+The upgrade was **not** clean on its own, though — see DR-07.
+
+### DR-02 — Three advisories remain with no patched version · **Accepted**
+
+**Finding.** `extract-zip` (high, symlink path traversal) and `image-size`
+(2 × high, decoder DoS) have no fixed release — upstream lists
+`patched: <0.0.0`.
+
+**Why it is acceptable here.**
+
+- `extract-zip` reaches the tree only through `puppeteer-core` →
+  `@puppeteer/browsers`, whose download-and-unzip path MetaPeek never executes:
+  the SPA renderer uses `@sparticuz/chromium-min` and fetches a pinned Chromium
+  pack from a hardcoded GitHub release URL. No attacker-supplied archive is ever
+  extracted.
+- `image-size` arrives via `nuxt-og-image`/`nuxt-seo-utils`. MetaPeek does not
+  generate OG images at request time — it serves a static `public/og-image-v2.png`
+  — so no attacker-supplied image is ever decoded server-side.
+
+**Mitigation.** Both are listed in `pnpm.auditConfig.ignoreCves`
+(`CVE-2026-56876`, `CVE-2025-71329`, `CVE-2025-71330`) with the reasoning
+recorded here. Listing them explicitly — rather than lowering the audit
+threshold or letting the job fail permanently — keeps `--audit-level high`
+meaningful: these three are acknowledged, and anything *new* still fails the
+build.
+
+**Caveat to re-review.** `ignoreCves` suppresses an advisory even after
+upstream ships a fix. Re-check these three whenever `puppeteer-core` or
+`@nuxtjs/seo` is upgraded, and drop them from the list once a patched version
+is available.
+
+### DR-03 — SPA renderer re-resolved the target hostname after validation · **Fixed**
+
+**Finding.** `netlify/functions/fetch-spa.mjs` validated the target's DNS in
+Node, then launched Chromium with
+`--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE <hostname>`. `EXCLUDE` means
+"do not apply the wildcard to this host" — so Chromium performed its **own**
+fresh DNS lookup for the target at navigation time.
+
+**Why it mattered.** That reopened, for the SPA path only, the DNS-rebinding
+TOCTOU window that the Nitro fetcher already closes with a pinned undici
+dispatcher. An attacker controlling DNS with a short TTL could answer the Node
+validation with a public IP and Chromium's lookup with a private one. Practical
+impact on Netlify/Lambda is limited (no EC2-style link-local metadata endpoint),
+which is why this is rated hardening rather than an exploited hole — but the
+asymmetry between the two fetch paths was not intentional.
+
+**Mitigation.** The validated addresses now flow out of `validateUrlForSpa`, and
+`buildHostResolverRules` pins them:
+`MAP <hostname> <validated-ip>, MAP * ~NOTFOUND`. Rule order is load-bearing —
+Chromium applies MAP rules first-match-wins, so the pin must precede the
+wildcard. Covered by `tests/security/fetchSpaPinning.test.ts`, including the
+ordering requirement and IPv6 bracketing.
+
+### DR-04 — Non-HTML responses were fully downloaded before rejection · **Fixed**
+
+**Finding.** RT-05 (2026-03-26) added Content-Type validation, but it ran
+*after* `pinnedFetch` had streamed the entire body. A 5 MB PDF was pulled into
+memory and concatenated to a string, only to be discarded with a 422. Redirect
+hops were treated the same way — each 3xx body was downloaded even though only
+the `Location` header is used.
+
+**Why it mattered.** It converted a cheap rejection into an expensive one: the
+resource-exhaustion cost the 5 MB cap exists to bound was paid in full on
+exactly the responses the app had already decided to refuse, and a redirect
+chain multiplied it per hop.
+
+**Mitigation.** `pinnedFetch` gained an `onHeaders` hook that runs once headers
+arrive and before the body is read. `fetchWithRedirects` uses it to destroy
+redirect bodies outright and to throw the 422 from the headers alone. Covered by
+`tests/unit/fetcher.test.ts`, which asserts the body was never streamed.
+
+### DR-05 — Rate-limit tier table was duplicated by hand · **Fixed**
+
+**Finding.** The tier limits existed twice: in `metapeek.config.ts` and again in
+`netlify/functions/fetch-spa.mjs`, under a comment reading "keep in sync with
+metapeek.config.ts".
+
+**Why it mattered.** Not a vulnerability, a drift hazard on a control that
+bounds spend and abuse. A limit tightened in one file and missed in the other
+fails silently and in the permissive direction.
+
+**Mitigation.** Both now import `shared/rate-limit-config.mjs` — dependency-free
+plain JS, the same pattern already proven by `shared/rate-limit-core.mjs`, so
+esbuild bundles it into the standalone function unchanged.
+`tests/unit/rateLimitConfig.test.ts` asserts the two are the same object.
+
+### DR-06 — No automated re-check between manual audits · **Fixed**
+
+**Finding.** DR-01's root cause: audits ran only when a human remembered.
+
+**Mitigation.** `.github/workflows/audit.yml` runs `pnpm audit --prod
+--audit-level high` weekly (Mondays 08:00 America/Chicago), on every change to
+`package.json`/`pnpm-lock.yaml`, and on demand. High and critical findings in
+production dependencies fail the build; the full moderate-and-up report is
+written to the run summary for visibility without blocking.
+
+### DR-07 — `nuxt-og-image`: RT-21 closed by removing the feature, not just patching it · **Fixed**
+
+**Finding.** The 2026-05-26 scan recorded RT-21 (SSRF, reflected XSS, DoS in
+`nuxt-og-image`) as **Accepted**, because an override broke Nuxt's prerender and
+the advisories were judged unreachable — MetaPeek serves a static
+`public/og-image-v2.png` and never renders an OG image per request.
+
+Pinning `>=6.2.5` resolved the advisories and the production build passed — but
+the **running app returned HTTP 500**. Version 6.7.8 changed the runtime API:
+`resolveComponentName` now expects a component-name string, and the v5-style
+`defineOgImage({ url, alt, width, height })` call in `app/pages/index.vue` made
+it throw `originalName.split is not a function` on every render.
+
+**Why this matters beyond the crash.** It exposed the real problem with RT-21's
+"accepted, unreachable" framing: an entire OG-image *rendering* runtime —
+Satori, Resvg, a browser-screenshot path, and its own server routes under
+`/__og-image__/` — was shipping in production for a feature the app does not
+use. Advisories in it were unreachable only by accident of configuration, not by
+design, and a build passing is not evidence that a page renders.
+
+**Mitigation.** The module is now disabled outright (`ogImage: { enabled: false }`
+in `nuxt.config.ts`), and the tags are declared directly with `useSeoMeta`.
+The rest of `@nuxtjs/seo` (sitemap, robots, schema.org) is unaffected.
+
+**Verification.** Dev server returns 200; `og:image`, `og:image:width/height/type`,
+`og:image:alt`, `twitter:card`, and `twitter:image` are present in both the SSR
+response and the prerendered `dist/index.html`; no `/__og-image__/` routes are
+emitted; 5 axe-core accessibility tests pass with 0 violations. The production
+bundle dropped from **20 MB to 12.5 MB** (5.47 → 3.99 MB gzip) — the size of the
+rendering stack that was being shipped for nothing.
+
+**Lesson recorded.** A green `pnpm build` is not a green application. This scan
+added a running-app check (HTTP 200 + expected meta tags + a real
+`/api/analyze` call) to the verification steps, which is the only reason the
+500 was caught before deploy.
+
+### Operational tooling — `logs.sh`
+
+Not a finding, but the security-relevant tooling gap this scan closed. The
+rate-limit RPC has been writing a `request_log` row per decision since 0.15.0,
+and nothing read it. `./logs.sh` now does: `denied` shows what the limiter
+stopped and which bucket stopped it, `hosts` and `stats` summarize traffic, and
+`grep` searches target URLs and user agents. The first run over existing data
+showed 10 denied requests from a single IP hash walking `/api/graphql`,
+`/api/v1/env`, and `/api/account` — a credential/secret scanner, correctly
+throttled. Raw IPs are never stored; the table is service-role only.
+
+---
+
+## Scan — 2026-07-17 — Rate limiting was never active (RT-10 realized)
+
+**Severity in practice:** HIGH (RT-10 was originally filed LOW).
+
+RT-10 ("Rate Limiting Is Netlify-Edge-Only", severity LOW) understated the
+exposure: the Netlify edge rate limiting it assumed was **never active**.
+Nitro deploys every route inside one Netlify function whose generated config
+is `path: "/*"` with no `rateLimit` — per-route `export const config`
+objects in `server/api/*.ts` are not read by Netlify at all
+(nuxt/nuxt#33721). Empirically confirmed against production: 14 requests to
+`/api/analyze` in ~30 seconds all returned 200. The practical severity was
+therefore HIGH (unauthenticated, unthrottled URL-fetching endpoints billed
+to the site owner).
+
+Resolved in 0.15.0 by RT-10's own recommended direction: application-level
+enforcement. A Nitro middleware (plus an equivalent check inside
+`fetch-spa`) applies tiered per-IP limits and a site-wide daily budget
+backed by an atomic Supabase RPC, with a per-instance in-memory fallback
+(fail-open, logged) when the store is unavailable. IPs are stored only as
+truncated SHA-256 hashes; request logs are purged after 90 days. Enforcement
+is verified by behavior tests and a post-deploy smoke script
+(`scripts/smoke-rate-limit.mjs`) that fails unless a real 429 is observed.
+
+---
+
+## Scan — 2026-05-26 — Supply-chain CVEs + header baseline
+
+**Scope:** Dependency CVEs, security-header baseline, build tooling.
+**Result:** All findings fixed in v0.14.0 except RT-21, which was accepted at
+the time and has since been fixed (see DR-01, 2026-08-24).
+
+### Findings and mitigations
+
+| ID | Severity | Finding | Explanation | Mitigation |
+|----|----------|---------|-------------|------------|
+| RT-13 | High | undici 7.21.0 WebSocket DoS (CVE-2026-1528 / 1526 / 2229) | undici is the direct HTTP client for every proxied fetch. MetaPeek uses no WebSockets, so the specific vector was unreachable — but a CVE in the component that talks to hostile hosts is not a place to carry known debt. | **Fixed in v0.14.0** — `pnpm.overrides` pinned undici `>=7.24.0` (since raised to `>=8.9.0`). |
+| RT-14 | High | h3 1.15.5 SSE injection (CVE-2026-33128) | Newlines in SSE field values escape the wire format. MetaPeek serves no SSE endpoints, so again unreachable in practice. | **Fixed in v0.14.0** — override pinned h3 `>=1.15.6`. |
+| RT-15 | Critical | fast-xml-parser entity-expansion bypass (incomplete fix for CVE-2026-26278) | Transitive via `@nuxtjs/seo > sitemap`. Entity expansion is a classic resource-exhaustion primitive; it sits in the sitemap path rather than user input, but the parser is reachable during build/render. | **Fixed in v0.14.0** — pinned `>=5.5.6`; `fast-xml-builder` pinned `>=1.1.7`. |
+| RT-16 | Medium | CSP missing baseline directives | No `base-uri`, `form-action`, `object-src`, or `upgrade-insecure-requests`. Without `base-uri`, an injected `<base>` tag reroutes every relative URL on the page; without `form-action`, a form can post off-origin. | **Fixed in v0.14.0** — all four added to `netlify.toml`. |
+| RT-17 | Medium | No cross-origin isolation headers | Missing COOP/CORP left the page sharing a browsing-context group with cross-origin openers. | **Fixed in v0.14.0** — `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site` (`same-site`, not `same-origin`, so the apex domain can still load its own CDN assets). |
+| RT-18 | Low | Permissions-Policy covered only 4 features | Camera, microphone, geolocation, payment were disabled; ~16 other powerful features were not. | **Fixed in v0.14.0** — expanded to 20+ features. |
+| RT-19 | Low | Missing `X-Permitted-Cross-Domain-Policies` / `X-DNS-Prefetch-Control` | Legacy Flash/Acrobat cross-domain policy loading, and passive DNS leakage from link prefetching. | **Fixed in v0.14.0** — set to `none` and `off`. |
+| RT-20 | Info | Build used yarn 1 (classic) | No content-addressable store, weak workspace support, slower installs — and a lockfile format with weaker integrity guarantees. | **Fixed in v0.14.0** — migrated to pnpm 10.33.0. |
+| RT-21 | Moderate | nuxt-og-image transitive vulns (SSRF, reflected XSS, DoS) | Not exploitable in this app: OG images are static (`public/og-image-v2.png`), never rendered per request. An override was attempted and broke Nuxt's prerender (unhead 2.1.15 ABI conflict). | **Accepted in v0.14.0 → Fixed 2026-08-24** — `nuxt-og-image >=6.2.5` now resolves all three with a passing prerender. |
+
+### Previously-resolved findings confirmed in v0.14.0
+
+| ID | Severity | Resolution |
+|----|----------|------------|
+| RT-01 | High | Streaming size check via `pinnedFetch` (for-await loop, byte counter, mid-download abort). |
+| RT-03 | High | `extractBodySnippet` strips scripts, styles, and tags — text-only output. |
+| RT-05 | Medium | Content-Type validation rejects non-HTML with 422 (moved pre-download in DR-04). |
+| RT-06 | Medium | `crypto.randomUUID()` for request IDs. |
+| RT-09 | Low | Redundant `Cookie: ""` header removed. |
+| BD-08 gap | — | Sensitive-param redaction in logs made case-insensitive. |
+
+---
+
+## Scan — 2026-03-26 — Full red team / blue team audit
 
 **Project:** MetaPeek (icjia-metapeek)
 **Audit Date:** 2026-03-26
@@ -8,11 +282,11 @@
 
 ---
 
-## 1. Executive Summary
+### 1. Executive Summary
 
 MetaPeek is a Nuxt 4 web application deployed on Netlify that acts as a server-side proxy: it fetches arbitrary user-supplied URLs, extracts HTML meta tags, and returns structured analysis results. This architecture inherently creates a significant attack surface, particularly around Server-Side Request Forgery (SSRF). The codebase demonstrates strong security awareness with multiple layers of defense-in-depth, but several gaps remain.
 
-### Finding Summary
+#### Finding Summary
 
 | Severity | Count | Description |
 |----------|-------|-------------|
@@ -26,9 +300,9 @@ MetaPeek is a Nuxt 4 web application deployed on Netlify that acts as a server-s
 
 ---
 
-## 2. Red Team Findings
+### 2. Red Team Findings
 
-### RT-01: Content-Length Check Bypass via Chunked Transfer Encoding
+#### RT-01: Content-Length Check Bypass via Chunked Transfer Encoding
 
 **Severity:** HIGH
 **File:** `server/utils/fetcher.ts`, lines 121-138
@@ -87,7 +361,7 @@ while (true) {
 
 ---
 
-### RT-02: CSP Allows `unsafe-inline` for Both Scripts and Styles
+#### RT-02: CSP Allows `unsafe-inline` for Both Scripts and Styles
 
 **Severity:** HIGH
 **File:** `netlify.toml`, line 18
@@ -115,7 +389,7 @@ If a fetched meta tag value containing `<script>alert(1)</script>` or an event h
 
 ---
 
-### RT-03: Body Snippet Returns Raw HTML That May Contain Sensitive Data
+#### RT-03: Body Snippet Returns Raw HTML That May Contain Sensitive Data
 
 **Severity:** HIGH
 **File:** `server/utils/proxy.ts`, lines 384-393; `server/api/fetch.post.ts`, line 138
@@ -153,7 +427,7 @@ export function extractBodySnippet(html: string, maxLength = 1024): string {
 
 ---
 
-### RT-04: CORS Configuration Only Sets First Origin from Array
+#### RT-04: CORS Configuration Only Sets First Origin from Array
 
 **Severity:** MEDIUM
 **File:** `nuxt.config.ts`, line 61
@@ -190,7 +464,10 @@ export default defineEventHandler((event) => {
 
 ---
 
-### RT-05: No Content-Type Validation on Fetched Responses
+#### RT-05: No Content-Type Validation on Fetched Responses
+
+> **Status:** Fixed in v0.14.0; tightened again on 2026-08-24 — the check now
+> runs on the response headers, before the body is downloaded (see DR-04).
 
 **Severity:** MEDIUM
 **File:** `server/utils/fetcher.ts`, lines 230-234
@@ -226,7 +503,7 @@ if (!contentType.includes("text/html") && !contentType.includes("application/xht
 
 ---
 
-### RT-06: `generateRequestId()` Uses `Math.random()` -- Not Cryptographically Secure
+#### RT-06: `generateRequestId()` Uses `Math.random()` -- Not Cryptographically Secure
 
 **Severity:** MEDIUM
 **File:** `server/utils/logger.ts`, lines 33-35
@@ -256,7 +533,7 @@ export function generateRequestId(): string {
 
 ---
 
-### RT-07: Error Classification Leaks Infrastructure Information
+#### RT-07: Error Classification Leaks Infrastructure Information
 
 **Severity:** MEDIUM
 **File:** `server/utils/proxy.ts`, lines 404-422
@@ -285,7 +562,7 @@ Alternatively, keep the current messages but add rate limiting per unique target
 
 ---
 
-### RT-08: `img-src *` in CSP Allows Arbitrary Image Loading
+#### RT-08: `img-src *` in CSP Allows Arbitrary Image Loading
 
 **Severity:** MEDIUM
 **File:** `netlify.toml`, line 18
@@ -305,7 +582,7 @@ Consider proxying OG image previews through the server, or displaying image URLs
 
 ---
 
-### RT-09: Cookie Header Set to Empty String
+#### RT-09: Cookie Header Set to Empty String
 
 **Severity:** LOW
 **File:** `server/utils/fetcher.ts`, lines 173, 219
@@ -341,9 +618,13 @@ headers: {
 
 ---
 
-### RT-10: Rate Limiting Is Netlify-Edge-Only
+#### RT-10: Rate Limiting Is Netlify-Edge-Only
 
-**Severity:** LOW
+> **Status:** This finding understated the risk. The edge rate limiting it
+> assumed was never active at all — see the 2026-07-17 scan. Resolved in
+> v0.15.0 by application-level enforcement.
+
+**Severity:** LOW (HIGH in practice — see 2026-07-17)
 **File:** `server/api/fetch.post.ts`, lines 195-202; `server/api/analyze.get.ts`, lines 155-162
 **Category:** Deployment Portability
 
@@ -377,7 +658,7 @@ export default defineEventHandler((event) => {
 
 ---
 
-### RT-11: `extractHead` Regex Lazy Match Edge Case
+#### RT-11: `extractHead` Regex Lazy Match Edge Case
 
 **Severity:** LOW
 **File:** `server/utils/proxy.ts`, line 353
@@ -416,7 +697,7 @@ export function extractHead(html: string): string {
 
 ---
 
-### RT-12: No CORS Enforcement on Server Side
+#### RT-12: No CORS Enforcement on Server Side
 
 **Severity:** LOW
 **File:** `nuxt.config.ts`, lines 57-68
@@ -437,9 +718,9 @@ This is acceptable if MetaPeek's API is intended to be public. If not, activate 
 
 ---
 
-## 3. Blue Team Assessment
+### 3. Blue Team Assessment
 
-### BD-01: SSRF Protection with DNS Pinning
+#### BD-01: SSRF Protection with DNS Pinning
 
 **What it protects against:** DNS rebinding attacks, TOCTOU vulnerabilities where DNS resolves to a public IP during validation but a private IP during fetch.
 **Implementation quality:** EXCELLENT
@@ -451,7 +732,7 @@ The implementation resolves DNS during validation, stores the addresses, then cr
 
 ---
 
-### BD-02: Private IP Blocking (IPv4 + IPv6)
+#### BD-02: Private IP Blocking (IPv4 + IPv6)
 
 **What it protects against:** SSRF to internal services, cloud metadata endpoints, loopback, link-local addresses.
 **Implementation quality:** EXCELLENT
@@ -465,7 +746,7 @@ The IPv4 blocking covers all RFC 1918 ranges, loopback (127.0.0.0/8), link-local
 
 ---
 
-### BD-03: Blocked Hostnames
+#### BD-03: Blocked Hostnames
 
 **What it protects against:** Direct access to known internal/metadata services.
 **Implementation quality:** GOOD
@@ -477,7 +758,7 @@ Blocks `localhost`, `127.0.0.1`, `0.0.0.0`, `::1`, `metadata.google.internal`, a
 
 ---
 
-### BD-04: IP Literal Blocking
+#### BD-04: IP Literal Blocking
 
 **What it protects against:** Bypassing hostname-based blocklist by using raw IPs.
 **Implementation quality:** GOOD
@@ -487,7 +768,7 @@ IPv4 literals are checked against `isPrivateIp`. All IPv6 literals (detected via
 
 ---
 
-### BD-05: Redirect Validation
+#### BD-05: Redirect Validation
 
 **What it protects against:** SSRF via open redirect chains (e.g., public URL redirects to internal IP).
 **Implementation quality:** EXCELLENT
@@ -497,7 +778,7 @@ Each redirect target is validated with `validateUrl()` including full DNS resolu
 
 ---
 
-### BD-06: Timing-Safe Authentication
+#### BD-06: Timing-Safe Authentication
 
 **What it protects against:** Timing attacks on API key comparison.
 **Implementation quality:** EXCELLENT
@@ -507,7 +788,7 @@ Uses `crypto.timingSafeEqual` with proper length-mismatch handling (performs dum
 
 ---
 
-### BD-07: Parameter Pollution Rejection
+#### BD-07: Parameter Pollution Rejection
 
 **What it protects against:** Unexpected fields in request body that could confuse server logic.
 **Implementation quality:** GOOD
@@ -519,7 +800,7 @@ Rejects any request body with fields other than `url`. This prevents attackers f
 
 ---
 
-### BD-08: Structured Logging with URL Sanitization
+#### BD-08: Structured Logging with URL Sanitization
 
 **What it protects against:** Sensitive data in logs, log injection.
 **Implementation quality:** GOOD
@@ -531,7 +812,7 @@ Sensitive query parameters (token, key, apikey, secret, password, etc.) are reda
 
 ---
 
-### BD-09: Script Stripping in Head Extraction
+#### BD-09: Script Stripping in Head Extraction
 
 **What it protects against:** XSS from scripts in fetched HTML being forwarded to client.
 **Implementation quality:** GOOD
@@ -543,7 +824,7 @@ All `<script>` tags are removed except `application/ld+json` (structured data). 
 
 ---
 
-### BD-10: Security Headers
+#### BD-10: Security Headers
 
 **What it protects against:** Clickjacking, MIME sniffing, protocol downgrade, iframe embedding.
 **Implementation quality:** GOOD
@@ -558,9 +839,9 @@ All `<script>` tags are removed except `application/ld+json` (structured data). 
 
 ---
 
-## 4. Attack Surface Analysis
+### 4. Attack Surface Analysis
 
-### Entry Points
+#### Entry Points
 
 | Endpoint | Method | Input | Authentication | Rate Limited |
 |----------|--------|-------|----------------|--------------|
@@ -568,7 +849,7 @@ All `<script>` tags are removed except `application/ld+json` (structured data). 
 | `/api/analyze` | GET | `?url=<string>` (query) | Optional Bearer token | Yes (Netlify edge) |
 | `/api/ai-check` | GET | `?url=<string>` (query) | Optional Bearer token | Yes (Netlify edge) |
 
-### Trust Boundaries
+#### Trust Boundaries
 
 ```
 [Browser Client] --HTTPS--> [Netlify Edge/CDN]
@@ -588,7 +869,7 @@ All `<script>` tags are removed except `application/ld+json` (structured data). 
 
 **Key trust boundary:** The Nitro server fetches content from arbitrary external servers. All content from target servers is untrusted. The security perimeter is the URL validation + SSRF protection layer.
 
-### Data Flows
+#### Data Flows
 
 1. **Inbound:** User submits URL via POST body or GET query parameter.
 2. **Validation:** URL is parsed, protocol checked, hostname checked against blocklist, DNS resolved, IPs checked against private ranges.
@@ -598,9 +879,9 @@ All `<script>` tags are removed except `application/ld+json` (structured data). 
 
 ---
 
-## 5. Dependency Risk Assessment
+### 5. Dependency Risk Assessment
 
-### Direct Security-Relevant Dependencies
+#### Direct Security-Relevant Dependencies
 
 | Package | Role | Risk Level | Notes |
 |---------|------|-----------|-------|
@@ -609,13 +890,13 @@ All `<script>` tags are removed except `application/ld+json` (structured data). 
 | `cheerio` | HTML parsing | Low | Mature, well-audited |
 | `h3` | HTTP framework | Low | Nuxt core, actively maintained |
 
-### Supply Chain Risks
+#### Supply Chain Risks
 
 1. **Nuxt module ecosystem:** `@nuxt/ui`, `@vueuse/nuxt`, `@nuxtjs/seo`, `@nuxt/eslint` -- these are official/semi-official Nuxt modules with large install bases. Risk is low but surface area is significant.
 
 2. **Transitive dependencies:** Run `npm audit` or `yarn audit` regularly. The `undici` package has had past CVEs related to HTTP request smuggling and CRLF injection -- ensure the version in use is patched.
 
-### Recommended Actions
+#### Recommended Actions
 
 ```bash
 # Check for known CVEs
@@ -630,7 +911,7 @@ yarn why undici
 
 ---
 
-## 6. Compliance Mapping -- OWASP Top 10 (2021)
+### 6. Compliance Mapping -- OWASP Top 10 (2021)
 
 | # | Category | Status | Notes |
 |---|----------|--------|-------|
@@ -647,9 +928,9 @@ yarn why undici
 
 ---
 
-## 7. Recommendations -- Prioritized Action Items
+### 7. Recommendations -- Prioritized Action Items
 
-### Priority 1: Quick Wins (Low Effort, High/Medium Impact)
+#### Priority 1: Quick Wins (Low Effort, High/Medium Impact)
 
 | # | Action | Finding | Effort | Impact |
 |---|--------|---------|--------|--------|
@@ -659,7 +940,7 @@ yarn why undici
 | 4 | Remove redundant `Cookie: ""` header | RT-09 | 5 min | Low |
 | 5 | Make sensitive param redaction case-insensitive | BD-08 gap | 10 min | Low |
 
-### Priority 2: Medium-Term Hardening (Medium Effort)
+#### Priority 2: Medium-Term Hardening (Medium Effort)
 
 | # | Action | Finding | Effort | Impact |
 |---|--------|---------|--------|--------|
@@ -668,7 +949,7 @@ yarn why undici
 | 8 | Add application-level rate limiting as fallback | RT-10 | 2 hrs | Low |
 | 9 | Consolidate error messages to reduce information leakage | RT-07 | 30 min | Medium |
 
-### Priority 3: Long-Term Improvements (High Effort)
+#### Priority 3: Long-Term Improvements (High Effort)
 
 | # | Action | Finding | Effort | Impact |
 |---|--------|---------|--------|--------|
@@ -678,7 +959,7 @@ yarn why undici
 
 ---
 
-## Appendix A: Files Reviewed
+### Appendix A: Files Reviewed
 
 | File | Lines | Purpose |
 |------|-------|---------|
@@ -694,37 +975,14 @@ yarn why undici
 | `nuxt.config.ts` | 69 | Nuxt/CORS configuration |
 | `shared/parser.ts` | 383 | HTML parsing with cheerio |
 
-## Appendix B: Testing Methodology
+### Appendix B: Testing Methodology
 
 This audit was performed via static code analysis of the complete server-side codebase. No dynamic testing, penetration testing, or fuzzing was performed. Findings are based on code review against known attack patterns for SSRF proxy applications.
 
-### Not In Scope
+#### Not In Scope
 
 - Client-side Vue components (XSS in template rendering)
 - Third-party dependency source code (assessed by version/CVE only)
 - Infrastructure configuration beyond `netlify.toml`
 - Production environment variables and secrets management
 - Network-level security (TLS configuration, Netlify CDN settings)
-
----
-
-## Addendum — 2026-07-17: RT-10 realized and resolved
-
-RT-10 ("Rate Limiting Is Netlify-Edge-Only", severity LOW) understated the
-exposure: the Netlify edge rate limiting it assumed was **never active**.
-Nitro deploys every route inside one Netlify function whose generated config
-is `path: "/*"` with no `rateLimit` — per-route `export const config`
-objects in `server/api/*.ts` are not read by Netlify at all
-(nuxt/nuxt#33721). Empirically confirmed against production: 14 requests to
-`/api/analyze` in ~30 seconds all returned 200. The practical severity was
-therefore HIGH (unauthenticated, unthrottled URL-fetching endpoints billed
-to the site owner).
-
-Resolved in 0.15.0 by RT-10's own recommended direction: application-level
-enforcement. A Nitro middleware (plus an equivalent check inside
-`fetch-spa`) applies tiered per-IP limits and a site-wide daily budget
-backed by an atomic Supabase RPC, with a per-instance in-memory fallback
-(fail-open, logged) when the store is unavailable. IPs are stored only as
-truncated SHA-256 hashes; request logs are purged after 90 days. Enforcement
-is verified by behavior tests and a post-deploy smoke script
-(`scripts/smoke-rate-limit.mjs`) that fails unless a real 429 is observed.
