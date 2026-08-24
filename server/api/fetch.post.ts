@@ -29,6 +29,7 @@ import metapeekConfig from "../../metapeek.config";
 export default defineEventHandler(async (event) => {
   // Generate unique request ID for log correlation
   const requestId = generateRequestId();
+  const startedAt = Date.now();
   const clientIp = getClientIp(event);
   const userAgent = getUserAgent(event);
   // ═══════════════════════════════════════════════════════════
@@ -109,9 +110,10 @@ export default defineEventHandler(async (event) => {
 
   if (!validation.ok) {
     // Log blocked request for security monitoring
-    logBlocked({
+    await logBlocked({
       requestId,
       url: body.url,
+      path: "/api/fetch",
       reason: validation.reason || "Invalid URL",
       ip: clientIp,
       userAgent,
@@ -172,11 +174,13 @@ export default defineEventHandler(async (event) => {
     const err = error instanceof Error ? error : new Error(String(error));
 
     // Log error for debugging
-    logError({
+    await logError({
       requestId,
       url: body.url,
+      path: "/api/fetch",
       error: err.message ?? "Unknown error",
-      timing: Date.now(),
+      stack: err.stack,
+      timing: Date.now() - startedAt,
       ip: clientIp,
       userAgent,
     });

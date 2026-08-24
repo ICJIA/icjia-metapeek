@@ -76,6 +76,39 @@ test.describe('Accessibility Audit - WCAG 2.1 AA Compliance', () => {
     expect(results.violations).toEqual([])
   })
 
+  test('Status page - no critical accessibility violations', async ({ page }) => {
+    test.info().annotations.push({ type: 'description', description: 'Scans /status (verdict, budget meters, usage table) for WCAG 2.1 AA violations' })
+
+    console.log('  → Navigating to /status...')
+    await page.goto('/status')
+    await page.waitForLoadState('networkidle')
+
+    console.log('  → Waiting for the status payload to render...')
+    await page.waitForSelector('text=All systems normal', { timeout: 10000 })
+    console.log('  → Status rendered, running axe-core scan...')
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze()
+
+    console.log(`  → Scanned ${results.passes.length} passing rules`)
+    console.log(`  → Found ${results.violations.length} violations`)
+
+    if (results.violations.length > 0) {
+      console.log('  ✗ Violations found:')
+      results.violations.forEach(v => {
+        console.log(`    - ${v.id}: ${v.help} (${v.impact})`)
+        v.nodes.forEach(n => {
+          console.log(`      Element: ${n.html.substring(0, 80)}...`)
+        })
+      })
+    } else {
+      console.log('  ✓ No accessibility violations detected')
+    }
+
+    expect(results.violations).toEqual([])
+  })
+
   test('Code editor mode - form inputs are accessible', async ({ page }) => {
     test.info().annotations.push({ type: 'description', description: 'Tests the code generator edit mode for form accessibility' })
     

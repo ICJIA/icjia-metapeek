@@ -50,6 +50,33 @@ describe("decideRateLimit", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it("passes /api/status without consuming buckets or logging a request row", async () => {
+    // The status endpoint is monitoring, not usage: a poller must never eat a
+    // visitor's per-IP budget, drain the global one, or spam request_log —
+    // and it must stay reachable even when the daily budget returns 503.
+    const memoryStore = createMemoryStore();
+    const spy = vi.spyOn(memoryStore, "check");
+    const fetchImpl = vi.fn();
+    const deps = makeDeps({
+      memoryStore,
+      env: {
+        SUPABASE_URL: "https://stub.supabase.co",
+        SUPABASE_SECRET_KEY: "sb_secret_stub",
+      },
+      fetchImpl,
+    });
+
+    expect(
+      (await decideRateLimit({ ...baseInput, path: "/api/status" }, deps)).action,
+    ).toBe("pass");
+    expect(
+      (await decideRateLimit({ ...baseInput, path: "/api/status?pretty=1" }, deps))
+        .action,
+    ).toBe("pass");
+    expect(spy).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("rejects the 6th default-tier request in a minute with 429 + Retry-After", async () => {
     const deps = makeDeps();
     for (let i = 0; i < 5; i++) {

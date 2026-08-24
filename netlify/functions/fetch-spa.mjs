@@ -25,8 +25,10 @@ import { timingSafeEqual } from "node:crypto";
 import {
   checkRateLimit,
   createMemoryStore,
+  hashIp,
 } from "../../shared/rate-limit-core.mjs";
 import { RATE_LIMIT } from "../../shared/rate-limit-config.mjs";
+import { persistError } from "../../shared/error-log-core.mjs";
 
 // ═══════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -207,6 +209,53 @@ function safeEqual(a, b) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// FAILURE REPORTING
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Reports one failure to the console AND the durable Supabase error_log.
+ * This function's failures never traverse the Nitro server or its logger
+ * (config.path claims /api/fetch-spa directly), so without this call a
+ * production Chromium fault leaves no trace beyond Netlify's days-long
+ * function-log retention. Awaited so the insert is not frozen with the
+ * instance; a sink failure only ever costs its own timeout, never the
+ * response. Raw IPs are hashed before they leave the process.
+ *
+ * @param {{
+ *   level: "error" | "security", event: string, url: unknown,
+ *   statusCode: number, error: string, stack?: string, timingMs?: number,
+ *   req: Request,
+ * }} args
+ */
+async function reportFailure({ level, event, url, statusCode, error, stack, timingMs, req }) {
+  let targetHost;
+  try {
+    targetHost = new URL(String(url)).hostname.toLowerCase();
+  } catch {
+    targetHost = undefined;
+  }
+  const entry = {
+    level,
+    event,
+    scope: "spa",
+    path: "/api/fetch-spa",
+    target_host: targetHost,
+    target_url: typeof url === "string" ? url : undefined,
+    status_code: statusCode,
+    error,
+    stack,
+    timing_ms: timingMs,
+    ip_hash: hashIp(req.headers.get("x-nf-client-connection-ip") || undefined),
+    user_agent: req.headers.get("user-agent") || undefined,
+  };
+  console.error(JSON.stringify({ at: new Date().toISOString(), ...entry }));
+  await persistError(entry, {
+    env: process.env,
+    log: (e) => console.error(JSON.stringify(e)),
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 // HANDLER
 // ═══════════════════════════════════════════════════════════
 
@@ -292,6 +341,14 @@ export default async (req) => {
   // ── SSRF Validation ───────────────────────────────────
   const validation = await validateUrlForSpa(url);
   if (!validation.ok) {
+    await reportFailure({
+      level: "security",
+      event: "request_blocked",
+      url,
+      statusCode: 400,
+      error: validation.reason,
+      req,
+    });
     return new Response(JSON.stringify({ ok: false, error: validation.reason }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
@@ -302,6 +359,14 @@ export default async (req) => {
   // cannot normally happen after a successful validation, but stay defensive.
   const pinnedAddress = pickPinnedAddress(validation.resolved);
   if (!pinnedAddress) {
+    await reportFailure({
+      level: "security",
+      event: "request_blocked",
+      url,
+      statusCode: 400,
+      error: "Could not resolve a public address",
+      req,
+    });
     return new Response(
       JSON.stringify({ ok: false, error: "Could not resolve a public address" }),
       { status: 400, headers: { "Content-Type": "application/json" } },
@@ -438,6 +503,20 @@ export default async (req) => {
       userMessage = "Connection refused by target server";
       status = 502;
     }
+
+    // The row keeps the real internal message + stack; the response keeps
+    // the friendly one. This is the trace a production Chromium fault
+    // leaves behind after Netlify's log retention has expired.
+    await reportFailure({
+      level: "error",
+      event: "render_error",
+      url,
+      statusCode: status,
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+      timingMs: Date.now() - startTime,
+      req,
+    });
 
     return new Response(JSON.stringify({ ok: false, error: userMessage }), {
       status,

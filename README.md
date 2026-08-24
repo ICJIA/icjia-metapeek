@@ -5,7 +5,7 @@
 **Live app:** [https://metapeek.icjia.app](https://metapeek.icjia.app)
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/e2999615-35c5-44fa-8486-fc7c555c9916/deploy-status)](https://app.netlify.com/projects/clinquant-lily-1beabe/deploys)
-[![Tests](https://img.shields.io/badge/tests-233%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
+[![Tests](https://img.shields.io/badge/tests-264%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4.5.2-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
 [![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.11.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
 [![Vue](https://img.shields.io/badge/Vue-3.5.41-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
@@ -270,7 +270,7 @@ Limits are tiered by the **target** you ask MetaPeek to analyze, per client IP:
 - `429` responses include a `Retry-After` header (seconds) and a JSON body with `retryAfter`.
 - A site-wide daily budget also applies; when exhausted the API returns `503` until the next UTC day.
 - Successful `GET /api/analyze` responses are CDN-cached for 60 seconds per URL — repeat checks of the same URL don't count against your limits.
-- Requests are logged for abuse monitoring (target URL/host, tier, verdict, **hashed** IP, user agent) and purged after 90 days. Raw IPs are never stored — the Supabase request log and the application's own function logs both record only a truncated SHA-256 of the address. Read the log with [`./logs.sh`](#operations--reading-the-request-log).
+- Requests are logged for abuse monitoring (target URL/host, tier, verdict, **hashed** IP, user agent) and purged after 90 days. Raw IPs are never stored — the Supabase request log and the application's own function logs both record only a truncated SHA-256 of the address. Read the log with [`./logs.sh`](#operations--logs--status).
 - Limits are enforced in the application against a Supabase counter store. Netlify's per-route `rateLimit` function config is not used: Nitro deploys all routes as a single function, so Netlify never reads per-route configs ([nuxt/nuxt#33721](https://github.com/nuxt/nuxt/issues/33721)).
 - The tier table above lives in `shared/rate-limit-config.mjs` and is imported by both the Nitro middleware and the standalone `fetch-spa` function, so the two cannot drift apart.
 
@@ -470,9 +470,11 @@ The CLI exits with code `0` for grades A/B and `1` for C/D/F, making it suitable
 
 ---
 
-## Operations — Reading the Request Log
+## Operations — Logs & Status
 
 Every rate-limit decision writes one row to the Supabase `request_log` table, through the same RPC round-trip that checks the limits — so **denied requests are logged too**, which is where the abuse signal lives. `./logs.sh` reads it.
+
+Failures get a second, deeper table: `error_log`. When an allowed analysis cannot complete (`level error`) or a request is blocked before any fetch (`level security` — SSRF and the like), the API and the Chromium `fetch-spa` function each write one row with the reason — and for render faults, the internal message plus stack trace. Netlify keeps function logs for days at most; these rows keep the story for 90.
 
 There is no server to SSH into: run it from any checkout. Credentials come from `.env` (`SUPABASE_URL` and `SUPABASE_SECRET_KEY`, the `sb_secret_…` one — the table is RLS-enabled with no policies, so the publishable/anon key returns nothing).
 
@@ -482,7 +484,8 @@ There is no server to SSH into: run it from any checkout. Credentials come from 
 ./logs.sh 2026-08-24         # every request on that day (America/Chicago)
 ./logs.sh denied             # only what the limiter stopped, and which bucket stopped it
 ./logs.sh hosts              # which sites people analyzed most, with denial counts
-./logs.sh stats              # totals by scope, tier, and allow/deny
+./logs.sh stats              # totals by scope, tier, and allow/deny, plus persisted failures
+./logs.sh errors             # failures and blocked requests, with the reason (and stack trace)
 ./logs.sh grep googlebot     # search target URLs and user agents
 ./logs.sh tail               # poll for new requests live
 ./logs.sh help               # full reference
@@ -499,6 +502,10 @@ Any table command takes `--table` (default at a terminal), `--csv` (default when
 **What the columns mean:** `scope` is `api` for a plain fetch/analyze or `spa` for a headless-Chromium render; `tier` is `trusted` (`*.illinois.gov`, `*.icjia.app`) or `default`; `violated_key` names the bucket that rejected the request — `m:`/`d:` are per-IP minute/day, `g:`/`sg:` the site-wide daily budget. IPs are stored only as truncated SHA-256 hashes, and rows are purged after 90 days by `pg_cron`.
 
 A quiet stretch is not necessarily quiet traffic: when Supabase is unreachable the limiter falls back to a per-instance in-memory store (fail-open, logged to the function log) and those requests are **not** recorded.
+
+### Service status
+
+[`/status`](https://metapeek.icjia.app/status) (linked in the footer) shows the live picture without a terminal: version and deploy identity, a Supabase reachability check, request totals over 24 hours / 30 days, the **site-wide daily budget meters**, and persisted failure counts. The raw JSON at [`/api/status`](https://metapeek.icjia.app/api/status) is CDN-cached for 60 seconds and exempt from rate limiting, so an uptime monitor can poll it without eating anyone's budget — and it keeps answering while the daily budget is returning 503. Aggregates only: no hosts, no URLs, no hashes. A status check never invokes Chromium.
 
 Here is what the first run over existing data turned up:
 
@@ -599,7 +606,7 @@ MetaPeek runs a server-side proxy that fetches arbitrary user-supplied URLs, so 
 
 Drift is now caught by [`.github/workflows/audit.yml`](.github/workflows/audit.yml), which re-runs the production audit weekly and on every dependency change — the control that was missing while the 2026-08-24 drift accumulated.
 
-**Reading the request log.** Every rate-limit decision writes a row to Supabase. [`./logs.sh`](#operations--reading-the-request-log) reads it — `./logs.sh denied` is the fastest way to see what the limiter stopped.
+**Reading the logs.** Every rate-limit decision writes a row to Supabase, and every failure writes why. [`./logs.sh`](#operations--logs--status) reads both — `./logs.sh denied` shows what the limiter stopped, `./logs.sh errors` shows what broke. [`/status`](https://metapeek.icjia.app/status) is the live picture without a terminal.
 
 **Reporting a vulnerability:** Email security details to the ICJIA contact in the repo — do not file public issues.
 

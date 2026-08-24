@@ -76,6 +76,31 @@ describe("logs.sh query building", () => {
     expect(out).toContain("user_agent.ilike.%2Aa%2Cb%29c%2A");
   });
 
+  it("errors reads the durable error_log, newest first", async () => {
+    const out = await dryRun(["errors"]);
+    expect(out).toContain("/rest/v1/error_log");
+    expect(out).toContain("order=at.desc");
+    expect(out).not.toContain("/rest/v1/request_log");
+  });
+
+  it("errors bounds a day query by that calendar day in Chicago time", async () => {
+    const out = await dryRun(["errors", "2026-08-24"]);
+    expect(out).toContain("/rest/v1/error_log");
+    expect(out).toContain("at=gte.2026-08-24T00%3A00%3A00-0500");
+    expect(out).toContain("at=lt.2026-08-25T00%3A00%3A00-0500");
+  });
+
+  it("stats counts persisted errors alongside the request totals", async () => {
+    const out = await dryRun(["stats"]);
+    expect(out).toContain("/rest/v1/request_log");
+    expect(out).toContain("/rest/v1/error_log");
+  });
+
+  it("help documents the errors command", async () => {
+    const out = await dryRun(["help"]);
+    expect(out).toContain("errors");
+  });
+
   it("rejects a malformed date with a message naming the format", async () => {
     const { code, output } = await dryRunFailure(["2026-8-24"]);
     expect(code).not.toBe(0);

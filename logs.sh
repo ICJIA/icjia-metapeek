@@ -7,7 +7,8 @@
 #   ./logs.sh 2026-08-24             every request on that day
 #   ./logs.sh denied                 only the requests that were rate-limited, with the bucket that stopped them
 #   ./logs.sh hosts                  which sites people analyzed most, with counts
-#   ./logs.sh stats                  totals by scope, tier, and allow/deny
+#   ./logs.sh stats                  totals by scope, tier, and allow/deny, plus persisted failures
+#   ./logs.sh errors                 failures and blocked requests, with the reason (and stack trace)
 #   ./logs.sh tail                   watch new requests arrive live (Ctrl-C to stop)
 #   ./logs.sh help                   this text
 #   Tables open in a pager: arrow keys scroll (right too — long lines are not wrapped), q quits.
@@ -33,6 +34,12 @@
 #   Rows are purged after 90 days by pg_cron. Requests served while Supabase was unreachable
 #   fall back to an in-memory limiter and are NOT logged — a quiet stretch can mean an outage.
 #
+#   Failures get a second, deeper table: `error_log`. When an allowed analysis cannot complete
+#   (level error) or a request is blocked before any fetch (level security — SSRF and the like),
+#   the API and the Chromium fetch-spa function each write one row with the reason — and for
+#   render faults, the internal message plus stack trace. Netlify keeps function logs for days
+#   at most; these rows keep the story for 90 (same pg_cron purge). ./logs.sh errors reads them.
+#
 # CREDENTIALS
 #   Read from .env beside this script (SUPABASE_URL and SUPABASE_SECRET_KEY), or from the
 #   environment if already set. The secret key is the sb_secret_… one from
@@ -44,7 +51,8 @@
 #   ./logs.sh day [DATE] [FMT]       every request on one day (default: today)
 #   ./logs.sh denied [DATE] [FMT]    only the rate-limited requests (all days if DATE is omitted)
 #   ./logs.sh hosts [DATE] [FMT]     target hosts by request count, busiest first
-#   ./logs.sh stats [DATE]           totals by scope, tier, and allow/deny
+#   ./logs.sh stats [DATE]           totals by scope, tier, and allow/deny, plus persisted failures
+#   ./logs.sh errors [DATE] [FMT]    failures and blocked requests, newest first (all days if DATE is omitted)
 #   ./logs.sh grep PATTERN [DATE]    requests whose target URL or user agent contains PATTERN
 #   ./logs.sh tail [SECONDS]         poll for new rows (default every 10s; Ctrl-C to stop)
 #   ./logs.sh help                   this text (also -h, --help)
@@ -87,7 +95,7 @@ TZ_LOCAL="America/Chicago"
 RECENT_DEFAULT=200   # rows shown by a bare ./logs.sh
 HOSTS_DEFAULT=2000   # rows scanned when tallying hosts / stats
 TAIL_DEFAULT=10      # seconds between polls in tail mode
-COMMANDS="recent day denied hosts stats grep tail help"
+COMMANDS="recent day denied hosts stats errors grep tail help"
 SELF="${BASH_SOURCE[0]:-$0}"
 
 here() { cd "$(dirname "$SELF")" 2>/dev/null && pwd; }
@@ -195,11 +203,12 @@ clip() {
 }
 
 # --- PostgREST ---------------------------------------------------------------------
-# fetch QUERY_STRING -> the matching request_log rows as JSON.
+# fetch TABLE QUERY_STRING -> the matching rows as JSON (request_log or error_log).
 # LOGS_DRY_RUN=1 prints the URL instead, so the filters can be inspected (and tested)
 # without credentials or network.
 fetch() {
-  local url="${SUPABASE_URL%/}/rest/v1/request_log?$1"
+  local table="$1"
+  local url="${SUPABASE_URL%/}/rest/v1/${table}?$2"
   if [ -n "${LOGS_DRY_RUN:-}" ]; then
     # The URL goes to stderr so it survives the pipe into render(), which is
     # handed an empty result set and prints its usual "nothing on file".
@@ -218,8 +227,8 @@ fetch() {
   body="${body%$'\n'*}"
   case "$status" in
     200) printf '%s' "$body" ;;
-    401|403) die "Supabase rejected the key (HTTP $status). request_log is service-role only — use the sb_secret_… key, not the publishable/anon one" ;;
-    404) die "no request_log table at $SUPABASE_URL (HTTP 404) — is SUPABASE_URL pointing at the right project?" ;;
+    401|403) die "Supabase rejected the key (HTTP $status). $table is service-role only — use the sb_secret_… key, not the publishable/anon one" ;;
+    404) die "no $table table at $SUPABASE_URL (HTTP 404) — is SUPABASE_URL pointing at the right project?" ;;
     *) die "Supabase returned HTTP $status: $(printf '%s' "$body" | head -c 300)" ;;
   esac
 }
@@ -311,6 +320,25 @@ if mode == "hosts":
     header = ["host", "requests", "denied"]
     body = [[h, str(n), str(denied.get(h, 0))] for h, n in counts.most_common()]
     caption = f"{len(counts)} host(s) across {len(rows)} request(s), busiest first"
+elif mode == "errors":
+    header = ["at", "level", "event", "scope", "host", "path", "status", "error", "stack"]
+    body = []
+    for r in rows:
+        stack = r.get("stack") or ""
+        if fmt == "table" and len(stack) > 160:      # full stack: --csv (or scroll right)
+            stack = stack[:159] + "…"
+        body.append([
+            local(r.get("at")),
+            r.get("level") or "",
+            r.get("event") or "",
+            r.get("scope") or "",
+            r.get("target_host") or "",
+            r.get("path") or "",
+            str(r.get("status_code") or ""),
+            r.get("error") or "",
+            stack,
+        ])
+    caption = f"{len(body)} failure(s), newest first"
 else:
     header = ["at", "scope", "tier", "ok", "host", "path", "violated", "agent"]
     body = []
@@ -328,7 +356,8 @@ else:
     caption = f"{len(body)} request(s), newest first"
 
 if not body:
-    print("no matching requests on file", file=sys.stderr)
+    print("no failures on file — nothing has been persisted for that window" if mode == "errors"
+          else "no matching requests on file", file=sys.stderr)
     sys.exit(0)
 
 one_line = lambda c: c.replace("\r", " ").replace("\n", " ")
@@ -368,13 +397,13 @@ PY
 cmd_recent() {  # $1 count, $2 format
   local n="${1:-$RECENT_DEFAULT}"
   is_count "$n" || die "N must be a whole number, 1 or more (for example: ./logs.sh recent 100) — got '$n'"
-  fetch "select=*&order=at.desc&limit=$n" | render "$2" rows
+  fetch request_log "select=*&order=at.desc&limit=$n" | render "$2" rows
 }
 
 cmd_day() {  # $1 date, $2 format
   local d; d="$(resolve_date "${1:-today}")" || exit $?
   local filter; filter="$(day_filter "$d")" || exit $?
-  fetch "select=*&$filter&order=at.desc&limit=10000" | render "$2" rows
+  fetch request_log "select=*&$filter&order=at.desc&limit=10000" | render "$2" rows
 }
 
 cmd_denied() {  # $1 date (optional), $2 format
@@ -385,7 +414,7 @@ cmd_denied() {  # $1 date (optional), $2 format
     filter="$(day_filter "$d")" || exit $?
     q="$q&$filter"
   fi
-  fetch "$q" | render "$2" rows
+  fetch request_log "$q" | render "$2" rows
 }
 
 cmd_hosts() {  # $1 date (optional), $2 format
@@ -396,18 +425,45 @@ cmd_hosts() {  # $1 date (optional), $2 format
     filter="$(day_filter "$d")" || exit $?
     q="select=target_host,allowed&$filter&order=at.desc&limit=10000"
   fi
-  fetch "$q" | render "$2" hosts
+  fetch request_log "$q" | render "$2" hosts
 }
 
 cmd_stats() {  # $1 date (optional)
   local q="select=scope,tier,allowed,violated_key&order=at.desc&limit=$HOSTS_DEFAULT"
+  local eq="select=level&order=at.desc&limit=10000"
   if [ -n "${1:-}" ]; then
     local d filter
     d="$(resolve_date "$1")" || exit $?
     filter="$(day_filter "$d")" || exit $?
     q="select=scope,tier,allowed,violated_key&$filter&order=at.desc&limit=10000"
+    eq="$eq&$filter"
   fi
-  fetch "$q" | render table stats
+  local requests errors
+  requests="$(fetch request_log "$q" | render table stats)" || exit $?
+  # One line on the durable error_log: how many failures, at which level.
+  errors="$(fetch error_log "$eq" | python3 -c '
+import json, sys
+from collections import Counter
+rows = json.load(sys.stdin) or []
+c = Counter(r.get("level") or "?" for r in rows)
+n = sum(c.values())
+if n:
+    detail = ", ".join(f"{k} {v}" for k, v in c.most_common())
+    print(f"{n} failure(s) persisted ({detail}) — ./logs.sh errors shows them")
+else:
+    print("no failures persisted")')" || exit $?
+  printf '%s\n\n%s\n' "$requests" "$errors"
+}
+
+cmd_errors() {  # $1 date (optional), $2 format
+  local q="select=at,level,event,scope,target_host,path,status_code,error,stack&order=at.desc&limit=10000"
+  if [ -n "${1:-}" ]; then
+    local d filter
+    d="$(resolve_date "$1")" || exit $?
+    filter="$(day_filter "$d")" || exit $?
+    q="$q&$filter"
+  fi
+  fetch error_log "$q" | render "$2" errors
 }
 
 cmd_grep() {  # $1 pattern, $2 date (optional), $3 format
@@ -421,7 +477,7 @@ cmd_grep() {  # $1 pattern, $2 date (optional), $3 format
     filter="$(day_filter "$d")" || exit $?
     q="$q&$filter"
   fi
-  fetch "$q" | render "${3:-table}" rows
+  fetch request_log "$q" | render "${3:-table}" rows
 }
 
 # Polls for rows newer than the last one seen. No streaming API here — the table is
@@ -434,7 +490,7 @@ cmd_tail() {  # $1 seconds between polls
   while true; do
     local q="select=*&order=at.desc&limit=50"
     [ -n "$last" ] && q="select=*&at=gt.$(urlencode "$last")&order=at.desc&limit=200"
-    local rows; rows="$(fetch "$q")"
+    local rows; rows="$(fetch request_log "$q")"
     local newest
     newest="$(printf '%s' "$rows" | python3 -c 'import json,sys
 rows=json.load(sys.stdin) or []
@@ -477,7 +533,7 @@ main() {
   fi
 
   case "$cmd" in
-    recent|day|denied|hosts|stats|grep|tail) ;;
+    recent|day|denied|hosts|stats|errors|grep|tail) ;;
     *) die "unknown command '$cmd' — the commands are: $COMMANDS (./logs.sh help explains each)" ;;
   esac
 
@@ -503,6 +559,7 @@ main() {
     denied) out="$(cmd_denied "${positional[0]:-}" "$fmt")" ;;
     hosts)  out="$(cmd_hosts "${positional[0]:-}" "$fmt")" ;;
     stats)  out="$(cmd_stats "${positional[0]:-}")" ;;
+    errors) out="$(cmd_errors "${positional[0]:-}" "$fmt")" ;;
     grep)   out="$(cmd_grep "${positional[0]:-}" "${positional[1]:-}" "$fmt")" ;;
   esac
   [ -n "$out" ] || return 0   # nothing to show (the reason, if any, is already on stderr)

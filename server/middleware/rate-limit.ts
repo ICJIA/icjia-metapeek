@@ -70,6 +70,12 @@ export async function decideRateLimit(
   if (!input.path.startsWith("/api/")) return { action: "pass" };
   if (input.method === "OPTIONS") return { action: "pass" };
 
+  // /api/status is monitoring, not usage: it must not eat a visitor's per-IP
+  // buckets, drain the global budget, or write request_log noise — and it has
+  // to stay reachable when the daily budget is answering 503. Its own cost is
+  // bounded by the CDN cache the handler sets, not by the limiter.
+  if (input.path.split("?")[0] === "/api/status") return { action: "pass" };
+
   // A valid internal/partner bearer token skips limiting entirely. An
   // invalid one is ordinary anonymous traffic — it still gets limited here
   // and rejected by the route's own auth check afterwards.

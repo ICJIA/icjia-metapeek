@@ -34,6 +34,7 @@ import metapeekConfig from "../../metapeek.config";
 
 export default defineEventHandler(async (event) => {
   const requestId = generateRequestId();
+  const startedAt = Date.now();
   const clientIp = getClientIp(event);
   const userAgent = getUserAgent(event);
 
@@ -85,9 +86,10 @@ export default defineEventHandler(async (event) => {
   const validation = await validateUrl(url);
 
   if (!validation.ok) {
-    logBlocked({
+    await logBlocked({
       requestId,
       url,
+      path: "/api/analyze",
       reason: validation.reason || "Invalid URL",
       ip: clientIp,
       userAgent,
@@ -167,11 +169,13 @@ export default defineEventHandler(async (event) => {
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
 
-    logError({
+    await logError({
       requestId,
       url,
+      path: "/api/analyze",
       error: err.message ?? "Unknown error",
-      timing: Date.now(),
+      stack: err.stack,
+      timing: Date.now() - startedAt,
       ip: clientIp,
       userAgent,
     });

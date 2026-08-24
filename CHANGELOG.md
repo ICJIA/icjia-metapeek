@@ -24,7 +24,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 - `pnpm audit --prod --audit-level high` → **exits clean**
 - 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
-- **233** unit, security, and integration tests pass (plus 7 Playwright e2e)
+- **264** unit, security, and integration tests pass (plus 8 Playwright e2e)
 - Production build succeeds with the Nitro netlify preset, prerender included
 - Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
@@ -47,6 +47,55 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
 
 ---
+
+## [0.18.0] - 2026-08-24
+
+Durable error logging and a public status page. Netlify keeps function logs
+for days at most, so an unnoticed production fault used to evaporate before
+anyone could read it — the two-month 502 in DR-08 was diagnosable only from
+its symptom. Failures now persist for 90 days, and the health of the whole
+service is one page.
+
+### Added
+
+- **Durable error log (Supabase `error_log`).** When an allowed analysis
+  fails (`level error`) or a request is blocked before any fetch
+  (`level security` — SSRF and the like), the API writes one row with the
+  reason — and for Chromium render faults, the internal message plus stack
+  trace. The sink (`shared/error-log-core.mjs`) is shared by the Nitro server
+  and the standalone `fetch-spa` function, whose failures previously left
+  **no trace at all** (its catch block returned a response without logging
+  anything, and it never traverses the Nitro logger). Only allowed columns
+  leave the process, text fields are truncated, raw IPs are never stored, and
+  a sink failure can never break the request it reports on — it only ever
+  costs its own 1.5s timeout. RLS with no policies (service-role only);
+  purged after 90 days by pg_cron (`purge_error_log`, 4:30, after the two
+  existing purges).
+- **`./logs.sh errors [DATE] [FMT]`** reads it back — failures newest first
+  with level, event, scope, host, path, status, reason, and stack (truncated
+  in `--table`; full via `--csv`). `stats` now appends a persisted-failure
+  count. Internals: the PostgREST helper takes the table as an argument.
+- **`/status` (HTML) + `/api/status` (JSON).** Version/commit/deploy
+  identity, a live Supabase reachability check with latency, request totals
+  over 24h/30d from `request_log`, the **site-wide daily budget meters**
+  (API 2,000/day, SPA 100/day — the credit-burn number the rate limiter
+  exists to protect, with the live window's start time), and persisted
+  failure counts. One `status_summary` RPC round-trip, aggregates only —
+  no hosts, URLs, or hashes, and the payload is rebuilt field-by-field so
+  nothing else can leak through. The JSON is CDN-cached 60s (SWR 5 min) and
+  exempt from rate limiting, so a poller can never eat a visitor's budget
+  and the page still answers while the daily budget is returning 503. The
+  page shell is prerendered and `noindex`; a status check never invokes
+  Chromium. Footer gains a **Status** link.
+
+### Fixed
+
+- **The footer version is single-sourced from package.json** through
+  `runtimeConfig.public` (shared with `/api/status`). It had been hardcoded —
+  and stuck — at v0.12.0 for five releases.
+- **`logError` was recording the epoch timestamp as `timing`**
+  (`Date.now()` instead of elapsed milliseconds) in both API routes' catch
+  paths. Now measured from request start.
 
 ## [0.17.2] - 2026-08-24
 

@@ -3,6 +3,7 @@
 
 import { randomUUID } from "node:crypto";
 import { hashIp } from "#shared/rate-limit-core.mjs";
+import { persistError } from "#shared/error-log-core.mjs";
 
 /**
  * Log levels for different types of events
@@ -164,17 +165,72 @@ export function logSuccess(data: {
   });
 }
 
+/** Lowercase hostname of a URL, or undefined when unparseable. */
+function hostOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Writes the entry to the durable Supabase error_log through the shared sink.
+ * Console output alone lives only as long as Netlify's function-log retention
+ * (days); this row is what `./logs.sh errors` reads weeks later. Callers await
+ * it — a dropped promise may be frozen with the serverless instance — but a
+ * sink failure never breaks the logging call, only costs its own timeout.
+ */
+function persist(data: {
+  level: "error" | "security";
+  event: string;
+  requestId: string;
+  url: string;
+  path?: string;
+  error: string;
+  stack?: string;
+  timing?: number;
+  statusCode?: number;
+  ip?: string;
+  userAgent?: string;
+}): Promise<boolean> {
+  return persistError(
+    {
+      level: data.level,
+      event: data.event,
+      scope: "api",
+      path: data.path,
+      target_host: hostOf(data.url),
+      target_url: sanitizeUrlForLogging(data.url),
+      status_code: data.statusCode,
+      error: data.error,
+      stack: data.stack,
+      timing_ms: data.timing,
+      ip_hash: hashIp(data.ip),
+      user_agent: data.userAgent,
+      request_id: data.requestId,
+    },
+    {
+      env: process.env as Record<string, string | undefined>,
+      log: (entry) => console.error(JSON.stringify(entry)),
+    },
+  );
+}
+
 /**
  * Log a fetch error
  */
-export function logError(data: {
+export async function logError(data: {
   requestId: string;
   url: string;
+  path?: string;
   error: string;
+  stack?: string;
   timing?: number;
+  statusCode?: number;
   ip?: string;
   userAgent?: string;
-}): void {
+}): Promise<void> {
   log({
     timestamp: new Date().toISOString(),
     level: "error",
@@ -186,18 +242,20 @@ export function logError(data: {
     ipHash: hashIp(data.ip),
     userAgent: truncate(data.userAgent, 100),
   });
+  await persist({ ...data, level: "error", event: "fetch_error" });
 }
 
 /**
  * Log a blocked request (SSRF, rate limit, etc.)
  */
-export function logBlocked(data: {
+export async function logBlocked(data: {
   requestId: string;
   url: string;
+  path?: string;
   reason: string;
   ip?: string;
   userAgent?: string;
-}): void {
+}): Promise<void> {
   log({
     timestamp: new Date().toISOString(),
     level: "security",
@@ -209,6 +267,7 @@ export function logBlocked(data: {
     ipHash: hashIp(data.ip),
     userAgent: truncate(data.userAgent, 100),
   });
+  await persist({ ...data, level: "security", event: "request_blocked", error: data.reason });
 }
 
 /**

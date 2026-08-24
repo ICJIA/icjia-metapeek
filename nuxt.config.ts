@@ -1,5 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import metapeekConfig from "./metapeek.config";
+import pkg from "./package.json";
 
 export default defineNuxtConfig({
   modules: ["@nuxt/ui", "@vueuse/nuxt", "@nuxtjs/seo", "@nuxt/eslint"],
@@ -25,6 +26,18 @@ export default defineNuxtConfig({
   },
 
   compatibilityDate: "2026-02-01",
+
+  // Build identity, baked at build time — the single source the footer and
+  // /api/status both read, so the shown version can never drift from
+  // package.json again (the footer was hardcoded at v0.12.0 until 0.18.0).
+  // COMMIT_REF is Netlify's build-time env; empty in local dev.
+  runtimeConfig: {
+    public: {
+      version: pkg.version,
+      commit: (process.env.COMMIT_REF || "").slice(0, 7),
+      builtAt: new Date().toISOString(),
+    },
+  },
 
   typescript: {
     strict: true,
@@ -123,6 +136,10 @@ export default defineNuxtConfig({
   // CORS configuration for the /api/* proxy endpoints (SSR/serverless).
   routeRules: {
     "/": { prerender: true },
+    // Static shell from the CDN; the data is fetched client-side from
+    // /api/status (itself CDN-cached 60s), so a page view costs no
+    // function invocation and the numbers stay live.
+    "/status": { prerender: true },
     "/api/**": {
       cors: true,
       headers: {

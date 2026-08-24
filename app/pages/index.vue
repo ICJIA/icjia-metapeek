@@ -39,6 +39,8 @@ useSeoMeta({
 
 const colorMode = useColorMode();
 const route = useRoute();
+// Single-sourced from package.json via nuxt.config — never hardcode it here.
+const appVersion = useRuntimeConfig().public.version;
 const toast = useToast();
 const { parseMetaTags } = useMetaParser();
 const { generateDiagnostics } = useDiagnostics();
@@ -1988,7 +1990,12 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               target="_blank"
               rel="noopener noreferrer"
               class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-            >v0.12.0</a>
+            >v{{ appVersion }}</a>
+            <span>·</span>
+            <NuxtLink
+              to="/status"
+              class="underline hover:text-gray-900 dark:hover:text-gray-100 transition-colors inline-block py-2"
+            >Status</NuxtLink>
             <span>·</span>
             <a
               href="https://github.com/ICJIA/icjia-metapeek"
