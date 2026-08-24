@@ -30,5 +30,6 @@ export const RATE_LIMIT = {
   },
   // Site-wide daily ceilings across ALL clients — the Netlify-credit
   // backstop that per-IP limits can't provide. Hitting these returns 503.
-  global: { perDay: 2000, spaPerDay: 100 },
+  // perDay halved 2000 → 1000 in 0.18.1 as an extra safety margin.
+  global: { perDay: 1000, spaPerDay: 100 },
 };

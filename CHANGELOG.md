@@ -48,6 +48,18 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ---
 
+## [0.18.1] - 2026-08-24
+
+### Changed
+
+- **Site-wide daily API budget halved: 2,000 → 1,000 requests/day** (spa
+  stays at 100/day) as an extra credit-burn safety margin. One value in
+  `shared/rate-limit-config.mjs` — both enforcement points (Nitro middleware
+  and the fetch-spa function) and the `/status` budget meter read it from
+  there, so the shown limit updates with the enforced one. No migration:
+  limits ride along with each `check_rate_limits` call, so the new ceiling
+  binds from the first request after deploy, mid-window included.
+
 ## [0.18.0] - 2026-08-24
 
 Durable error logging and a public status page. Netlify keeps function logs
