@@ -87,10 +87,13 @@ const metaScore = computed(() =>
   diagnostics.value ? computeScore(diagnostics.value) : null,
 );
 
-/** True once there is anything a reset would actually clear. */
-const hasEnteredAnything = computed(
-  () => !!(inputHtml.value.trim() || inputUrl.value.trim() || hasAnalyzed.value),
-);
+/**
+ * Bumped every time analysis state is cleared (reset, mode switch). An
+ * in-flight fetch captures the value before its await and bails if it changed:
+ * without this, a slow response landing after "Start over" would repopulate
+ * the page the user just cleared.
+ */
+const analysisEpoch = ref(0);
 
 /**
  * Parses input HTML and generates diagnostics. Called on paste (debounced) or programmatically.
@@ -150,6 +153,7 @@ watch(inputHtml, () => {
 
 // Reset results when switching modes
 watch(inputMode, () => {
+  analysisEpoch.value++;
   parsedTags.value = null;
   diagnostics.value = null;
   hasAnalyzed.value = false;
@@ -209,6 +213,7 @@ const loadSample = async () => {
 
 /** Clears all input, results, and state; scrolls to top. */
 const resetAll = () => {
+  analysisEpoch.value++;
   inputHtml.value = "";
   inputUrl.value = "";
   httpsPrefixAdded.value = false;
@@ -263,6 +268,10 @@ const handleFetchUrl = async () => {
     });
   }
 
+  // Captured before the await; a reset or mode switch mid-fetch bumps the
+  // epoch, and this late response must then change nothing.
+  const epoch = analysisEpoch.value;
+
   try {
     // Set fetching state
     fetchStatus.setValidating();
@@ -271,6 +280,7 @@ const handleFetchUrl = async () => {
 
     // Fetch URL via proxy
     const { tags, response } = await fetchUrl(inputUrl.value);
+    if (epoch !== analysisEpoch.value) return;
 
     // Parse complete
     fetchStatus.setParsing();
@@ -299,6 +309,7 @@ const handleFetchUrl = async () => {
     // Complete
     fetchStatus.setComplete(response.timing);
   } catch (error: unknown) {
+    if (epoch !== analysisEpoch.value) return;
     // Handle error
     const err = error as { statusCode?: number; message?: string };
     fetchStatus.setError(
@@ -326,6 +337,9 @@ const handleFetchSpa = async () => {
   spaRendering.value = true;
   showSpaHint.value = false;
 
+  // Same late-response guard as handleFetchUrl.
+  const epoch = analysisEpoch.value;
+
   try {
     fetchStatus.setFetching(inputUrl.value);
 
@@ -342,6 +356,7 @@ const handleFetchSpa = async () => {
       method: "POST",
       body: { url: inputUrl.value },
     });
+    if (epoch !== analysisEpoch.value) return;
 
     if (!response.ok || !response.head) {
       throw new Error(response.error || "SPA render failed");
@@ -370,6 +385,7 @@ const handleFetchSpa = async () => {
       duration: 4000,
     });
   } catch (error: unknown) {
+    if (epoch !== analysisEpoch.value) return;
     const err = error as { data?: { error?: string }; message?: string };
     const message = err.data?.error || err.message || "SPA rendering failed";
     fetchStatus.setError(0, message);
@@ -705,13 +721,15 @@ const exportAsHtml = () => {
       </div>
 
       <!--
-        Start over — top. Only once there is something to clear, so an
-        untouched page is not fronted by a button that does nothing.
-        Mirrored at the bottom of the results so it is reachable from
-        either end without scrolling the full page.
+        Start over — top. Only once an analysis exists: this band sits ABOVE
+        the input, so keying it off "anything typed" made it appear on the
+        first keystroke and shove the focused field ~140px down the page
+        (0.17.2). The typed-but-unanalyzed state is covered by the small Clear
+        link in the Step 1 header. Mirrored at the bottom of the results so it
+        is reachable from either end without scrolling the full page.
       -->
       <div
-        v-if="hasEnteredAnything"
+        v-if="hasAnalyzed"
         class="-mx-4 sm:-mx-6 px-4 sm:px-6 py-6 mb-8 border-y border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/60"
       >
         <ResetButton

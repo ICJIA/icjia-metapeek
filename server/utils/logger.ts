@@ -2,6 +2,7 @@
 // Structured logging for proxy requests
 
 import { randomUUID } from "node:crypto";
+import { hashIp } from "#shared/rate-limit-core.mjs";
 
 /**
  * Log levels for different types of events
@@ -20,7 +21,13 @@ export interface ProxyLogEntry {
   finalUrl?: string;
   statusCode?: number;
   timing?: number;
-  ip?: string;
+  /**
+   * Truncated SHA-256 of the client IP — the same hash the rate limiter keys
+   * its buckets on. Raw addresses must never reach log output: these entries
+   * land in Netlify's retained function logs, and "raw IPs are never stored"
+   * has to hold there, not just in the request_log table.
+   */
+  ipHash?: string;
   userAgent?: string;
   error?: string;
   blocked?: boolean;
@@ -152,7 +159,7 @@ export function logSuccess(data: {
     timing: data.timing,
     redirectCount: data.redirectCount,
     responseSize: data.responseSize,
-    ip: data.ip,
+    ipHash: hashIp(data.ip),
     userAgent: truncate(data.userAgent, 100),
   });
 }
@@ -176,7 +183,7 @@ export function logError(data: {
     url: sanitizeUrlForLogging(data.url),
     error: truncate(data.error, 500),
     timing: data.timing,
-    ip: data.ip,
+    ipHash: hashIp(data.ip),
     userAgent: truncate(data.userAgent, 100),
   });
 }
@@ -199,7 +206,7 @@ export function logBlocked(data: {
     url: sanitizeUrlForLogging(data.url),
     blocked: true,
     reason: truncate(data.reason, 500),
-    ip: data.ip,
+    ipHash: hashIp(data.ip),
     userAgent: truncate(data.userAgent, 100),
   });
 }
@@ -220,7 +227,7 @@ export function logWarning(data: {
     event: "validation_warning",
     url: data.url ? sanitizeUrlForLogging(data.url) : undefined,
     reason: truncate(data.reason, 500),
-    ip: data.ip,
+    ipHash: hashIp(data.ip),
   });
 }
 

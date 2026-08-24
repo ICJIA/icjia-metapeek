@@ -5,7 +5,7 @@
 **Live app:** [https://metapeek.icjia.app](https://metapeek.icjia.app)
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/e2999615-35c5-44fa-8486-fc7c555c9916/deploy-status)](https://app.netlify.com/projects/clinquant-lily-1beabe/deploys)
-[![Tests](https://img.shields.io/badge/tests-229%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
+[![Tests](https://img.shields.io/badge/tests-233%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4.5.2-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
 [![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.11.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
 [![Vue](https://img.shields.io/badge/Vue-3.5.41-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
@@ -270,7 +270,7 @@ Limits are tiered by the **target** you ask MetaPeek to analyze, per client IP:
 - `429` responses include a `Retry-After` header (seconds) and a JSON body with `retryAfter`.
 - A site-wide daily budget also applies; when exhausted the API returns `503` until the next UTC day.
 - Successful `GET /api/analyze` responses are CDN-cached for 60 seconds per URL — repeat checks of the same URL don't count against your limits.
-- Requests are logged for abuse monitoring (target URL/host, tier, verdict, **hashed** IP, user agent) and purged after 90 days. Raw IPs are never stored. Read the log with [`./logs.sh`](#operations--reading-the-request-log).
+- Requests are logged for abuse monitoring (target URL/host, tier, verdict, **hashed** IP, user agent) and purged after 90 days. Raw IPs are never stored — the Supabase request log and the application's own function logs both record only a truncated SHA-256 of the address. Read the log with [`./logs.sh`](#operations--reading-the-request-log).
 - Limits are enforced in the application against a Supabase counter store. Netlify's per-route `rateLimit` function config is not used: Nitro deploys all routes as a single function, so Netlify never reads per-route configs ([nuxt/nuxt#33721](https://github.com/nuxt/nuxt/issues/33721)).
 - The tier table above lives in `shared/rate-limit-config.mjs` and is imported by both the Nitro middleware and the standalone `fetch-spa` function, so the two cannot drift apart.
 
@@ -714,7 +714,7 @@ icjia-metapeek/
 │   ├── security-testing-guide.md
 │   ├── logging-and-monitoring.md
 │   └── initial-package-json.md
-├── tests/                   # Test suites (229 passing)
+├── tests/                   # Test suites (233 passing)
 │   ├── unit/                # Vitest unit tests
 │   │   ├── useMetaParser.test.ts
 │   │   ├── useDiagnostics.test.ts
@@ -726,6 +726,8 @@ icjia-metapeek/
 │   │   ├── rateLimitConfig.test.ts  # Shared tier table (2 tests)
 │   │   ├── rateLimitMiddleware.test.ts
 │   │   ├── ResetButton.test.ts      # Reset control (7 tests)
+│   │   ├── urlInput.test.ts         # URL normalization/typo repair (8 tests)
+│   │   ├── logger.test.ts           # No raw IPs in log output (4 tests)
 │   │   └── logsScript.test.ts       # logs.sh query building (10 tests)
 │   ├── security/            # Security tests ✅
 │   │   ├── ssrf.test.ts             # SSRF protection (30 tests)
@@ -734,7 +736,8 @@ icjia-metapeek/
 │   ├── integration/
 │   │   └── cli-parity.test.ts       # CLI ↔ web scorer parity
 │   └── e2e/                 # Playwright E2E tests
-│       └── accessibility.spec.ts
+│       ├── accessibility.spec.ts    # axe-core WCAG 2.1 AA (5 tests)
+│       └── reset-behavior.spec.ts   # Reset race + top-bar gating (2 tests)
 ├── public/                  # Static assets
 │   ├── favicon.png
 │   ├── og-image-v2.png      # Open Graph social share image (1200×630)
@@ -877,7 +880,7 @@ pnpm audit             # Production CVE audit (high+critical only)
 
  Running `pnpm test:all` produces verbose output showing each test:
 
-**Unit, Security & Integration Tests (229 tests)** — Vitest with verbose reporter
+**Unit, Security & Integration Tests (233 tests)** — Vitest with verbose reporter
 
 ```
 ✓ tagDefaults > generateDefaultTags > title generation > uses og:title when available
@@ -974,14 +977,14 @@ All three phases are complete. For ongoing development:
 
 ### Testing Requirements
 
-- **Unit, security & integration tests:** 229 tests covering the isomorphic core (`shared/`), composables, utilities, report builders, the server proxy, and rate limiting
+- **Unit, security & integration tests:** 233 tests covering the isomorphic core (`shared/`), composables, utilities, report builders, the server proxy, and rate limiting
 - **E2E accessibility:** 5 Playwright tests with axe-core (zero WCAG 2.1 AA violations)
 - **Lighthouse:** Accessibility score must be 100; Performance score must be ≥ 98 on mobile
 - **Manual testing:** Keyboard-only navigation must work
 - **Screen reader:** Test with NVDA or VoiceOver
 - **Linting:** Zero ESLint errors or warnings
 
-Run `pnpm test:all` to execute the complete test suite (229 unit/security/integration + 5 accessibility = 234 tests).
+Run `pnpm test:all` to execute the complete test suite (233 unit/security/integration + 7 e2e = 240 tests).
 
 ### Accessibility Standards
 

@@ -24,7 +24,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 - `pnpm audit --prod --audit-level high` → **exits clean**
 - 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
-- **229** unit, security, and integration tests pass
+- **233** unit, security, and integration tests pass (plus 7 Playwright e2e)
 - Production build succeeds with the Nitro netlify preset, prerender included
 - Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
@@ -45,6 +45,41 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 | ARIA landmarks | PASS | Live regions properly nested in landmarks |
 
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
+
+---
+
+## [0.17.2] - 2026-08-24
+
+Three fixes from the adversarial review of the same day's work.
+
+### Fixed
+
+- **A reset during an in-flight fetch no longer resurrects the results.**
+  `handleFetchUrl`/`handleFetchSpa` wrote their state unconditionally after the
+  await, so clicking "Start over" (or switching input modes) while a slow site
+  was still fetching let the late response repopulate the page that had just
+  been cleared — with the URL box empty but results present. An `analysisEpoch`
+  counter now bumps on every reset and mode switch; each fetch captures it
+  before awaiting and bails if it changed. Reproduced first with a Playwright
+  test that delays `/api/fetch` by 1.5s and resets mid-flight: on the old code
+  the stale title reappeared in 11 elements.
+- **The top "Start over" bar no longer appears on the first keystroke.** It was
+  keyed on "anything typed", and it sits *above* the input — so typing one
+  character inserted the band and shoved the focused field ~140px down the
+  page. It now appears only once an analysis exists; the typed-but-unanalyzed
+  state keeps the small Clear link in the Step 1 header.
+- **Function logs no longer contain raw IP addresses.** The request_log table
+  has only ever stored hashes, but `logSuccess`/`logError`/`logBlocked` were
+  writing the raw address into Netlify's retained function logs — making the
+  "raw IPs are never stored" claim true for the database and false for the
+  logs. Every log entry now carries `ipHash`, the same truncated SHA-256 the
+  rate limiter keys its buckets on, so the two stores correlate.
+
+### Tests
+
+- 233 unit/security/integration (+4 logger) and 7 Playwright e2e (+2 behavior:
+  the mid-flight reset race and the top-bar gating), alongside the 5
+  accessibility tests, all passing.
 
 ---
 
