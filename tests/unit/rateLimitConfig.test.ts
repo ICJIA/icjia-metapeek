@@ -16,7 +16,7 @@ describe("shared rate-limit config", () => {
     expect(RATE_LIMIT.tiers.default).toEqual({ perMinute: 5, perDay: 50 });
     expect(RATE_LIMIT.spa.trusted).toEqual({ perMinute: 3, perDay: 60 });
     expect(RATE_LIMIT.spa.default).toEqual({ perMinute: 1, perDay: 10 });
-    expect(RATE_LIMIT.global).toEqual({ perDay: 1000, spaPerDay: 100 });
+    expect(RATE_LIMIT.global).toEqual({ perDay: 1000, spaPerDay: 50 });
   });
 
   it("is the very object metapeek.config.ts exposes (no drift possible)", () => {

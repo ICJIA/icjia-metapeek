@@ -52,13 +52,13 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 
 ### Changed
 
-- **Site-wide daily API budget halved: 2,000 → 1,000 requests/day** (spa
-  stays at 100/day) as an extra credit-burn safety margin. One value in
+- **Site-wide daily budgets halved: API 2,000 → 1,000, SPA 100 → 50
+  requests/day** as an extra credit-burn safety margin. Two values in
   `shared/rate-limit-config.mjs` — both enforcement points (Nitro middleware
-  and the fetch-spa function) and the `/status` budget meter read it from
-  there, so the shown limit updates with the enforced one. No migration:
-  limits ride along with each `check_rate_limits` call, so the new ceiling
-  binds from the first request after deploy, mid-window included.
+  and the fetch-spa function) and the `/status` budget meters read them from
+  there, so the shown limits update with the enforced ones. No migration:
+  limits ride along with each `check_rate_limits` call, so the new ceilings
+  bind from the first request after deploy, mid-window included.
 
 ## [0.18.0] - 2026-08-24
 
