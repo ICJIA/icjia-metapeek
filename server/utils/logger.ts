@@ -3,7 +3,11 @@
 
 import { randomUUID } from "node:crypto";
 import { hashIp } from "#shared/rate-limit-core.mjs";
-import { persistError } from "#shared/error-log-core.mjs";
+import {
+  persistError,
+  classifyBlockReason,
+  redactUrlSecrets,
+} from "#shared/error-log-core.mjs";
 
 /**
  * Log levels for different types of events
@@ -51,40 +55,11 @@ export function generateRequestId(): string {
  * Becomes: https://example.com/api?token=[REDACTED]&user=john
  */
 export function sanitizeUrlForLogging(url: string): string {
-  try {
-    const parsed = new URL(url);
-
-    // Sensitive parameter names to redact
-    const sensitiveParams = [
-      "token",
-      "key",
-      "apikey",
-      "api_key",
-      "secret",
-      "password",
-      "pass",
-      "pwd",
-      "auth",
-      "authorization",
-      "session",
-      "sid",
-      "jwt",
-      "bearer",
-      "oauth",
-    ];
-
-    // Case-insensitive match: redact "Token", "API_KEY", "SECRET", etc.
-    for (const [key] of parsed.searchParams) {
-      if (sensitiveParams.includes(key.toLowerCase())) {
-        parsed.searchParams.set(key, "[REDACTED]");
-      }
-    }
-
-    return parsed.toString();
-  } catch {
-    // If URL parsing fails, return truncated version
-    return url.substring(0, 100) + (url.length > 100 ? "..." : "");
-  }
+  // One redaction implementation for the whole app: the sensitive-param
+  // list, userinfo stripping, and the unparseable-URL fallback live in
+  // shared/error-log-core.mjs, so the console line and the durable row can
+  // never drift apart again (the basic-auth gap happened exactly that way).
+  return redactUrlSecrets(url);
 }
 
 /**
@@ -253,12 +228,16 @@ export async function logBlocked(data: {
   url: string;
   path?: string;
   reason: string;
+  statusCode?: number;
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
+  // A hostname that doesn't resolve is a user typo, not an attack — logged
+  // as an error so `./logs.sh errors` keeps real SSRF signal readable.
+  const level = classifyBlockReason(data.reason);
   log({
     timestamp: new Date().toISOString(),
-    level: "security",
+    level,
     requestId: data.requestId,
     event: "request_blocked",
     url: sanitizeUrlForLogging(data.url),
@@ -267,7 +246,7 @@ export async function logBlocked(data: {
     ipHash: hashIp(data.ip),
     userAgent: truncate(data.userAgent, 100),
   });
-  await persist({ ...data, level: "security", event: "request_blocked", error: data.reason });
+  await persist({ ...data, level, event: "request_blocked", error: data.reason });
 }
 
 /**

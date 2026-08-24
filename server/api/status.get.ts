@@ -71,6 +71,8 @@ export interface StatusDeps {
   version: string;
   commit?: string;
   builtAt?: string;
+  /** Receives the cause when the Supabase check fails — never silent. */
+  log?: (entry: Record<string, unknown>) => void;
 }
 
 /** Coerces an RPC number that may arrive as string/undefined. */
@@ -142,7 +144,9 @@ export async function buildStatus(deps: StatusDeps): Promise<StatusPayload> {
     });
     payload.checks.supabase.latencyMs = Date.now() - startedAt;
     if (!res.ok) throw new Error(`status_summary returned HTTP ${res.status}`);
-    const summary = (await res.json()) as Record<string, unknown>;
+    // `?? {}`: a 200 whose body is JSON null (how PostgREST renders a
+    // NULL-returning function) is empty data, not an outage.
+    const summary = ((await res.json()) ?? {}) as Record<string, unknown>;
     payload.checks.supabase.ok = true;
 
     const usage = (summary.usage ?? {}) as Record<string, unknown>;
@@ -163,10 +167,18 @@ export async function buildStatus(deps: StatusDeps): Promise<StatusPayload> {
       last30d: toCount(errors.last30d),
       lastAt: typeof errors.lastAt === "string" ? errors.lastAt : null,
     };
-  } catch {
+  } catch (error) {
     payload.ok = false;
     payload.checks.supabase.ok = false;
     payload.checks.supabase.latencyMs ??= Date.now() - startedAt;
+    // The cause (timeout vs HTTP status vs network) stays out of the public
+    // payload but must reach the function log — an operator diagnosing the
+    // status feature's own outage needs more than ok:false.
+    deps.log?.({
+      level: "error",
+      event: "status_check_failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -181,6 +193,7 @@ export default defineEventHandler(async (event) => {
     version: String(publicConfig.version || "0.0.0"),
     commit: publicConfig.commit ? String(publicConfig.commit) : undefined,
     builtAt: publicConfig.builtAt ? String(publicConfig.builtAt) : undefined,
+    log: (entry) => console.error(JSON.stringify(entry)),
   });
 
   // Pollers hit the CDN, not the function: fresh for 60s, then a stale copy
@@ -191,6 +204,15 @@ export default defineEventHandler(async (event) => {
     "public, s-maxage=60, stale-while-revalidate=300",
   );
   setResponseHeader(event, "Cache-Control", "public, max-age=60");
+  // Collapse every query variant onto one cached object (only the listed
+  // param varies the key, and nothing sends it) — with the middleware's
+  // exact-path exemption, cache-busting query strings can neither skip the
+  // CDN nor skip the rate limiter.
+  setResponseHeader(event, "Netlify-Vary", "query=v");
+  // Public read-only aggregates: let browser-based dashboards on other
+  // origins read it too (overrides the same-origin ACAO the /api/** route
+  // rule pins for the analysis endpoints).
+  setResponseHeader(event, "Access-Control-Allow-Origin", "*");
 
   return payload;
 });

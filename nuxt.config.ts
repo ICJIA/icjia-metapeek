@@ -138,8 +138,10 @@ export default defineNuxtConfig({
     "/": { prerender: true },
     // Static shell from the CDN; the data is fetched client-side from
     // /api/status (itself CDN-cached 60s), so a page view costs no
-    // function invocation and the numbers stay live.
-    "/status": { prerender: true },
+    // function invocation and the numbers stay live. robots:false keeps the
+    // sitemap from advertising a page whose own meta says noindex — the
+    // sitemap module reads route rules, not runtime useSeoMeta.
+    "/status": { prerender: true, robots: false },
     "/api/**": {
       cors: true,
       headers: {

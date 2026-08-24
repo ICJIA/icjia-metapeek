@@ -44,6 +44,11 @@ const budgetRows = computed(() => {
     return {
       ...row,
       percent,
+      // The counter keeps counting denied attempts after the cap trips, so
+      // `used` can exceed `limit`. The visible number stays raw (demand is
+      // signal) but the meter value must not leave its own range.
+      meterValue: Math.min(row.used, row.limit),
+      capReached: row.used >= row.limit,
       barClass:
         percent >= 100
           ? "bg-red-500"
@@ -131,7 +136,7 @@ const supabaseSummary = computed(() => {
             class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800"
             role="meter"
             :aria-label="row.label"
-            :aria-valuenow="row.used"
+            :aria-valuenow="row.meterValue"
             aria-valuemin="0"
             :aria-valuemax="row.limit"
             :aria-valuetext="`${formatCount(row.used)} of ${formatCount(row.limit)} used`"
@@ -146,6 +151,9 @@ const supabaseSummary = computed(() => {
             {{ row.note }}
             <template v-if="row.windowStartedAt">
               · window began {{ formatWhen(row.windowStartedAt) }}
+            </template>
+            <template v-if="row.capReached">
+              · cap reached — further requests are being declined
             </template>
           </p>
         </div>

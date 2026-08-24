@@ -24,7 +24,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 - `pnpm audit --prod --audit-level high` → **exits clean**
 - 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
-- **264** unit, security, and integration tests pass (plus 8 Playwright e2e)
+- **282** unit, security, and integration tests pass (plus 8 Playwright e2e)
 - Production build succeeds with the Nitro netlify preset, prerender included
 - Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
@@ -86,7 +86,10 @@ service is one page.
   exempt from rate limiting, so a poller can never eat a visitor's budget
   and the page still answers while the daily budget is returning 503. The
   page shell is prerendered and `noindex`; a status check never invokes
-  Chromium. Footer gains a **Status** link.
+  Chromium. The header nav gains a **Status** link wearing a live green/red
+  up/down beacon (fed client-side by the same cached endpoint; green when the
+  service reports ok, red when it reports not-ok, neutral while checking or
+  when the visitor's own fetch fails), and the footer a **Status** link.
 
 ### Fixed
 
@@ -96,6 +99,91 @@ service is one page.
 - **`logError` was recording the epoch timestamp as `timing`**
   (`Date.now()` instead of elapsed milliseconds) in both API routes' catch
   paths. Now measured from request start.
+
+### Audited
+
+Before release, the change set went through a security review (clean — no
+findings; the exemption, sink, RPC grants, and payload assembly were each
+traced and the applied Supabase state verified) and an adversarial
+correctness review, whose confirmed findings were fixed in place:
+
+- **Cache-busting could have made status polling expensive.** Netlify keys
+  the CDN cache on the query string, and the rate-limit exemption covered
+  every `/api/status?…` variant — so `?x=<random>` would have bought
+  unlimited uncached function invocations and `status_summary` RPCs. The
+  exemption is now exact (query variants pay normal per-IP limits) and the
+  handler sends `Netlify-Vary` so all variants collapse onto one cached
+  object.
+- **Basic-auth credentials in an analyzed URL were persisted verbatim.**
+  `https://user:pass@host/` carries a credential for the *target* site;
+  redaction only covered query params. Userinfo is now stripped everywhere a
+  URL is logged or persisted (shared sink + Nitro sanitizer + fetch-spa).
+- **A typo'd hostname was persisted as a security event.** NXDOMAIN
+  failures now classify as `level error`, so `./logs.sh errors` keeps real
+  SSRF signal (private-address probes) readable instead of drowning it in
+  fat-fingered domains.
+- **The oversized-render exit (413) left no durable trace** — the one
+  Chromium failure path the new logging missed. Now persisted like every
+  other render fault.
+- **Budget meters could report `aria-valuenow` beyond `aria-valuemax`**
+  (the counter keeps counting denied attempts after the cap trips). The
+  meter clamps to its range; the visible number stays raw with a
+  "cap reached" note.
+- **The header beacon cried wolf.** A visitor whose own `/api/status`
+  fetch failed (privacy extension, proxy) saw a red "degraded" dot on a
+  healthy service. Red now means the service *said* not-ok; a failed client
+  fetch stays neutral.
+- **`buildStatus` swallowed the reason its Supabase check failed.** The
+  cause (timeout vs HTTP status vs network) now reaches the function log;
+  the public payload is unchanged.
+- **The `/status` a11y test only accepted the healthy verdict**, so a
+  correctly-rendered degraded page would have failed CI as an
+  "accessibility" failure — and the degraded UI was never scanned. The test
+  now accepts either verdict.
+
+The review's second pass (cross-file tracing, empirical router and Python
+repros, live schema introspection) surfaced a further round, also fixed:
+
+- **Invalid-bearer probes against `fetch-spa` were free and invisible.**
+  With `METAPEEK_API_KEY` set, a wrong token 401'd before rate limiting —
+  unmetered, unlogged key guessing. Auth now mirrors the Nitro middleware:
+  only a *valid* bearer rides the bypass lane; invalid ones are ordinary
+  anonymous traffic — rate-limited (leaving `request_log` rows) before the
+  401. (Dormant in current production, where the key is unset.)
+- **Puppeteer error text defeated the URL redaction.** `net::` messages and
+  stacks quote the full target URL, so a `?token=…` scrubbed from
+  `target_url` survived verbatim in `error`/`stack`. The sink now redacts
+  URLs embedded in free text too.
+- **A trailing-slash poller (`/api/status/`) dodged the exemption** while
+  the router still served it — silently eating the daily budget the
+  exemption protects. Trailing slashes are now exempt; query variants
+  still pay.
+- **`pnpm test` could write fake rows into the production `error_log`** —
+  the pre-existing logger tests called the (now network-writing)
+  `logError`/`logBlocked` with the developer's real shell env. The tests
+  now blank the credentials and stub `fetch`.
+- **The sitemap would have advertised `/status` while the page says
+  `noindex`.** The sitemap module reads route rules, not runtime meta —
+  `robots: false` added to the `/status` rule.
+- **`./logs.sh stats` crashed with a Python traceback** when the
+  `error_log` fetch failed (empty stdin escaped the `or []` guard), and its
+  dateless failure count silently covered a different time window than the
+  request totals. Both fixed; each line now names its window.
+- **API-side `error_log` rows lacked `status_code`** (the SPA writer set
+  it), and one duplicated redaction implementation remained. Call sites now
+  pass the outbound status; `sanitizeUrlForLogging` delegates to the shared
+  `redactUrlSecrets`.
+- **A JSON-`null` RPC body would have read as an outage**; `/api/status`
+  now treats it as empty data. Cross-origin dashboards can read the JSON
+  (`Access-Control-Allow-Origin: *` — public aggregates). The applied
+  Supabase DDL now lives in the repo:
+  `docs/migrations/2026-08-24-0.18.0-error-log-and-status-summary.sql`.
+
+Accepted (documented, not changed): persisting a failure awaits the insert
+inline — up to 1.5s added to *failing* responses only — rather than a
+`waitUntil` migration; and the three small hand-rolled PostgREST callers
+(rate-limit RPC, error sink, status RPC) stay separate rather than growing
+a shared helper. Both are tracked as follow-ups.
 
 ## [0.17.2] - 2026-08-24
 

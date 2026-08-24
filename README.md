@@ -5,7 +5,7 @@
 **Live app:** [https://metapeek.icjia.app](https://metapeek.icjia.app)
 
 [![Netlify Status](https://api.netlify.com/api/v1/badges/e2999615-35c5-44fa-8486-fc7c555c9916/deploy-status)](https://app.netlify.com/projects/clinquant-lily-1beabe/deploys)
-[![Tests](https://img.shields.io/badge/tests-264%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
+[![Tests](https://img.shields.io/badge/tests-282%20passing-brightgreen)](https://github.com/ICJIA/icjia-metapeek)
 [![Nuxt](https://img.shields.io/badge/Nuxt-4.5.2-00DC82?style=flat&logo=nuxt.js)](https://nuxt.com/)
 [![Nuxt UI](https://img.shields.io/badge/Nuxt%20UI-4.11.0-00DC82?style=flat&logo=nuxt.js)](https://ui.nuxt.com/)
 [![Vue](https://img.shields.io/badge/Vue-3.5.41-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
@@ -505,7 +505,7 @@ A quiet stretch is not necessarily quiet traffic: when Supabase is unreachable t
 
 ### Service status
 
-[`/status`](https://metapeek.icjia.app/status) (linked in the footer) shows the live picture without a terminal: version and deploy identity, a Supabase reachability check, request totals over 24 hours / 30 days, the **site-wide daily budget meters**, and persisted failure counts. The raw JSON at [`/api/status`](https://metapeek.icjia.app/api/status) is CDN-cached for 60 seconds and exempt from rate limiting, so an uptime monitor can poll it without eating anyone's budget — and it keeps answering while the daily budget is returning 503. Aggregates only: no hosts, no URLs, no hashes. A status check never invokes Chromium.
+[`/status`](https://metapeek.icjia.app/status) (linked in the header — where a live green/red dot shows the current verdict — and in the footer) shows the live picture without a terminal: version and deploy identity, a Supabase reachability check, request totals over 24 hours / 30 days, the **site-wide daily budget meters**, and persisted failure counts. The raw JSON at [`/api/status`](https://metapeek.icjia.app/api/status) is CDN-cached for 60 seconds and exempt from rate limiting, so an uptime monitor can poll it without eating anyone's budget — and it keeps answering while the daily budget is returning 503. Aggregates only: no hosts, no URLs, no hashes. A status check never invokes Chromium.
 
 Here is what the first run over existing data turned up:
 
@@ -699,7 +699,8 @@ icjia-metapeek/
 │   ├── api/
 │   │   ├── fetch.post.ts    # POST /api/fetch — raw HTML proxy ✅
 │   │   ├── analyze.get.ts   # GET /api/analyze — full analysis JSON ✅
-│   │   └── ai-check.get.ts  # GET /api/ai-check — robots.txt/llms.txt ✅
+│   │   ├── ai-check.get.ts  # GET /api/ai-check — robots.txt/llms.txt ✅
+│   │   └── status.get.ts    # GET /api/status — service status JSON ✅
 │   ├── middleware/
 │   │   └── rate-limit.ts    # Tiered rate limiting for all /api/* routes ✅
 │   └── utils/
@@ -721,7 +722,7 @@ icjia-metapeek/
 │   ├── security-testing-guide.md
 │   ├── logging-and-monitoring.md
 │   └── initial-package-json.md
-├── tests/                   # Test suites (233 passing)
+├── tests/                   # Test suites (282 passing)
 │   ├── unit/                # Vitest unit tests
 │   │   ├── useMetaParser.test.ts
 │   │   ├── useDiagnostics.test.ts
@@ -887,7 +888,7 @@ pnpm audit             # Production CVE audit (high+critical only)
 
  Running `pnpm test:all` produces verbose output showing each test:
 
-**Unit, Security & Integration Tests (233 tests)** — Vitest with verbose reporter
+**Unit, Security & Integration Tests (282 tests)** — Vitest with verbose reporter
 
 ```
 ✓ tagDefaults > generateDefaultTags > title generation > uses og:title when available
@@ -896,7 +897,7 @@ pnpm audit             # Production CVE audit (high+critical only)
 ...
 ```
 
-**Accessibility Tests (5 tests)** — Playwright with axe-core
+**Accessibility Tests (6 tests)** — Playwright with axe-core
 
 ```
 → Navigating to homepage...
@@ -909,7 +910,7 @@ pnpm audit             # Production CVE audit (high+critical only)
 
 The accessibility tests verify:
 
-- **WCAG 2.1 AA compliance** across all page states (initial load, analyzed content, edit mode)
+- **WCAG 2.1 AA compliance** across all page states (initial load, analyzed content, edit mode, and the `/status` page)
 - **Keyboard navigation** including skip links and tab order
 - **Focus management** for all interactive elements
 
@@ -984,14 +985,14 @@ All three phases are complete. For ongoing development:
 
 ### Testing Requirements
 
-- **Unit, security & integration tests:** 233 tests covering the isomorphic core (`shared/`), composables, utilities, report builders, the server proxy, and rate limiting
+- **Unit, security & integration tests:** 282 tests covering the isomorphic core (`shared/`), composables, utilities, report builders, the server proxy, and rate limiting
 - **E2E accessibility:** 5 Playwright tests with axe-core (zero WCAG 2.1 AA violations)
 - **Lighthouse:** Accessibility score must be 100; Performance score must be ≥ 98 on mobile
 - **Manual testing:** Keyboard-only navigation must work
 - **Screen reader:** Test with NVDA or VoiceOver
 - **Linting:** Zero ESLint errors or warnings
 
-Run `pnpm test:all` to execute the complete test suite (233 unit/security/integration + 7 e2e = 240 tests).
+Run `pnpm test:all` to execute the complete test suite (282 unit/security/integration + 8 e2e = 290 tests).
 
 ### Accessibility Standards
 
@@ -1234,6 +1235,8 @@ git push origin main
 - Security event tracking (blocked requests)
 - Sensitive data redaction (tokens, keys in URLs)
 - Netlify function logs for debugging
+- Durable failure log in Supabase (`error_log`, 90-day retention) — survives Netlify's short function-log window; read with `./logs.sh errors`
+- Live service status at [`/status`](https://metapeek.icjia.app/status) (JSON at `/api/status` for uptime monitors), with an up/down beacon in the header
 
 See `documentation/security-testing-guide.md` for comprehensive test cases and [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the full audit report.
 

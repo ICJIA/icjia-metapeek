@@ -90,6 +90,32 @@ describe("logger durable persistence", () => {
     expect(row.ip_hash).toBe(hashIp(RAW_IP));
   });
 
+  it("persists a hostname-resolution failure as level error — typos are not attacks", async () => {
+    await logBlocked({
+      requestId: "r7",
+      url: "https://exmaple.com/page",
+      path: "/api/analyze",
+      reason:
+        "Could not resolve hostname 'exmaple.com'. Check that the domain exists and is spelled correctly.",
+      ip: RAW_IP,
+    });
+    const row = insertedRow();
+    expect(row.level).toBe("error");
+    expect(row.event).toBe("request_blocked");
+  });
+
+  it("persists the outbound status code so api rows match the spa writer's shape", async () => {
+    await logError({
+      requestId: "r8",
+      url: "https://example.com",
+      path: "/api/analyze",
+      error: "upstream returned 502",
+      statusCode: 502,
+      ip: RAW_IP,
+    });
+    expect(insertedRow().status_code).toBe(502);
+  });
+
   it("logSuccess and logWarning stay console-only", async () => {
     logSuccess({
       requestId: "r3",

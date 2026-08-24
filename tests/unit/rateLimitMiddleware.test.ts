@@ -50,31 +50,52 @@ describe("decideRateLimit", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("passes /api/status without consuming buckets or logging a request row", async () => {
+  it("passes bare /api/status without consuming buckets or logging a request row", async () => {
     // The status endpoint is monitoring, not usage: a poller must never eat a
     // visitor's per-IP budget, drain the global one, or spam request_log —
     // and it must stay reachable even when the daily budget returns 503.
     const memoryStore = createMemoryStore();
     const spy = vi.spyOn(memoryStore, "check");
-    const fetchImpl = vi.fn();
-    const deps = makeDeps({
-      memoryStore,
-      env: {
-        SUPABASE_URL: "https://stub.supabase.co",
-        SUPABASE_SECRET_KEY: "sb_secret_stub",
-      },
-      fetchImpl,
-    });
+    const deps = makeDeps({ memoryStore });
 
     expect(
       (await decideRateLimit({ ...baseInput, path: "/api/status" }, deps)).action,
     ).toBe("pass");
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("exempts trailing-slash /api/status/ — routers serve it with the same handler", async () => {
+    // An uptime monitor configured with a trailing slash must not silently
+    // eat the global daily budget the exemption exists to protect.
+    const memoryStore = createMemoryStore();
+    const spy = vi.spyOn(memoryStore, "check");
+    const deps = makeDeps({ memoryStore });
+
     expect(
-      (await decideRateLimit({ ...baseInput, path: "/api/status?pretty=1" }, deps))
-        .action,
+      (await decideRateLimit({ ...baseInput, path: "/api/status/" }, deps)).action,
     ).toBe("pass");
     expect(spy).not.toHaveBeenCalled();
-    expect(fetchImpl).not.toHaveBeenCalled();
+
+    // …but a longer path that merely starts the same is ordinary traffic.
+    await decideRateLimit({ ...baseInput, path: "/api/statusx" }, deps);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("still rate-limits /api/status query variants — cache-busting buys nothing", async () => {
+    // Netlify keys the CDN cache on the query string, so `?x=<random>` always
+    // misses the cache. If those variants were also exempt here, a hostile
+    // poller could drive unlimited function invocations and Supabase RPCs.
+    // Only the bare path (what the page, monitors, and CDN revalidation use)
+    // rides free; every variant pays the normal per-IP price.
+    const memoryStore = createMemoryStore();
+    const spy = vi.spyOn(memoryStore, "check");
+    const deps = makeDeps({ memoryStore });
+
+    expect(
+      (await decideRateLimit({ ...baseInput, path: "/api/status?x=123" }, deps))
+        .action,
+    ).toBe("pass"); // under the limit it still passes…
+    expect(spy).toHaveBeenCalledTimes(1); // …but it consumed a bucket check
   });
 
   it("rejects the 6th default-tier request in a minute with 429 + Retry-After", async () => {

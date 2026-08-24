@@ -28,7 +28,11 @@ import {
   hashIp,
 } from "../../shared/rate-limit-core.mjs";
 import { RATE_LIMIT } from "../../shared/rate-limit-config.mjs";
-import { persistError } from "../../shared/error-log-core.mjs";
+import {
+  persistError,
+  redactUrlSecrets,
+  classifyBlockReason,
+} from "../../shared/error-log-core.mjs";
 
 // ═══════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -240,7 +244,10 @@ async function reportFailure({ level, event, url, statusCode, error, stack, timi
     scope: "spa",
     path: "/api/fetch-spa",
     target_host: targetHost,
-    target_url: typeof url === "string" ? url : undefined,
+    // Redacted here (not just in the sink) so the console.error line below —
+    // which lands in Netlify's function logs — never carries a target-site
+    // token either. The Nitro logger does the same via sanitizeUrlForLogging.
+    target_url: typeof url === "string" ? redactUrlSecrets(url) : undefined,
     status_code: statusCode,
     error,
     stack,
@@ -283,24 +290,18 @@ export default async (req) => {
 
   const url = body?.url;
 
-  // ── Authentication ────────────────────────────────────
+  // A valid bearer token rides the bypass lane. An INVALID one is ordinary
+  // anonymous traffic — the same rule the Nitro middleware applies — so it
+  // is rate-limited below (leaving a request_log row) before the 401:
+  // key-guessing must be neither free nor invisible.
   const apiKey = process.env.METAPEEK_API_KEY;
-  if (apiKey) {
-    const authHeader = req.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!token || !safeEqual(token, apiKey)) {
-      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-  }
+  const authHeader = req.headers.get("authorization") || "";
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const authed = Boolean(apiKey && bearer && safeEqual(bearer, apiKey));
 
   // ── Rate limiting (tiered, Supabase-backed, memory fallback) ──
   // Placed before SSRF validation so denied requests cost no DNS work.
-  // When METAPEEK_API_KEY is set, every request reaching this point has
-  // already presented the valid bearer token — that's the bypass lane.
-  if (!apiKey) {
+  if (!authed) {
     const verdict = await checkRateLimit({
       ip: req.headers.get("x-nf-client-connection-ip") || undefined,
       targetUrl: typeof url === "string" ? url : undefined,
@@ -338,11 +339,21 @@ export default async (req) => {
     }
   }
 
+  // ── Authentication (after limiting, mirroring the Nitro order) ──
+  if (apiKey && !authed) {
+    return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   // ── SSRF Validation ───────────────────────────────────
   const validation = await validateUrlForSpa(url);
   if (!validation.ok) {
     await reportFailure({
-      level: "security",
+      // A typo'd hostname persists as an error, a genuine block as security —
+      // same classification the Nitro logger applies.
+      level: classifyBlockReason(validation.reason),
       event: "request_blocked",
       url,
       statusCode: 400,
@@ -435,8 +446,18 @@ export default async (req) => {
     // Extract the rendered HTML
     const renderedHtml = await page.content();
 
-    // Size check
+    // Size check — a failure exit like any other: persist it, or this class
+    // of fault evaporates with Netlify's log retention.
     if (renderedHtml.length > MAX_RESPONSE_BYTES) {
+      await reportFailure({
+        level: "error",
+        event: "render_too_large",
+        url,
+        statusCode: 413,
+        error: `Rendered page too large (${renderedHtml.length} bytes > ${MAX_RESPONSE_BYTES})`,
+        timingMs: Date.now() - startTime,
+        req,
+      });
       return new Response(JSON.stringify({ ok: false, error: "Rendered page too large" }), {
         status: 413,
         headers: { "Content-Type": "application/json" },

@@ -84,7 +84,10 @@ test.describe('Accessibility Audit - WCAG 2.1 AA Compliance', () => {
     await page.waitForLoadState('networkidle')
 
     console.log('  → Waiting for the status payload to render...')
-    await page.waitForSelector('text=All systems normal', { timeout: 10000 })
+    // Either verdict is a correctly-rendered page — the scan must cover the
+    // degraded state too, and an unreachable Supabase must not read as an
+    // accessibility failure.
+    await page.waitForSelector('text=/All systems normal|Service degraded/', { timeout: 10000 })
     console.log('  → Status rendered, running axe-core scan...')
 
     const results = await new AxeBuilder({ page })

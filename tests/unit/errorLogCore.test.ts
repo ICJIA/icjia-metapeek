@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { persistError } from "#shared/error-log-core.mjs";
+import { persistError, classifyBlockReason } from "#shared/error-log-core.mjs";
 
 const ENV = {
   SUPABASE_URL: "https://stub.supabase.co",
@@ -121,6 +121,52 @@ describe("persistError", () => {
     expect(body.target_url.length).toBeLessThanOrEqual(2048);
   });
 
+  it("redacts sensitive query params in target_url before the row leaves the process", async () => {
+    // The Nitro logger sanitizes before calling; fetch-spa passes the raw
+    // target URL. The sink is the last line of defense, so a token in the
+    // target's query string must never be stored.
+    const fetchImpl = okFetch();
+    await persistError(
+      { ...ENTRY, target_url: "https://example.com/page?token=hunter2&x=1" },
+      { env: ENV, fetchImpl },
+    );
+    const body = JSON.parse(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body.target_url).not.toContain("hunter2");
+    expect(body.target_url).toContain("x=1");
+    expect(body.target_url).toContain("REDACTED");
+  });
+
+  it("redacts URLs embedded in error and stack text — puppeteer messages carry the full target URL", async () => {
+    const fetchImpl = okFetch();
+    await persistError(
+      {
+        ...ENTRY,
+        error: "net::ERR_CONNECTION_REFUSED at https://example.com/cb?token=hunter2",
+        stack:
+          "Error: net::ERR_CONNECTION_REFUSED at https://user:pw@example.com/cb?token=hunter2\n    at navigate",
+      },
+      { env: ENV, fetchImpl },
+    );
+    const body = JSON.parse(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body.error).not.toContain("hunter2");
+    expect(body.error).toContain("REDACTED");
+    expect(body.stack).not.toContain("hunter2");
+    expect(body.stack).not.toContain("pw@");
+    expect(body.stack).toContain("at navigate");
+  });
+
+  it("strips basic-auth credentials from target_url — userinfo is not a query param", async () => {
+    const fetchImpl = okFetch();
+    await persistError(
+      { ...ENTRY, target_url: "https://admin:hunter2@staging.example.com/page?x=1" },
+      { env: ENV, fetchImpl },
+    );
+    const body = JSON.parse(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body.target_url).not.toContain("hunter2");
+    expect(body.target_url).not.toContain("admin");
+    expect(body.target_url).toContain("staging.example.com/page");
+  });
+
   it("drops keys that are not error_log columns — a stray raw ip never leaves the process", async () => {
     const fetchImpl = okFetch();
     await persistError(
@@ -131,5 +177,21 @@ describe("persistError", () => {
     expect(body.ip).toBeUndefined();
     expect(body.secret).toBeUndefined();
     expect(JSON.stringify(body)).not.toContain("203.0.113.9");
+  });
+});
+
+describe("classifyBlockReason", () => {
+  it("treats a hostname-resolution failure as an error — a typo is not an attack", () => {
+    expect(
+      classifyBlockReason(
+        "Could not resolve hostname 'exmaple.com'. Check that the domain exists and is spelled correctly.",
+      ),
+    ).toBe("error");
+  });
+
+  it("keeps genuine blocks as security events", () => {
+    expect(classifyBlockReason("Internal addresses are not allowed")).toBe("security");
+    expect(classifyBlockReason("URL resolves to a private address")).toBe("security");
+    expect(classifyBlockReason(undefined)).toBe("security");
   });
 });

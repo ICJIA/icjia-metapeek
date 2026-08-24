@@ -43,6 +43,72 @@
  * }} ErrorLogEntry
  */
 
+/**
+ * Query-param names whose values are redacted from target_url before a row
+ * leaves the process. Mirrors sanitizeUrlForLogging in server/utils/logger.ts;
+ * kept here too because fetch-spa passes raw target URLs and the sink is the
+ * last line of defense — a token for the TARGET site must never be stored.
+ */
+const SENSITIVE_PARAMS = new Set([
+  "token", "key", "apikey", "api_key", "secret", "password", "pass", "pwd",
+  "auth", "authorization", "session", "sid", "jwt", "bearer", "oauth",
+]);
+
+/**
+ * Redacts sensitive query-param values in a URL. Unparseable input is
+ * returned truncated rather than dropped — a malformed URL is still signal.
+ *
+ * @param {string} url
+ * @returns {string}
+ */
+export function redactUrlSecrets(url) {
+  try {
+    const parsed = new URL(url);
+    // Basic-auth userinfo is a credential for the TARGET site — never store
+    // any of it, not even the username.
+    parsed.username = "";
+    parsed.password = "";
+    for (const [key] of parsed.searchParams) {
+      if (SENSITIVE_PARAMS.has(key.toLowerCase())) {
+        parsed.searchParams.set(key, "[REDACTED]");
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return url.length > 100 ? url.slice(0, 100) + "..." : url;
+  }
+}
+
+/**
+ * Redacts every URL embedded in free text. Puppeteer/undici error messages
+ * and stacks quote the full target URL ("net::ERR_CONNECTION_REFUSED at
+ * https://…?token=…"), which would defeat target_url redaction if stored
+ * verbatim — the sink scrubs the text fields too, covering every writer.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function redactUrlsInText(text) {
+  return text.replace(/https?:\/\/[^\s"'<>()[\]]+/g, (u) => redactUrlSecrets(u));
+}
+
+/**
+ * Level for a blocked request, by its block reason. A hostname that simply
+ * does not resolve is a typo, not an attack — persisting it as "security"
+ * would drown the real SSRF signal (private-address probes, blocked internal
+ * hostnames) in fat-fingered domains. Anything unrecognized stays "security":
+ * under-alarming is the failure mode to avoid.
+ *
+ * @param {string | undefined} reason
+ * @returns {"error" | "security"}
+ */
+export function classifyBlockReason(reason) {
+  if (typeof reason === "string" && /^could not resolve hostname/i.test(reason)) {
+    return "error";
+  }
+  return "security";
+}
+
 /** Caps mirror the left() truncation check_rate_limits applies to request_log. */
 const TEXT_CAPS = {
   event: 100,
@@ -70,8 +136,10 @@ function toRow(entry) {
   if (typeof entry.status_code === "number") row.status_code = entry.status_code;
   if (typeof entry.timing_ms === "number") row.timing_ms = Math.round(entry.timing_ms);
   for (const [key, cap] of Object.entries(TEXT_CAPS)) {
-    const value = /** @type {Record<string, unknown>} */ (entry)[key];
+    let value = /** @type {Record<string, unknown>} */ (entry)[key];
     if (typeof value === "string" && value.length > 0) {
+      if (key === "target_url") value = redactUrlSecrets(value);
+      if (key === "error" || key === "stack") value = redactUrlsInText(value);
       row[key] = value.length > cap ? value.slice(0, cap) : value;
     }
   }

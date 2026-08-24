@@ -70,11 +70,16 @@ export async function decideRateLimit(
   if (!input.path.startsWith("/api/")) return { action: "pass" };
   if (input.method === "OPTIONS") return { action: "pass" };
 
-  // /api/status is monitoring, not usage: it must not eat a visitor's per-IP
-  // buckets, drain the global budget, or write request_log noise — and it has
-  // to stay reachable when the daily budget is answering 503. Its own cost is
-  // bounded by the CDN cache the handler sets, not by the limiter.
-  if (input.path.split("?")[0] === "/api/status") return { action: "pass" };
+  // Bare /api/status is monitoring, not usage: it must not eat a visitor's
+  // per-IP buckets, drain the global budget, or write request_log noise — and
+  // it has to stay reachable when the daily budget is answering 503. Its cost
+  // is bounded by the CDN cache the handler sets. Trailing slashes are
+  // exempt too (routers serve them with the same handler, and an uptime
+  // monitor configured with one must not silently eat the budget), but any
+  // query string stays rate-limited: Netlify keys the CDN cache on the query
+  // string, so if `?x=<random>` were exempt as well, cache-busting would buy
+  // unlimited function invocations and Supabase RPCs.
+  if (/^\/api\/status\/*$/.test(input.path)) return { action: "pass" };
 
   // A valid internal/partner bearer token skips limiting entirely. An
   // invalid one is ordinary anonymous traffic — it still gets limited here

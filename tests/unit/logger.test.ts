@@ -20,10 +20,18 @@ let spy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   spy = vi.spyOn(console, "log").mockImplementation(() => {});
+  // logError/logBlocked also write to the durable Supabase sink now. Blank
+  // credentials + a stubbed fetch keep a developer's exported shell env from
+  // inserting these fake entries into the production error_log on pnpm test.
+  vi.stubEnv("SUPABASE_URL", "");
+  vi.stubEnv("SUPABASE_SECRET_KEY", "");
+  vi.stubGlobal("fetch", vi.fn());
 });
 
 afterEach(() => {
   spy.mockRestore();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 /** The JSON entry from the most recent console.log call. */

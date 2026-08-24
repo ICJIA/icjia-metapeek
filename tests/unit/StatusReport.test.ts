@@ -70,6 +70,26 @@ describe("StatusReport", () => {
     expect(text).toContain("12");
   });
 
+  it("keeps meter semantics in range when demand exceeded the cap", () => {
+    // check_rate_limits increments the global counter even on denied attempts,
+    // so used can exceed limit once the budget trips. The raw number stays
+    // visible (real demand is signal), but the meter must not report
+    // aria-valuenow beyond aria-valuemax, and the note must say the cap hit.
+    const tripped: StatusPayload = {
+      ...HEALTHY,
+      budget: {
+        api: { used: 3412, limit: 2000, windowStartedAt: "2026-08-24T03:00:00+00:00" },
+        spa: { used: 7, limit: 100 },
+      },
+    };
+    const wrapper = mount(StatusReport, { global, props: { status: tripped } });
+    const api = wrapper.findAll("[role='meter']")[0]!;
+    expect(api.attributes("aria-valuenow")).toBe("2000");
+    expect(api.attributes("aria-valuemax")).toBe("2000");
+    expect(wrapper.text()).toContain("3,412");
+    expect(wrapper.text().toLowerCase()).toContain("cap reached");
+  });
+
   it("states the degraded verdict when a configured Supabase is unreachable", () => {
     const degraded: StatusPayload = {
       ...HEALTHY,

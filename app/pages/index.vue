@@ -41,6 +41,31 @@ const colorMode = useColorMode();
 const route = useRoute();
 // Single-sourced from package.json via nuxt.config — never hardcode it here.
 const appVersion = useRuntimeConfig().public.version;
+
+// Live up/down beacon on the header's Status link. /api/status is CDN-cached
+// 60s (SWR 5 min) and exempt from rate limiting, so most page views are a
+// CDN hit; a cache miss (first hit per window per edge node) invokes the
+// function and its one status RPC. Client-only and lazy: the prerendered
+// page never bakes a stale verdict and first paint never waits.
+const { data: serviceStatus, error: serviceStatusError } = useFetch<{
+  ok: boolean;
+}>("/api/status", { server: false, lazy: true });
+const serviceOk = computed<boolean | null>(() => {
+  // Red only when the service itself SAYS not-ok. A failed client fetch
+  // (privacy extension, proxy, network blip) proves nothing about the
+  // service — announcing "degraded" for it would cry wolf, so the beacon
+  // stays neutral. A real full outage takes the page down with it anyway.
+  if (serviceStatus.value) return serviceStatus.value.ok === true;
+  if (serviceStatusError.value) return null;
+  return null; // still checking
+});
+const statusAriaLabel = computed(() =>
+  serviceOk.value === true
+    ? "Service status: all systems normal"
+    : serviceOk.value === false
+      ? "Service status: degraded"
+      : "Service status",
+);
 const toast = useToast();
 const { parseMetaTags } = useMetaParser();
 const { generateDiagnostics } = useDiagnostics();
@@ -660,6 +685,19 @@ const exportAsHtml = () => {
                 ><div class="w-9 h-9" aria-hidden="true"
               /></template>
             </ClientOnly>
+            <NuxtLink
+              to="/status"
+              class="relative p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              :aria-label="statusAriaLabel"
+              :title="statusAriaLabel"
+            >
+              <UIcon
+                name="i-heroicons-signal"
+                class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                aria-hidden="true"
+              />
+              <StatusBeacon :ok="serviceOk" class="absolute top-1.5 right-1.5" />
+            </NuxtLink>
             <a
               href="https://github.com/ICJIA/icjia-metapeek"
               target="_blank"

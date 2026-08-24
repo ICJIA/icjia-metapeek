@@ -112,6 +112,40 @@ describe("buildStatus", () => {
     ).resolves.toMatchObject({ ok: false });
   });
 
+  it("treats a 200 with a JSON-null body as empty data, not an outage", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response("null", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    const status = await buildStatus({ env: ENV, fetchImpl, ...IDENTITY });
+    expect(status.ok).toBe(true);
+    expect(status.checks.supabase.ok).toBe(true);
+    expect(status.usage?.last24h.total).toBe(0);
+  });
+
+  it("reports WHY the check failed through the log callback — never silently", async () => {
+    const log = vi.fn();
+    const fetchImpl = vi.fn(async () => new Response("nope", { status: 401 }));
+    await buildStatus({ env: ENV, fetchImpl, log, ...IDENTITY });
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "status_check_failed",
+        error: expect.stringContaining("401"),
+      }),
+    );
+
+    const rejecting = vi.fn(async () => {
+      throw new Error("ECONNREFUSED");
+    });
+    await buildStatus({ env: ENV, fetchImpl: rejecting, log, ...IDENTITY });
+    expect(log).toHaveBeenLastCalledWith(
+      expect.objectContaining({ error: expect.stringContaining("ECONNREFUSED") }),
+    );
+  });
+
   it("rebuilds the payload field by field — unexpected RPC keys never leak through", async () => {
     const fetchImpl = rpcFetch({
       ...SUMMARY,

@@ -91,6 +91,7 @@ export default defineEventHandler(async (event) => {
       url,
       path: "/api/analyze",
       reason: validation.reason || "Invalid URL",
+      statusCode: 400,
       ip: clientIp,
       userAgent,
     });
@@ -175,6 +176,7 @@ export default defineEventHandler(async (event) => {
       path: "/api/analyze",
       error: err.message ?? "Unknown error",
       stack: err.stack,
+      statusCode: (err as { statusCode?: number }).statusCode,
       timing: Date.now() - startedAt,
       ip: clientIp,
       userAgent,

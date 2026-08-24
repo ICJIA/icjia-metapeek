@@ -83,6 +83,54 @@ describe("fetch-spa durable error logging", () => {
     expect(JSON.stringify(row)).not.toContain(RAW_IP);
   });
 
+  it("never persists secrets from the target URL's query string", async () => {
+    const inserts = stubNetwork();
+    const res = await handler(
+      spaRequest("http://localhost/cb?apikey=sk-verysecret&page=2"),
+    );
+    expect(res.status).toBe(400); // localhost is SSRF-blocked
+    expect(inserts).toHaveLength(1);
+    const stored = JSON.stringify(inserts[0]!.body);
+    expect(stored).not.toContain("sk-verysecret");
+    expect(stored).toContain("page=2");
+  });
+
+  it("rate-limits invalid-bearer probes before answering 401 — key guessing is metered traffic", async () => {
+    // With METAPEEK_API_KEY set, only a VALID bearer rides the bypass lane.
+    // An invalid one is anonymous traffic (same rule as the Nitro
+    // middleware): it must consume rate-limit buckets — and therefore leave
+    // a request_log row — before the 401, so a brute-force campaign is
+    // neither free nor invisible.
+    vi.stubEnv("METAPEEK_API_KEY", "the-real-key");
+    let rpcCalls = 0;
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.includes("/rest/v1/rpc/check_rate_limits")) {
+        rpcCalls += 1;
+        return new Response(
+          JSON.stringify({ allowed: true, violated_key: null, retry_after: 0 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      throw new Error(`unexpected fetch in test: ${u}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = new Request("http://localhost/api/fetch-spa", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer wrong-guess",
+        "x-nf-client-connection-ip": RAW_IP,
+      },
+      body: JSON.stringify({ url: "https://example.com" }),
+    });
+    const res = await handler(req);
+
+    expect(res.status).toBe(401);
+    expect(rpcCalls).toBe(1);
+  });
+
   it("still returns the 400 when the error_log insert itself fails", async () => {
     const fetchMock = vi.fn(async (url: string | URL) => {
       const u = String(url);

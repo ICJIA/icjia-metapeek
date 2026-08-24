@@ -438,20 +438,32 @@ cmd_stats() {  # $1 date (optional)
     q="select=scope,tier,allowed,violated_key&$filter&order=at.desc&limit=10000"
     eq="$eq&$filter"
   fi
+  # The two legs cover different windows when DATE is omitted (requests: the
+  # newest $HOSTS_DEFAULT rows; failures: everything on file) — each line
+  # says which, so the juxtaposition cannot mislead.
+  local span="all 90 retained days"
+  [ -n "${1:-}" ] && span="that day"
   local requests errors
   requests="$(fetch request_log "$q" | render table stats)" || exit $?
   # One line on the durable error_log: how many failures, at which level.
-  errors="$(fetch error_log "$eq" | python3 -c '
-import json, sys
+  # `if raw.strip()` mirrors render(): empty stdin (a failed fetch) must not
+  # dump a JSONDecodeError traceback over the stats that did load.
+  errors="$(fetch error_log "$eq" | LOGS_SPAN="$span" python3 -c '
+import json, os, sys
 from collections import Counter
-rows = json.load(sys.stdin) or []
+raw = sys.stdin.read().strip()
+rows = json.loads(raw) if raw else []
+if isinstance(rows, dict):                       # a PostgREST error object
+    print(rows.get("message", rows), file=sys.stderr)
+    sys.exit(1)
 c = Counter(r.get("level") or "?" for r in rows)
 n = sum(c.values())
+span = os.environ.get("LOGS_SPAN", "")
 if n:
     detail = ", ".join(f"{k} {v}" for k, v in c.most_common())
-    print(f"{n} failure(s) persisted ({detail}) — ./logs.sh errors shows them")
+    print(f"{n} failure(s) persisted across {span} ({detail}) — ./logs.sh errors shows them")
 else:
-    print("no failures persisted")')" || exit $?
+    print(f"no failures persisted across {span}")')" || exit $?
   printf '%s\n\n%s\n' "$requests" "$errors"
 }
 
