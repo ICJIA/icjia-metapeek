@@ -16,11 +16,18 @@ interface Props {
   text: string
   position?: 'top' | 'bottom' | 'left' | 'right' | 'auto'
   delay?: number
+  /**
+   * Stretch the wrapper to fill its container. The default `inline-flex` is
+   * right around a normal inline control, but inside a grid it refuses to
+   * stretch, so the button it wraps cannot fill its cell.
+   */
+  block?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   position: 'auto',
-  delay: 0
+  delay: 0,
+  block: false
 })
 
 const isVisible = ref(false)
@@ -201,16 +208,19 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div 
+  <div
     ref="triggerRef"
-    class="inline-flex"
+    :class="props.block ? 'flex w-full' : 'inline-flex'"
     @mouseenter="show"
     @mouseleave="hide"
     @focusin="show"
     @focusout="hide"
   >
     <!-- Trigger element -->
-    <div :aria-describedby="isVisible ? tooltipId : undefined">
+    <div
+      :class="props.block ? 'w-full' : undefined"
+      :aria-describedby="isVisible ? tooltipId : undefined"
+    >
       <slot />
     </div>
     

@@ -9,6 +9,7 @@
 import type { MetaTags, Diagnostics } from "~/types/meta";
 
 import type { ImageAnalysisResult } from "~/composables/useDiagnostics";
+import { normalizeUrlInput } from "~/utils/urlInput";
 import {
   extractHeadSection,
   buildExportData,
@@ -242,15 +243,20 @@ const resetAll = () => {
 const handleFetchUrl = async () => {
   if (!inputUrl.value.trim()) return;
 
-  // Auto-add https:// if the user entered a bare domain (e.g. "example.com")
+  // Add https:// to a bare domain, or repair a mistyped scheme. Reporting the
+  // two separately matters: telling someone a prefix was "added" to a URL that
+  // visibly starts with https reads as a bug in the tool.
   httpsPrefixAdded.value = false;
-  const trimmed = inputUrl.value.trim();
-  if (!/^https?:\/\//i.test(trimmed)) {
-    inputUrl.value = `https://${trimmed}`;
+  const normalized = normalizeUrlInput(inputUrl.value);
+  if (normalized.change !== "none") {
+    inputUrl.value = normalized.url;
     httpsPrefixAdded.value = true;
     toast.add({
-      title: "https:// prefix added",
-      description: `Fetching ${inputUrl.value}`,
+      title:
+        normalized.change === "corrected"
+          ? "URL corrected"
+          : "https:// prefix added",
+      description: `Fetching ${normalized.url}`,
       icon: "i-heroicons-information-circle",
       color: "info",
       duration: 3000,
@@ -1730,15 +1736,22 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
               Download Files
             </h3>
-            <div class="flex flex-wrap gap-3">
+            <!--
+              One column on phones, three across from sm up. The buttons fill
+              their cells so the row spans the panel instead of trailing off
+              into empty space on the right.
+            -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <AppTooltip
+                block
                 text="Structured data for developers and automated tools"
                 position="top"
               >
                 <UButton
-                  size="lg"
+                  block
+                  size="xl"
                   variant="solid"
-                  class="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800 text-white"
+                  class="py-4 text-base font-semibold bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800 text-white"
                   icon="i-heroicons-code-bracket"
                   @click="exportAsJson"
                 >
@@ -1746,13 +1759,15 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 </UButton>
               </AppTooltip>
               <AppTooltip
+                block
                 text="Best for pasting into ChatGPT, Claude, or other AI assistants"
                 position="top"
               >
                 <UButton
-                  size="lg"
+                  block
+                  size="xl"
                   variant="solid"
-                  class="bg-violet-600 hover:bg-violet-700 dark:bg-violet-700 dark:hover:bg-violet-800 text-white"
+                  class="py-4 text-base font-semibold bg-violet-600 hover:bg-violet-700 dark:bg-violet-700 dark:hover:bg-violet-800 text-white"
                   icon="i-heroicons-document-text"
                   @click="exportAsMarkdown"
                 >
@@ -1760,13 +1775,15 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 </UButton>
               </AppTooltip>
               <AppTooltip
+                block
                 text="Printable report to share with your team or stakeholders"
                 position="top"
               >
                 <UButton
-                  size="lg"
+                  block
+                  size="xl"
                   variant="solid"
-                  class="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-800 text-white"
+                  class="py-4 text-base font-semibold bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-800 text-white"
                   icon="i-heroicons-globe-alt"
                   @click="exportAsHtml"
                 >
@@ -1784,15 +1801,18 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
               <UIcon name="i-heroicons-clipboard-document" class="w-4 h-4" />
               Copy to Clipboard
             </h3>
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <AppTooltip
+                block
                 text="Copy formatted text — ideal for pasting into AI assistants"
                 position="top"
               >
                 <UButton
-                  size="lg"
+                  block
+                  size="xl"
                   variant="outline"
                   color="neutral"
+                  class="py-4 text-base font-semibold"
                   icon="i-heroicons-clipboard-document"
                   @click="copyMarkdownToClipboard"
                 >
@@ -1800,21 +1820,26 @@ Tip: Right-click on your webpage → 'View Page Source' → Copy the <head> sect
                 </UButton>
               </AppTooltip>
               <AppTooltip
+                block
                 text="Copy structured data for use in scripts or APIs"
                 position="top"
               >
                 <UButton
-                  size="lg"
+                  block
+                  size="xl"
                   variant="outline"
                   color="neutral"
+                  class="py-4 text-base font-semibold"
                   icon="i-heroicons-clipboard-document"
                   @click="copyJsonToClipboard"
                 >
                   Copy JSON
                 </UButton>
               </AppTooltip>
+            </div>
 
-              <!-- Copied indicator -->
+            <!-- Copied indicator: its own row, so appearing cannot reflow the grid -->
+            <div class="mt-3 min-h-[2rem]" aria-live="polite">
               <Transition
                 enter-active-class="transition-all duration-200 ease-out"
                 enter-from-class="opacity-0 translate-x-2"

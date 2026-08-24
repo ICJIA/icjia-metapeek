@@ -24,7 +24,7 @@ finding, why it mattered in this codebase, and what was done about it — in
 
 - `pnpm audit --prod --audit-level high` → **exits clean**
 - 3 advisories have no upstream patch (`extract-zip` CVE-2026-56876, `image-size` CVE-2025-71329/71330) and are listed explicitly in `pnpm.auditConfig.ignoreCves` — neither code path is reachable in MetaPeek, and listing them keeps a genuinely new finding failing the build. Re-review when `puppeteer-core` / `@nuxtjs/seo` upgrade. See DR-02
-- **221** unit, security, and integration tests pass
+- **229** unit, security, and integration tests pass
 - Production build succeeds with the Nitro netlify preset, prerender included
 - Re-checked automatically: `.github/workflows/audit.yml`, weekly and on every dependency change
 
@@ -45,6 +45,39 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
 | ARIA landmarks | PASS | Live regions properly nested in landmarks |
 
 **Tests:** 5 Playwright tests (3 axe-core scans + 2 keyboard navigation) — all passing with 0 violations.
+
+---
+
+## [0.17.1] - 2026-08-24
+
+### Changed
+
+- **Export buttons fill their row.** The download and copy buttons were
+  auto-width in a left-aligned flex row, so on a wide screen they clustered at
+  the left with a stretch of empty panel to their right. They are now a
+  responsive grid — three across for downloads, two for copy, collapsing to one
+  column below the `sm` breakpoint — at `size="xl"`. Measured: 343x56 each at
+  1440px (grid spans the full 1054px panel), 233x56 at 820px, and full-width
+  308x56 single column at 390px, with no horizontal overflow at any width and
+  every button comfortably above the 44px touch-target minimum.
+- `AppTooltip` gained a `block` prop. Its wrapper is `inline-flex`, which is
+  correct around an inline control but prevents a wrapped button from filling a
+  grid cell; `block` stretches the wrapper and the trigger.
+- The "copied!" confirmation moved to its own row with reserved height and
+  `aria-live="polite"`, so it is announced to screen readers and can no longer
+  reflow the button grid when it appears.
+
+### Fixed
+
+- **"https:// prefix added" could appear on a URL that already had a scheme.**
+  The check was `!/^https?:\/\//` → prepend, which is right for a bare domain
+  but wrong for a mistyped one: `https:/example.com` (one slash) failed the
+  test and became `https://https:/example.com`, reported as a prefix merely
+  being "added". Also affected `https//example.com`, `https:///example.com`,
+  and similar. Input now goes through `normalizeUrlInput`, which repairs a
+  malformed http(s) scheme instead of stacking another one in front, leaves
+  valid and non-http schemes untouched, and distinguishes "URL corrected" from
+  "https:// prefix added" in the toast. 8 new tests.
 
 ---
 
