@@ -1,9 +1,15 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, type Plugin } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 
 export default defineConfig({
-  plugins: [vue()],
+  // Two Vite majors are installed: vitest 3.2 brings Vite 7, while Nuxt 4.5
+  // (and the hoisted @vitejs/plugin-vue it owns) is built on Vite 8. The
+  // plugin is structurally fine in both — tests run green — but TypeScript
+  // sees two distinct Plugin identities and rejects the assignment. The cast
+  // reconciles the identities only; drop it once vitest and Nuxt agree on a
+  // Vite major.
+  plugins: [vue() as Plugin],
   resolve: {
     alias: {
       "~": resolve(__dirname, "./app"),

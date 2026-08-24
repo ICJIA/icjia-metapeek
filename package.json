@@ -8,6 +8,7 @@
     "#shared/*": "./shared/*"
   },
   "scripts": {
+    "postinstall": "nuxt prepare",
     "dev": "nuxt dev",
     "start-dev-server": "./scripts/start-dev-server.sh",
     "build": "nuxt build",
@@ -20,7 +21,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:accessibility": "playwright test --reporter=list",
-    "typecheck": "nuxt typecheck",
+    "typecheck": "nuxt typecheck && tsc --noEmit --project tsconfig.tools.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "clean": "nuxt cleanup",
@@ -45,6 +46,7 @@
     "@nuxt/eslint": "^1.17.0",
     "@nuxt/test-utils": "^3.23.0",
     "@playwright/test": "^1.62.1",
+    "@vitejs/plugin-vue": "^6.0.8",
     "@vitest/coverage-v8": "^3.2.7",
     "@vue/test-utils": "^2.4.11",
     "eslint": "^9.39.5",
@@ -76,7 +78,7 @@
       "nuxt-og-image@<6.2.5": ">=6.2.5"
     },
     "auditConfig": {
-      "//": "Accepted advisories — no upstream patch exists (upstream lists patched: <0.0.0). Each is unreachable in MetaPeek; see SECURITY-AUDIT.md DR-02. Re-review whenever a fix ships.",
+      "//": "Accepted advisories \u2014 no upstream patch exists (upstream lists patched: <0.0.0). Each is unreachable in MetaPeek; see SECURITY-AUDIT.md DR-02. Re-review whenever a fix ships.",
       "ignoreCves": [
         "CVE-2026-56876",
         "CVE-2025-71329",

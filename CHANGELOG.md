@@ -81,11 +81,38 @@ A full axe-core (WCAG 2.1 AA) accessibility audit was performed on 2026-03-26 us
   was verified with tests, lint, and a production build — and `nuxt build` does
   not typecheck. Only `pnpm typecheck` catches it.
 
+- **`vitest.config.ts` did not compile.** Two Vite majors are installed —
+  vitest 3.2 brings Vite 7, Nuxt 4.5 is built on Vite 8 — so `defineConfig`
+  (from vitest) rejected the plugin returned by `@vitejs/plugin-vue` (hoisted
+  from Nuxt). The two are structurally compatible and the tests always ran; only
+  the types disagreed. Now cast to vitest's own `Plugin` type, with a note to
+  drop the cast once the two agree on a Vite major.
+- **`@vitejs/plugin-vue` was imported but never declared.** `vitest.config.ts`
+  relied on `shamefully-hoist=true` putting it in scope. Added to
+  `devDependencies` so the import is honest and does not break if hoisting
+  changes. (`playwright.config.ts`, reported alongside this, typechecks clean —
+  the errors were coming from `vitest.config.ts`.)
+- **`pnpm typecheck` did not cover the root config files.** Nuxt's generated
+  tsconfig includes `app/`, `shared/`, and `server/`, but not
+  `vitest.config.ts` or `playwright.config.ts` — which is how a config that
+  failed to compile sat unnoticed behind a green typecheck. `typecheck` now
+  also runs `tsconfig.tools.json` over them. Verified by reintroducing the
+  error and confirming the check fails.
+
+  Deliberately scoped to the root config files. Covering `tests/` and
+  `scripts/` needs Nuxt's auto-import and `.mjs` resolution; a config that only
+  half-replicates that reports false positives, which is worse than no check.
+  Those remain uncovered, and are called out here rather than papered over.
+
 ### Added
 
 - **`.github/workflows/verify.yml`** — runs lint, typecheck, and the test suite
   on every push and PR. Directly closes the gap above: nothing was running
   `pnpm typecheck` automatically, so a green build read as a green change.
+- **`postinstall: nuxt prepare`** — `eslint.config.mjs` imports the generated
+  `.nuxt/eslint.config.mjs`, so lint and typecheck fail on any clean checkout
+  until Nuxt has prepared. The first CI run failed on exactly this; the
+  conventional Nuxt postinstall hook fixes it for CI and fresh clones alike.
 
 ### Tests
 

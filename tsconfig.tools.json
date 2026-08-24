@@ -1,0 +1,13 @@
+{
+  "//": "Typechecks the root config files. Nuxt's generated tsconfig covers app/, shared/, and server/, but not these — which is how a vitest.config.ts that failed to compile went unnoticed while `pnpm typecheck` stayed green. Deliberately narrow: tests/ and scripts/ need Nuxt's auto-import and .mjs resolution to check honestly, and a config that half-replicates that produces false positives, which is worse than no check.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["playwright.config.ts", "vitest.config.ts"]
+}
